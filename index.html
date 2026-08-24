@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Авто-ателье">
+    <title>Учет авто-ателье</title>
+    <base href="./">
+    <link rel="stylesheet" href="css/styles.css">
+
+
+</head>
+<body>
+<!-- Сначала загружаем app.js ДО Firebase -->
+<script src="js/app.js"></script>
+<div class="container">
+    <div class="toolbar">
+        <h1>🚗 Учет авто-ателье</h1>
+        <div style="flex:1;"></div>
+    </div>
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
+        <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
+        <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
+        <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
+        <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
+        <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
+        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
+    </div>
+
+    <!-- Вкладка Заказы -->
+    <div id="tab-orders" class="tab-content active">
+        <div class="inline-flex" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-sm btn-primary filter-btn active" data-filter="all">Все</button>
+                <button class="btn btn-sm btn-success filter-btn" data-filter="new">🟢 Новые</button>
+                <button class="btn btn-sm btn-warning filter-btn" data-filter="middle">🟡 Срочные</button>
+                <button class="btn btn-sm btn-danger filter-btn" data-filter="critical">🔴 Очень срочные</button>
+                <button class="btn btn-sm btn-secondary filter-btn" data-filter="done">✅ Выполненные</button>
+                <button class="btn btn-sm btn-danger filter-btn" data-filter="unpaid">💳 Не оплачено</button>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button class="btn-add" onclick="openOrderModal()">+ Добавить заказ</button>
+                <span style="font-size:14px; color:#6c757d; margin-left:10px;">Всего: <b id="orderCount">0</b></span>
+            </div>
+        </div>
+        <div id="unpaidSummary">
+            Неоплаченных заказов: <span id="unpaidCount">0</span>, общая сумма: <span id="unpaidSum">0</span> ₽
+        </div>
+        <div class="orders-list" id="ordersList"></div>
+    </div>
+
+    <!-- Вкладка Склад -->
+    <div id="tab-stock" class="tab-content">
+        <div class="scroll-wrap">
+            <table class="stock-table">
+                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th></tr></thead>
+                <tbody id="stockBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Вкладка Деньги -->
+    <div id="tab-cash" class="tab-content">
+        <div class="inline-flex" style="justify-content:space-between;">
+            <button class="btn-add" onclick="addCashRow()">+ Добавить операцию</button>
+            <span style="font-size:14px; color:#6c757d;">Баланс: <b id="cashBalance">0</b> ₽</span>
+        </div>
+        <div class="scroll-wrap">
+            <table>
+                <thead><tr><th>Дата</th><th>Описание</th><th>Приход</th><th>Расход</th><th>Баланс</th><th></th></tr></thead>
+                <tbody id="cashBody"></tbody>
+            </table>
+        </div>
+        <div style="margin-top:20px;">
+            <h3>Регулярные расходы</h3>
+            <div id="regularExpensesList"></div>
+            <button class="btn-extra" onclick="addRegularExpense()">➕ Добавить регулярный расход</button>
+            <h3 style="margin-top:15px;">Регулярные доходы</h3>
+            <div id="regularIncomesList"></div>
+            <button class="btn-extra" onclick="addRegularIncome()">➕ Добавить регулярный доход</button>
+        </div>
+    </div>
+
+    <!-- Вкладка Итоги -->
+    <div id="tab-summary" class="tab-content">
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Отчёт по финансовым показателям</h2>
+        
+        <div class="summary-header">
+            <div class="inline-flex" style="gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                <button class="btn-sm btn-primary" onclick="setReportPeriod('month')" id="btnMonth">📅 По месяцу</button>
+                <button class="btn-sm btn-secondary" onclick="setReportPeriod('quarter')" id="btnQuarter">📆 По кварталу</button>
+                <button class="btn-sm btn-secondary" onclick="setReportPeriod('year')" id="btnYear">📊 По году</button>
+                <button class="btn-sm btn-warning" onclick="setReportPeriod('custom')" id="btnCustom">🗓 Произвольный период</button>
+            </div>
+            
+            <div id="periodControls" class="inline-flex" style="gap:10px; flex-wrap:wrap; align-items:center;">
+                <select id="summaryYear" onchange="renderSummary()" style="padding:8px; border-radius:6px; border:1px solid #ced4da;"></select>
+                <select id="summaryMonth" onchange="renderSummary()" style="padding:8px; border-radius:6px; border:1px solid #ced4da;"></select>
+                <input type="date" id="customDateFrom" style="display:none; padding:8px; border-radius:6px; border:1px solid #ced4da;" onchange="renderSummary()">
+                <span style="font-size:14px; color:#6c757d;">—</span>
+                <input type="date" id="customDateTo" style="display:none; padding:8px; border-radius:6px; border:1px solid #ced4da;" onchange="renderSummary()">
+            </div>
+        </div>
+        
+        <div class="summary-title" id="summaryTitle"></div>
+        <div class="summary-subtitle" id="summarySubtitle"></div>
+        
+        <div class="summary-block" id="summaryBlock"></div>
+        
+        <div class="summary-footer" style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn-sm btn-success" onclick="printSummaryReport()">🖨️ Печать отчёта</button>
+            <button class="btn-sm btn-info" onclick="exportSummaryReport()">📤 Экспорт в текстовый файл</button>
+            <button class="btn-sm btn-secondary" onclick="resetReportPeriod()">↺ Сбросить</button>
+        </div>
+        
+        <div class="note" style="margin-top:20px;">
+            📌 Отчёт показывает финансовые показатели за выбранный период. <br>
+            💡 Используйте кнопки для быстрого выбора периода или укажите произвольные даты. <br>
+            🖨️ Кнопка "Печать отчёта" формирует готовый документ для печати.
+        </div>
+    </div>
+
+    <!-- Вкладка Календарь -->
+    <div id="tab-calendar" class="tab-content">
+        <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="changeMonth(-1)" style="padding:8px 12px; font-size:16px;">◀</button>
+                <button onclick="goToday()" style="padding:8px 16px; font-size:14px; font-weight:600; background:#007bff; color:#fff; border:none; border-radius:20px; cursor:pointer;">📍 Сегодня</button>
+                <button onclick="goTomorrow()" style="padding:8px 16px; font-size:14px; font-weight:600; background:#28a745; color:#fff; border:none; border-radius:20px; cursor:pointer;">Завтра ▶</button>
+            </div>
+            <h2 id="calendarTitle" style="font-size:20px; color:#1a3c5e; margin:0;"></h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="toggleCalendarView()" id="viewToggleBtn" style="padding:8px 14px; font-size:13px; font-weight:600; background:#6c757d; color:#fff; border:none; border-radius:20px; cursor:pointer;">📅 Неделя</button>
+                <button onclick="exportCalendar()" style="padding:8px 14px; font-size:13px; font-weight:600; background:#17a2b8; color:#fff; border:none; border-radius:20px; cursor:pointer;">📤 Экспорт</button>
+            </div>
+        </div>
+        <div id="calendarSummary" style="background:#f8f9fa; padding:10px; border-radius:8px; margin:10px 0; display:flex; gap:15px; flex-wrap:wrap; font-size:14px; font-weight:600;"></div>
+        <div id="serviceFilterContainer" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
+            <span style="font-size:14px; color:#6c757d;">Услуги:</span>
+            <button class="service-filter-btn active" data-service="all" onclick="filterByService('all')">Все</button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="schedule-container">
+            <h3>Расписание на <span id="selectedDateDisplay"></span></h3>
+            <div class="schedule-grid" id="scheduleGrid"></div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
+            <button class="btn-add" onclick="openNoteModal()" style="background:#6f42c1;">📝 Добавить заметку</button>
+        </div>
+    </div>
+
+    <!-- Вкладка Справочники -->
+    <div id="tab-ref" class="tab-content">
+        <h3>Услуги (название и расходники)</h3>
+        <div id="servicesContainer"></div>
+        <div style="margin-top:10px;">
+            <button class="btn-extra" onclick="addNewService()">➕ Добавить услугу</button>
+            <button class="btn-extra" onclick="resetRates()" style="margin-left:10px;">🔄 Сбросить услуги</button>
+        </div>
+        <h3 style="margin-top:20px;">Артикулы тканей (цены редактируемые)</h3>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Категория</th><th>Артикул</th><th>Наименование</th><th>Цена за метр (₽)</th></tr></thead><tbody id="colorRefBody"></tbody></table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-extra" onclick="openAddColorModal()">➕ Добавить артикул ткани</button></div>
+        <h3 style="margin-top:20px;">Артикулы красок (цены редактируемые)</h3>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Категория</th><th>Артикул</th><th>Цвет</th><th>Цена за мл (₽)</th><th></th></tr></thead><tbody id="paintRefBody"></tbody></table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-extra" onclick="openAddPaintModal()">➕ Добавить краску</button></div>
+        <h3 style="margin-top:20px;">Артикулы пленки для аквапринта (цены редактируемые)</h3>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Категория</th><th>Артикул</th><th>Наименование</th><th>Цена за метр (₽)</th><th></th></tr></thead><tbody id="filmRefBody"></tbody></table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-extra" onclick="openAddFilmModal()">➕ Добавить артикул пленки</button></div>
+        <h3 style="margin-top:20px;">Дополнительные расходники (цены и единицы измерения редактируемые)</h3>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Название</th><th>Ед. изм.</th><th>Цена за ед. (₽)</th><th></th></tr></thead><tbody id="extraRefBody"></tbody></table>
+        </div>
+        <div style="margin-top:10px;"><button class="btn-extra" onclick="openAddExtraRefModal()">➕ Добавить расходник</button></div>
+        <h3 style="margin-top:20px;">🔩 ВИБРОПОГЛОЩЕНИЕ (редактируемые цены)</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:10px;">Листы 750 х 460 мм или 370 х 270 мм. Введите количество м² при создании заказа.</p>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Цена за м² (₽)</th></tr></thead><tbody id="vibroAbsorptionBody"></tbody></table>
+        </div>
+        <h3 style="margin-top:20px;">🔊 ШУМОИЗОЛЯЦИЯ (редактируемые цены)</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:10px;">Листы 750 х 560 мм, 750 х 1000 мм или 750 х 500 мм. Введите количество м² при создании заказа.</p>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Цена за м² (₽)</th></tr></thead><tbody id="soundInsulationBody"></tbody></table>
+        </div>
+        <h3 style="margin-top:20px;">🔈 ЗВУКОИЗОЛЯЦИЯ (редактируемые цены)</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:10px;">Листы 750 х 460 мм или 750 х 540 мм. Введите количество м² при создании заказа.</p>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Цена за м² (₽)</th></tr></thead><tbody id="soundProofingBody"></tbody></table>
+        </div>
+        <h3 style="margin-top:20px;">🔇 ШУМОПОГЛОЩЕНИЕ (редактируемые цены)</h3>
+        <p style="font-size:12px;color:#6c757d;margin-bottom:10px;">Листы 750 х 1000 мм. Введите количество м² при создании заказа.</p>
+        <div class="scroll-wrap">
+            <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Цена за м² (₽)</th></tr></thead><tbody id="soundAbsorptionBody"></tbody></table>
+        </div>
+        <h3 style="margin-top:20px;">Мои материалы (типы с артикулами)</h3>
+        <div id="materialTypesContainer"></div>
+        <div style="margin-top:10px;">
+            <button class="btn-extra" onclick="addMaterialType()">➕ Добавить тип материала</button>
+        </div>
+        <div class="note">✏️ Меняйте цены в таблицах – они сохранятся и применятся ко всем заказам, где цена не изменена вручную. Создавайте собственные типы материалов для маркеров.</div>
+    </div>
+
+    <!-- Вкладка Закупка -->
+    <div id="tab-purchase" class="tab-content">
+        <h2>📄 Документ закупки материалов</h2>
+        <p>Выберите заказы для формирования списка закупки.</p>
+        <div class="orders-list" id="purchaseOrdersList"></div>
+        <button class="btn-add" onclick="generatePurchaseDocument()">📄 Сформировать документ</button>
+        <button class="btn-extra print-btn" onclick="printPurchaseDocument()">🖨️ Печать</button>
+        <div id="purchaseDocumentContainer" style="margin-top:20px;"></div>
+    </div>
+
+    <!-- Модалка заказа -->
+    <div class="modal-overlay" id="orderModal">
+        <div class="modal">
+            <h3 id="orderModalTitle">Новый заказ</h3>
+            <div class="form-row">
+                <div class="form-group"><label>Дата создания</label><input type="date" id="orderDate"></div>
+                <div class="form-group"><label>Срок (дней)</label><input type="number" id="orderDurationDays" min="1" max="30" value="1"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Дата истечения (авто)</label><input type="date" id="orderDeadline" readonly></div>
+                <div class="form-group"><label>Имя клиента</label><input type="text" id="orderClient" placeholder="Введите имя"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Телефон</label><input type="text" id="orderPhone" placeholder="+7 900 000-00-00" onblur="formatPhone(this)"></div>
+                <div class="form-group"></div>
+            </div>
+            <div class="form-group">
+                <label>Услуги (можно несколько)</label>
+                <div id="servicesList"></div>
+                <button class="btn-extra" onclick="addServiceRow()" style="margin-top:5px;">➕ Добавить услугу</button>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Цена клиенту (₽)</label><input type="number" id="orderClientPrice" step="0.01" value="0"></div>
+                <div class="form-group"><label>Оплата помощнику (₽)</label><input type="number" id="orderHelperPay" step="0.01" value="0"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Себестоимость (₽)</label><input type="text" id="orderMaterialCost" readonly></div>
+                <div class="form-group"><label>Прибыль (₽)</label><input type="text" id="orderGrossProfit" readonly></div>
+            </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <label style="margin:0;">Выполнен</label><input type="checkbox" id="orderDone">
+                <label style="margin:0;">Оплачено</label><input type="checkbox" id="orderPaid" onchange="handlePaidChange()">
+                <button class="btn-extra" onclick="openExtraModalFromOrder()">📦 Доп. расходники</button>
+                <span style="font-size:12px; color:#6c757d; margin-left:10px;" id="extraInfo">(не указаны)</span>
+                <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
+            </div>
+            <div class="color-select">
+                <label>Срочность (цвет):</label>
+                <button class="color-btn auto active" onclick="setOrderColor('auto')" title="Авто">🌀</button>
+                <button class="color-btn new" onclick="setOrderColor('new')" title="Новый">🟢</button>
+                <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟡</button>
+                <button class="color-btn critical" onclick="setOrderColor('critical')" title="Очень срочный">🔴</button>
+                <button class="color-btn done" onclick="setOrderColor('done')" title="Выполнен">⬜</button>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeOrderModal()">Отмена</button>
+                <button class="btn-save" onclick="saveOrderModal()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка календарной записи -->
+    <div class="modal-overlay" id="bookingModal">
+        <div class="modal">
+            <h3>Новая запись в календаре</h3>
+            <div class="form-group"><label>Дата</label><input type="date" id="modalDate"></div>
+            <div class="form-group"><label>Имя клиента</label><input type="text" id="modalName"></div>
+            <div class="form-group"><label>Телефон</label><input type="text" id="modalPhone" onblur="formatPhone(this)"></div>
+            <div class="form-group"><label>Услуга</label><select id="modalService"></select></div>
+            <div class="form-group"><label>Срок (дней)</label><input type="number" id="modalDurationDays" min="1" max="30" value="1"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+                <button class="btn-save" onclick="saveBooking()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка доп. расходников -->
+    <div class="modal-overlay" id="extraModal">
+        <div class="modal">
+            <h3>Дополнительные расходники</h3>
+            <div id="extraMaterialsContainer"></div>
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="newExtraName" placeholder="Название" style="flex:1; min-width:100px;">
+                <input type="number" id="newExtraPrice" placeholder="Цена за ед." step="0.01" style="width:100px;">
+                <select id="newExtraUnit" style="width:80px;">
+                    <option value="м">м</option><option value="г">г</option><option value="мл">мл</option><option value="шт">шт</option><option value="уп.">уп.</option>
+                </select>
+                <button class="btn-extra" onclick="addNewExtra()">➕ Добавить</button>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeExtraModal()">Отмена</button>
+                <button class="btn-save" onclick="saveExtraModal()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка расходников услуги -->
+    <div class="modal-overlay" id="serviceItemsModal">
+        <div class="modal">
+            <h3 id="serviceItemsModalTitle">Расходники услуги</h3>
+            <div id="serviceItemsContainer"></div>
+            <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button class="btn-extra" onclick="addServiceItemRow()">➕ Добавить расходник</button>
+                <span style="font-size:12px; color:#6c757d;">Введите «Ткань», «Краска», «Пленка для аквапринта» или название вашего типа материала для маркеров</span>
+            </div>
+            <datalist id="serviceItemDatalist"></datalist>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeServiceItemsModal()">Отмена</button>
+                <button class="btn-save" onclick="saveServiceItemsModal()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка заметки -->
+    <div class="modal-overlay" id="noteModal">
+        <div class="modal">
+            <h3 id="noteModalTitle">Новая заметка</h3>
+            <div class="form-group"><label>Дата</label><input type="date" id="noteDate"></div>
+            <div class="form-group"><label>Время (необязательно)</label><input type="time" id="noteTime"></div>
+            <div class="form-group"><label>Текст заметки</label><textarea id="noteText" rows="3"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeNoteModal()">Отмена</button>
+                <button class="btn-save" onclick="saveNote()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления артикула ткани -->
+    <div class="modal-overlay" id="addColorModal">
+        <div class="modal">
+            <h3>Добавить артикул ткани</h3>
+            <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newColorCategory" placeholder="Например: Велюр"></div>
+            <div class="form-group"><label>Артикул</label><input type="text" id="newColorCode" placeholder="Например: A1011"></div>
+            <div class="form-group"><label>Наименование</label><input type="text" id="newColorName" placeholder="Например: Потолочная ткань (велюр)"></div>
+            <div class="form-group"><label>Цена за метр (₽)</label><input type="number" id="newColorPrice" placeholder="0" step="0.01"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddColorModal()">Отмена</button>
+                <button class="btn-save" onclick="saveNewColor()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления краски -->
+    <div class="modal-overlay" id="addPaintModal">
+        <div class="modal">
+            <h3>Добавить краску</h3>
+            <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newPaintCategory" placeholder="Например: Акрил"></div>
+            <div class="form-group"><label>Артикул</label><input type="text" id="newPaintCode" placeholder="Например: P001"></div>
+            <div class="form-group"><label>Цвет</label><input type="text" id="newPaintName" placeholder="Например: Краска черная"></div>
+            <div class="form-group"><label>Цена за мл (₽)</label><input type="number" id="newPaintPrice" placeholder="0" step="0.01"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddPaintModal()">Отмена</button>
+                <button class="btn-save" onclick="saveNewPaint()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления пленки -->
+    <div class="modal-overlay" id="addFilmModal">
+        <div class="modal">
+            <h3>Добавить артикул пленки</h3>
+            <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newFilmCategory" placeholder="Например: Глянцевая"></div>
+            <div class="form-group"><label>Артикул</label><input type="text" id="newFilmCode" placeholder="Например: FG-01"></div>
+            <div class="form-group"><label>Наименование</label><input type="text" id="newFilmName" placeholder="Например: Черный глянец"></div>
+            <div class="form-group"><label>Цена за метр (₽)</label><input type="number" id="newFilmPrice" placeholder="0" step="0.01"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddFilmModal()">Отмена</button>
+                <button class="btn-save" onclick="saveNewFilm()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления расходника -->
+    <div class="modal-overlay" id="addExtraRefModal">
+        <div class="modal">
+            <h3>Добавить расходник</h3>
+            <div class="form-group"><label>Название</label><input type="text" id="newExtraRefName" placeholder="Например: Клей"></div>
+            <div class="form-group"><label>Ед. измерения</label><input type="text" id="newExtraRefUnit" placeholder="Например: мл"></div>
+            <div class="form-group"><label>Цена за ед. (₽)</label><input type="number" id="newExtraRefPrice" placeholder="0" step="0.01"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddExtraRefModal()">Отмена</button>
+                <button class="btn-save" onclick="saveNewExtraRef()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно уведомлений -->
+    <div class="notification-modal" id="notificationModal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3 id="notificationTitle">🔔 На завтра</h3>
+                <button class="notification-close" onclick="closeNotificationModal()">×</button>
+            </div>
+            <div id="notificationBody"></div>
+        </div>
+    </div>
+
+    <div class="footer-toolbar">
+        <div>
+            <button class="btn btn-export" onclick="exportData()">📤 Экспорт</button>
+            <button class="btn btn-import" onclick="document.getElementById('fileInput').click()">📥 Импорт</button>
+            <input type="file" id="fileInput" accept=".json" onchange="importData(event)">
+        </div>
+        <div>
+            <button class="btn btn-danger" onclick="clearAllOrders()" style="background:#dc3545; color:#fff; padding:8px 18px; border:none; border-radius:30px; cursor:pointer;">🗑️ Очистить ВСЕ заказы</button>
+        </div>
+    </div>
+</div>
+
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDGsjB5bhSL2keL0xTIOJib3ZB9HEqGyMs",
+    authDomain: "auto-atelier-1486d.firebaseapp.com",
+    databaseURL: "https://auto-atelier-1486d-default-rtdb.firebaseio.com",
+    projectId: "auto-atelier-1486d",
+    storageBucket: "auto-atelier-1486d.firebasestorage.app",
+    messagingSenderId: "893898887206",
+    appId: "1:893898887206:web:9f9e760e953fcd780556e7",
+    measurementId: "G-ZWQH7LFT1M"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+
+  window.db = getDatabase(app);
+  window.auth = getAuth(app);
+  window.fbRef = ref;
+  window.fbSet = set;
+
+  signInAnonymously(window.auth)
+    .then(() => {
+      console.log("Подключено к Firebase!");
+      
+      // Ждём загрузки app.js перед вызовом updateCloudData
+      const checkUpdateCloudData = () => {
+        if (typeof window.updateCloudData === 'function') {
+          // Автоматическая загрузка данных из Realtime Database при старте
+          get(child(ref(window.db), 'atelier_data')).then((snapshot) => {
+            if (snapshot.exists()) {
+              window.updateCloudData(snapshot.val());
+              console.log("Данные синхронизированы из облака!");
+            }
+          }).catch(err => console.error("Ошибка загрузки:", err));
+        } else {
+          setTimeout(checkUpdateCloudData, 100);
+        }
+      };
+      checkUpdateCloudData();
+    })
+    .catch(err => console.error("Ошибка авторизации:", err));
+</script>
+</body>
+</html>
