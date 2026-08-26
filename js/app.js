@@ -3354,22 +3354,9 @@ function deleteOrder(orderId) {
 
     // ========== РЕНДЕР ==========
     function renderAll() {
-        // Проверяем авторизацию - если appContent скрыт, не рендерим данные
-        const appContent = document.getElementById('appContent');
-        if (!appContent || appContent.style.display === 'none' || !appContent.style.display) {
-            document.getElementById('ordersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра данных необходимо <b>войти в систему</b></div>';
-            document.getElementById('stockBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
-            document.getElementById('cashBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
-            document.getElementById('calendarGrid').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра календаря необходимо <b>войти в систему</b></div>';
-            document.getElementById('summaryBlock').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('purchaseOrdersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('budgetDistributionResult').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('mandatoryPaymentsProgress').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('debtsProgress').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('walletsOverview').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('distributionHistory').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('cashBudgetSummary').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
-            document.getElementById('incomePlanContainer').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+        console.log('renderAll вызван, currentUserData:', window.currentUserData);
+        // Если нет данных пользователя — ничего не рендерим
+        if (!window.currentUserData) {
             return;
         }
         
@@ -3980,18 +3967,6 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
-
-// ========== АВТО-РЕНДЕР ПРИ АВТОРИЗАЦИИ ==========
-let lastUserData = null;
-setInterval(() => {
-    if (window.currentUserData && window.currentUserData !== lastUserData) {
-        lastUserData = window.currentUserData;
-        const appContent = document.getElementById('appContent');
-        if (appContent && appContent.style.display !== 'none') {
-            renderAll();
-        }
-    }
-}, 500);
 
 // Закрытие модального уведомления по клику вне него
 document.getElementById('notificationModal')?.addEventListener('click', (e) => {
