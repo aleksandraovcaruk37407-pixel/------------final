@@ -1086,9 +1086,8 @@
   // Делаем функции глобально доступными
   window.updateAuthUI = updateAuthUI;
   window.updateRoleTabs = updateRoleTabs;
-  });
-
-  // ========== ПРОВЕРКА АВТОРИЗАЦИИ (ПОСЛЕ DOMContentLoaded) ==========
+  
+  // ========== ПРОВЕРКА АВТОРИЗАЦИИ ==========
   onAuthStateChanged(window.auth, (user) => {
     console.log('onAuthStateChanged: user есть, uid =', user.uid);
     if (user) {
@@ -1133,6 +1132,7 @@
       document.getElementById('appContent').style.display = 'none';
       window.updateAuthUI();
     }
+  });
   });
 </script>
 </div>
