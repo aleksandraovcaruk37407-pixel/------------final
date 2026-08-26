@@ -49,7 +49,7 @@
     <div class="modal-overlay" id="authModal">
         <div class="modal" style="max-width:400px;">
             <h3 style="margin-bottom:20px;">🔑 Вход в систему</h3>
-            <div id="authLoginForm">
+            <div id="authLoginForm" style="display:block;">
                 <div class="form-group">
                     <label>📧 Email</label>
                     <input type="email" id="authEmail" placeholder="your@email.com">
@@ -61,9 +61,6 @@
                 <div style="display:flex;gap:10px;margin-top:15px;">
                     <button class="btn-add" onclick="handleLogin()" style="flex:1;">Войти</button>
                     <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
-                </div>
-                <div style="text-align:center;margin-top:15px;font-size:13px;color:#888;">
-                    🔒 Регистрация только через панель администратора
                 </div>
             </div>
         </div>
@@ -79,7 +76,6 @@
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
         <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
-        <button class="tab-btn" data-tab="tab-users">👤 Управление пользователями</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -352,46 +348,6 @@
             </select>
         </div>
         <div id="adminHelperTasksContainer"></div>
-    </div>
-
-    <!-- Вкладка Управление пользователями (для админа) -->
-    <div id="tab-users" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">👤 Управление пользователями</h2>
-        
-        <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:20px;">
-            <h3 style="margin:0 0 15px 0;">➕ Добавить нового пользователя</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>👤 Имя</label>
-                    <input type="text" id="newUserName" placeholder="Введите имя">
-                </div>
-                <div class="form-group">
-                    <label>📧 Email</label>
-                    <input type="email" id="newUserEmail" placeholder="email@example.com">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>🔒 Пароль</label>
-                    <input type="password" id="newUserPassword" placeholder="Минимум 6 символов">
-                </div>
-                <div class="form-group">
-                    <label>👥 Роль</label>
-                    <select id="newUserRole" style="width:100%;padding:10px;border-radius:6px;border:1px solid #ced4da;">
-                        <option value="helper">👷 Помощник</option>
-                        <option value="admin">👨‍💼 Администратор</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn-add" onclick="adminRegisterUser()" style="padding:10px 20px;font-size:14px;margin-top:10px;">
-                ✅ Зарегистрировать пользователя
-            </button>
-        </div>
-
-        <h3 style="color:#1a3c5e; margin-bottom:15px;">📋 Список пользователей</h3>
-        <div id="usersListContainer">
-            <div style="text-align:center;padding:20px;color:#888;">Загрузка...</div>
-        </div>
     </div>
 
     <!-- Модалка заказа -->
@@ -726,6 +682,38 @@
     if (registerForm) registerForm.style.display = 'none';
   };
 
+  // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
+  window.handleLogin = async () => {
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) {
+      alert('Заполните все поля!');
+      return;
+    }
+    try {
+      await signInWithEmailAndPassword(window.auth, email, password);
+      closeAuthModal();
+    } catch (error) {
+      console.error('Ошибка входа:', error);
+      let msg = 'Ошибка входа';
+      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
+      if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
+      if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
+      alert('❌ ' + msg);
+    }
+  };
+
+  window.handleLogout = async () => {
+    if (!confirm('Выйти из системы?')) return;
+    try {
+      await signOut(window.auth);
+      location.reload();
+    } catch (error) {
+      console.error('Ошибка выхода:', error);
+      alert('❌ Ошибка выхода');
+    }
+  };
+
   // ========== ВСЕ ФУНКЦИИ ВНУТРИ DOMContentLoaded ==========
   document.addEventListener('DOMContentLoaded', () => {
     window.handleRegister = async () => {
@@ -769,37 +757,6 @@
       if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
       if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
       alert('❌ ' + msg);
-    }
-  };
-
-  window.handleLogin = async () => {
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    if (!email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    try {
-      await signInWithEmailAndPassword(window.auth, email, password);
-      closeAuthModal();
-    } catch (error) {
-      console.error('Ошибка входа:', error);
-      let msg = 'Ошибка входа';
-      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
-      if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
-      if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
-      alert('❌ ' + msg);
-    }
-  };
-
-  window.handleLogout = async () => {
-    if (!confirm('Выйти из системы?')) return;
-    try {
-      await signOut(window.auth);
-      location.reload();
-    } catch (error) {
-      console.error('Ошибка выхода:', error);
-      alert('❌ Ошибка выхода');
     }
   };
 
@@ -1010,7 +967,6 @@
       document.getElementById('tab-calendar').style.display = '';
       document.getElementById('tab-ref').style.display = '';
       document.getElementById('tab-purchase').style.display = '';
-      document.getElementById('tab-users').style.display = ''; // Вкладка пользователей
       document.getElementById('helper-tasks').style.display = 'none';
       document.getElementById('helper-report').style.display = 'none';
       
@@ -1031,7 +987,6 @@
       document.getElementById('tab-calendar').style.display = 'none';
       document.getElementById('tab-ref').style.display = 'none';
       document.getElementById('tab-purchase').style.display = 'none';
-      document.getElementById('tab-users').style.display = 'none'; // Скрыть вкладку пользователей
       document.getElementById('helper-tasks').style.display = '';
       document.getElementById('helper-report').style.display = '';
       
@@ -1045,17 +1000,6 @@
       if (typeof renderHelperTasks === 'function') renderHelperTasks();
       if (typeof renderHelperReport === 'function') renderHelperReport();
     }
-  }
-
-  // ========== ОБРАБОТЧИК ПЕРЕКЛЮЧЕНИЯ ВКЛАДОК ==========
-  // Добавляем обработчик для вкладки управления пользователями
-  const usersTabBtn = document.querySelector('[data-tab="tab-users"]');
-  if (usersTabBtn) {
-    usersTabBtn.addEventListener('click', () => {
-      if (window.currentUserData?.role === 'admin') {
-        loadUsersList();
-      }
-    });
   }
 });
 </script>
