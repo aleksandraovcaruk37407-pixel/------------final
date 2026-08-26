@@ -17,18 +17,31 @@
 <!-- Сначала загружаем app.js ДО Firebase -->
 <script src="js/app.js"></script>
 <div class="container">
-    <div class="toolbar">
-        <h1>🚗 Учет авто-ателье</h1>
-        <div style="flex:1;"></div>
-        <div id="authSection">
-            <button class="btn-auth" onclick="openAuthModal('login')" id="btnLogin">🔑 Вход</button>
+    <!-- Экран входа -->
+    <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:80vh;">
+        <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
+            <h1 style="font-size:48px;margin-bottom:20px;">🚗</h1>
+            <h2 style="color:#1a3c5e;margin-bottom:30px;">Учет авто-ателье</h2>
+            <button class="btn-add" onclick="openAuthModal()" style="padding:12px 40px;font-size:16px;">🔑 Войти в систему</button>
+            <p style="margin-top:20px;font-size:13px;color:#888;">Введите email и пароль для доступа</p>
         </div>
     </div>
+
+    <!-- Основное приложение (скрыто до входа) -->
+    <div id="appContent" style="display:none;">
+        <div class="toolbar">
+            <h1>🚗 Учет авто-ателье</h1>
+            <div style="flex:1;"></div>
+            <div id="authSection">
+                <span style="font-size:13px;color:#666;" id="userDisplayName"></span>
+                <button class="btn-auth btn-auth-logout" onclick="handleLogout()">🚪 Выйти</button>
+            </div>
+        </div>
 
     <!-- Модальное окно авторизации -->
     <div class="modal-overlay" id="authModal">
         <div class="modal" style="max-width:400px;">
-            <h3 id="authModalTitle">Вход в систему</h3>
+            <h3 style="margin-bottom:20px;">🔑 Вход в систему</h3>
             <div id="authLoginForm">
                 <div class="form-group">
                     <label>📧 Email</label>
@@ -42,37 +55,11 @@
                     <button class="btn-add" onclick="handleLogin()" style="flex:1;">Войти</button>
                     <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
                 </div>
-                <div style="margin-top:12px;text-align:center;font-size:14px;">
-                    Нет аккаунта? <a href="#" onclick="switchAuthMode('register')" style="color:#1a3c5e;">Зарегистрироваться</a>
-                </div>
-            </div>
-            <div id="authRegisterForm" style="display:none;">
-                <div class="form-group">
-                    <label>👤 Имя пользователя</label>
-                    <input type="text" id="authUsername" placeholder="Имя">
-                </div>
-                <div class="form-group">
-                    <label>📧 Email</label>
-                    <input type="email" id="authRegEmail" placeholder="your@email.com">
-                </div>
-                <div class="form-group">
-                    <label>🔒 Пароль (мин. 6 символов)</label>
-                    <input type="password" id="authRegPassword" placeholder="Минимум 6 символов">
-                </div>
-                <div class="form-group">
-                    <label>🔒 Подтвердите пароль</label>
-                    <input type="password" id="authRegPasswordConfirm" placeholder="Повторите пароль">
-                </div>
-                <div style="display:flex;gap:10px;margin-top:15px;">
-                    <button class="btn-add" onclick="handleRegister()" style="flex:1;">Зарегистрироваться</button>
-                    <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
-                </div>
-                <div style="margin-top:12px;text-align:center;font-size:14px;">
-                    Уже есть аккаунт? <a href="#" onclick="switchAuthMode('login')" style="color:#1a3c5e;">Войти</a>
-                </div>
             </div>
         </div>
     </div>
+    </div>
+
     <div class="tabs">
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
         <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
@@ -549,25 +536,14 @@
   window.fbSet = set;
 
   // Глобальные функции для auth
-  window.openAuthModal = (mode) => {
+  window.openAuthModal = () => {
     document.getElementById('authModal').classList.add('active');
-    switchAuthMode(mode || 'login');
   };
 
   window.closeAuthModal = () => {
     document.getElementById('authModal').classList.remove('active');
-  };
-
-  window.switchAuthMode = (mode) => {
-    if (mode === 'register') {
-      document.getElementById('authLoginForm').style.display = 'none';
-      document.getElementById('authRegisterForm').style.display = 'block';
-      document.getElementById('authModalTitle').textContent = 'Регистрация';
-    } else {
-      document.getElementById('authLoginForm').style.display = 'block';
-      document.getElementById('authRegisterForm').style.display = 'none';
-      document.getElementById('authModalTitle').textContent = 'Вход в систему';
-    }
+    document.getElementById('authEmail').value = '';
+    document.getElementById('authPassword').value = '';
   };
 
   window.handleLogin = async () => {
@@ -580,58 +556,12 @@
     try {
       await signInWithEmailAndPassword(window.auth, email, password);
       closeAuthModal();
-      alert('✅ Вы успешно вошли!');
     } catch (error) {
       console.error('Ошибка входа:', error);
       let msg = 'Ошибка входа';
       if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
       if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
       if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
-      alert('❌ ' + msg);
-    }
-  };
-
-  window.handleRegister = async () => {
-    const username = document.getElementById('authUsername').value.trim();
-    const email = document.getElementById('authRegEmail').value.trim();
-    const password = document.getElementById('authRegPassword').value;
-    const passwordConfirm = document.getElementById('authRegPasswordConfirm').value;
-
-    if (!username || !email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    if (password.length < 6) {
-      alert('Пароль должен быть минимум 6 символов!');
-      return;
-    }
-    if (password !== passwordConfirm) {
-      alert('Пароли не совпадают!');
-      return;
-    }
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(window.auth, email, password);
-      const user = userCredential.user;
-      
-      // Обновляем имя пользователя
-      await updateProfile(user, { displayName: username });
-      
-      // Сохраняем пользователя в Realtime Database с ролью user
-      await set(ref(window.db, 'users/' + user.uid), {
-        email: email,
-        displayName: username,
-        role: 'user', // по умолчанию role: user
-        createdAt: new Date().toISOString()
-      });
-      
-      closeAuthModal();
-      alert('✅ Регистрация успешна! Добро пожаловать!');
-    } catch (error) {
-      console.error('Ошибка регистрации:', error);
-      let msg = 'Ошибка регистрации';
-      if (error.code === 'auth/email-already-in-use') msg = 'Email уже используется';
-      if (error.code === 'auth/weak-password') msg = 'Пароль слишком слабый';
       alert('❌ ' + msg);
     }
   };
@@ -650,8 +580,11 @@
   // Проверяем состояние авторизации
   onAuthStateChanged(window.auth, (user) => {
     if (user) {
-      // Пользователь авторизован
+      // Пользователь авторизован - показываем приложение
       console.log('Пользователь авторизован:', user.email);
+      
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appContent').style.display = 'block';
       
       // Проверяем роль пользователя
       get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
@@ -684,25 +617,13 @@
         console.error('Ошибка получения данных пользователя:', err);
       });
     } else {
-      // Пользователь не авторизован
+      // Пользователь не авторизован - показываем экран входа
       console.log('Пользователь не авторизован');
       window.currentUserData = null;
-      updateAuthUI();
       
-      // Ждём загрузки app.js перед вызовом updateCloudData
-      const checkUpdateCloudData = () => {
-        if (typeof window.updateCloudData === 'function') {
-          get(child(ref(window.db), 'atelier_data')).then((snapshot) => {
-            if (snapshot.exists()) {
-              window.updateCloudData(snapshot.val());
-              console.log("Данные синхронизированы из облака!");
-            }
-          }).catch(err => console.error("Ошибка загрузки:", err));
-        } else {
-          setTimeout(checkUpdateCloudData, 100);
-        }
-      };
-      checkUpdateCloudData();
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('appContent').style.display = 'none';
+      updateAuthUI();
     }
   });
 
@@ -711,18 +632,15 @@
     if (window.currentUserData) {
       const isAdmin = window.currentUserData.role === 'admin';
       authSection.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:13px;color:#666;">👤 ${window.currentUserData.displayName} ${isAdmin ? '⭐' : ''}</span>
-          ${isAdmin ? '<span style="font-size:12px;background:#1a3c5e;color:#fff;padding:2px 6px;border-radius:4px;">ADMIN</span>' : ''}
-          <button class="btn-auth btn-auth-logout" onclick="handleLogout()">🚪 Выйти</button>
-        </div>
+        <span style="font-size:13px;color:#666;">👤 ${window.currentUserData.displayName} ${isAdmin ? '⭐' : ''}</span>
+        ${isAdmin ? '<span style="font-size:12px;background:#1a3c5e;color:#fff;padding:2px 6px;border-radius:4px;">ADMIN</span>' : ''}
+        <button class="btn-auth btn-auth-logout" onclick="handleLogout()">🚪 Выйти</button>
       `;
     } else {
-      authSection.innerHTML = `
-        <button class="btn-auth" onclick="openAuthModal('login')">🔑 Вход</button>
-      `;
+      authSection.innerHTML = '';
     }
   }
+</div>
 </script>
 </body>
 </html>
