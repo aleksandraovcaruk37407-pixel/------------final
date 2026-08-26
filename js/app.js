@@ -36,7 +36,18 @@
                 { id: 'iphone', name: 'Кредит на айфон', total: 75000, monthly: 13000, paid: 0, icon: '📱' },
                 { id: 'alimony', name: 'Алименты', total: 340000, monthly: 10000, paid: 0, icon: '👶' }
             ],
-            distributionHistory: []
+            distributionHistory: [],
+            // Планирование дохода
+            incomePlan: {
+                personalPercent: 10, // % на личные расходы
+                manualMode: false, // ручной режим
+                manualPersonalAmount: 0, // ручная сумма на личные
+                additionalGoals: [
+                    { id: 'emergency', name: 'Подушка безопасности', target: 252000, saved: 0, icon: '🛡️', color: '#3498db' },
+                    { id: 'vacation', name: 'Отпуск', target: 50000, saved: 0, icon: '✈️', color: '#e74c3c' },
+                    { id: 'education', name: 'Обучение', target: 30000, saved: 0, icon: '📚', color: '#9b59b6' }
+                ]
+            }
         };
     }
 
@@ -341,7 +352,7 @@ if (!films.length) {
                 if (markerItem) {
                     const markerData = inst[mt.name];
                     if (markerData && markerData.code) {
-                        const qty = parseFloat(markerData.sheets || markerData.qty || 0);
+                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
                         cost += qty * (parseFloat(markerData.price)||0);
                     }
                 }
@@ -500,6 +511,7 @@ if (!films.length) {
         renderWallets();
         renderDistributionHistory();
         populateBudgetOrderSelect();
+        renderCashBudgetSummary();
     }
 
     function renderMandatoryPayments() {
@@ -594,6 +606,178 @@ if (!films.length) {
                 ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#e67e22;font-weight:600;">+${dist.extraDebt.toFixed(2)} ₽</span></div>` : ''}
             </div>
         `).join('');
+    }
+
+    // ========== ПЛАНИРОВАНИЕ ДОХОДА ==========
+    function calculateIncomePlan(startDate, endDate) {
+        // Считаем обязательные платежи
+        const mandatoryTotal = budgetData.mandatoryPayments.reduce((sum, mp) => sum + (mp.amount || 0), 0);
+        
+        // Процент на личные
+        const personalPercent = budgetData.incomePlan.personalPercent / 100;
+        
+        // Коэффициент (1 - все проценты)
+        const rateSum = 0.04 + personalPercent + 0.05 + 0.05; // налог + личные + бизнес + инвестиции
+        const coefficient = 1 - rateSum;
+        
+        // Минимальный доход для покрытия всех расходов
+        const minIncome = coefficient > 0 ? mandatoryTotal / coefficient : mandatoryTotal;
+        
+        // Рассчитываем фактический доход за период
+        let actualIncome = 0;
+        ordersData.forEach(order => {
+            if (order.date >= startDate && order.date <= endDate) {
+                actualIncome += parseFloat(order.clientPrice) || 0;
+            }
+        });
+        
+        // Считаем дни в периоде
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const daysInPeriod = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        const daysPassed = Math.max(1, Math.ceil((new Date() - start) / (1000 * 60 * 60 * 24)));
+        
+        // Прогноз на конец периода
+        const dailyRate = actualIncome / daysPassed;
+        const projectedIncome = dailyRate * daysInPeriod;
+        
+        // Распределение минимального дохода
+        const taxAmount = minIncome * 0.04;
+        const personalAmount = minIncome * personalPercent;
+        const businessAmount = minIncome * 0.05;
+        const investmentAmount = minIncome * 0.05;
+        
+        // Прогресс
+        const progressPercent = minIncome > 0 ? Math.min(100, (actualIncome / minIncome) * 100) : 0;
+        
+        // Дополнительные цели
+        const goalsProgress = budgetData.incomePlan.additionalGoals.map(goal => ({
+            ...goal,
+            percent: Math.min(100, (goal.saved / goal.target) * 100)
+        }));
+        
+        return {
+            mandatoryTotal,
+            minIncome,
+            actualIncome,
+            projectedIncome,
+            daysInPeriod,
+            daysPassed,
+            taxAmount,
+            personalAmount,
+            businessAmount,
+            investmentAmount,
+            progressPercent,
+            goalsProgress,
+            personalPercent: budgetData.incomePlan.personalPercent
+        };
+    }
+
+    function renderIncomePlan(startDate, endDate) {
+        const container = document.getElementById('incomePlanContainer');
+        if (!container) return;
+        
+        const plan = calculateIncomePlan(startDate, endDate);
+        
+        container.innerHTML = `
+            <!-- Сводка плана -->
+            <div class="plan-summary" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Требуемый доход</div>
+                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${plan.minIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">в месяц</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">📈 Фактический доход</div>
+                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${plan.actualIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">за период</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">🔮 Прогноз</div>
+                        <div style="font-size:20px;font-weight:700;color:#3498db;">${Math.round(plan.projectedIncome).toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">на конец периода</div>
+                    </div>
+                </div>
+                
+                <!-- Прогресс -->
+                <div style="margin-top:15px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                        <span style="font-size:13px;color:#666;">✅ План выполнен</span>
+                        <span style="font-size:14px;font-weight:700;color:${plan.progressPercent >= 100 ? '#27ae60' : '#e67e22'};">${plan.progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div class="progress-bar-budget">
+                        <div class="progress-fill-budget" style="width:${plan.progressPercent}%;background:${plan.progressPercent >= 100 ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#e67e22,#f39c12)'};">
+                            ${plan.progressPercent.toFixed(0)}%
+                        </div>
+                    </div>
+                    ${plan.progressPercent < 100 ? `<div style="margin-top:8px;font-size:13px;color:#e74c3c;">⚠️ Не хватает ${Math.round(plan.minIncome - plan.actualIncome).toLocaleString()} ₽ для выполнения плана</div>` : '<div style="margin-top:8px;font-size:13px;color:#27ae60;">🎉 План выполнен! Можно досрочно гасить долги.</div>'}
+                </div>
+            </div>
+            
+            <!-- Распределение дохода -->
+            <div class="plan-breakdown" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+                <h4 style="margin:0 0 10px 0;">📊 Распределение при доходе ${Math.round(plan.minIncome).toLocaleString()} ₽</h4>
+                <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${plan.mandatoryTotal.toLocaleString()} ₽ (76%)</span></div>
+                <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${Math.round(plan.taxAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${Math.round(plan.personalAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${Math.round(plan.businessAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${Math.round(plan.investmentAmount).toLocaleString()} ₽</span></div>
+            </div>
+            
+            <!-- Настройка личных расходов -->
+            <div class="plan-settings" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 10px 0;">⚙️ Настройка личных расходов</h4>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <label style="font-size:14px;">Процент на личные:</label>
+                    <input type="number" id="personalPercentInput" value="${budgetData.incomePlan.personalPercent}" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
+                    <span style="font-size:14px;">%</span>
+                    <button onclick="savePersonalPercent()" class="btn-add" style="padding:6px 12px;font-size:12px;margin-left:auto;">💾 Сохранить</button>
+                </div>
+                <div style="margin-top:8px;font-size:13px;color:#666;">
+                    При доходе ${Math.round(plan.minIncome).toLocaleString()} ₽ на личные будет идти ${Math.round(plan.personalAmount).toLocaleString()} ₽
+                </div>
+            </div>
+            
+            <!-- Дополнительные цели -->
+            <div class="plan-goals" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+                <h4 style="margin:0 0 10px 0;">🎯 Дополнительные цели</h4>
+                ${plan.goalsProgress.map((goal, idx) => `
+                    <div class="budget-progress-item" style="margin-bottom:10px;">
+                        <div class="budget-progress-header">
+                            <span class="name">${goal.icon} ${goal.name}</span>
+                            <span class="amount">${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()} ₽</span>
+                        </div>
+                        <div class="progress-bar-budget">
+                            <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
+                        </div>
+                        <div style="margin-top:8px;display:flex;gap:6px;">
+                            <button class="btn-budget-pay" onclick="addGoalSaved(${idx})">➕ Добавить накопление</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function updatePersonalPercent(value) {
+        budgetData.incomePlan.personalPercent = parseInt(value) || 10;
+        saveBudgetData();
+    }
+
+    function savePersonalPercent() {
+        renderAll();
+        alert('✅ Процент на личные расходы сохранён!');
+    }
+
+    function addGoalSaved(goalIdx) {
+        const goal = budgetData.incomePlan.additionalGoals[goalIdx];
+        if (!goal) return;
+        const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${goal.saved.toLocaleString()} ₽):`, '0');
+        if (!amount || isNaN(amount)) return;
+        goal.saved += parseFloat(amount) || 0;
+        saveBudgetData();
+        renderAll();
     }
 
 
@@ -796,6 +980,10 @@ if (!films.length) {
             tbody.appendChild(tr);
         });
         document.getElementById('cashBalance').textContent = balance.toFixed(2);
+        
+        // Вызываем все функции бюджета
+        renderBudget();
+        
         const regDiv = document.getElementById('regularExpensesList');
         regDiv.innerHTML = '';
         regularExpenses.forEach((exp, idx) => {
@@ -810,6 +998,36 @@ if (!films.length) {
             div.innerHTML = `<span>${income.desc} (${income.day} числа, ${income.amount}₽) <button class="btn-del" onclick="deleteRegularIncome(${idx})">✕</button></span>`;
             incomeDiv.appendChild(div);
         });
+    }
+
+    function renderCashBudgetSummary() {
+        const container = document.getElementById('cashBudgetSummary');
+        if (!container) return;
+        
+        // Считаем общий доход из заказов
+        const totalIncome = ordersData.reduce((sum, o) => sum + (parseFloat(o.clientPrice) || 0), 0);
+        const totalCost = ordersData.reduce((sum, o) => sum + (parseFloat(o.materialCost) || 0), 0);
+        const totalHelper = ordersData.reduce((sum, o) => sum + (parseFloat(o.helperPay) || 0), 0);
+        const netProfit = totalIncome - totalCost - totalHelper;
+        
+        // Считаем кошельки бюджета
+        const taxWallet = budgetData.wallets.tax?.target || 0;
+        const personalWallet = budgetData.wallets.personal?.target || 0;
+        const businessWallet = budgetData.wallets.business?.target || 0;
+        const investmentWallet = budgetData.wallets.investments?.target || 0;
+        
+        container.innerHTML = `
+            <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${totalIncome.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${totalCost.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${totalHelper.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${netProfit.toLocaleString()} ₽</span></div>
+            <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
+                <div class="budget-result-row tax"><span class="label">💰 Налог (копилка):</span><span class="value">${taxWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (копилка):</span><span class="value">${personalWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (копилка):</span><span class="value">${businessWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (копилка):</span><span class="value">${investmentWallet.toLocaleString()} ₽</span></div>
+            </div>
+        `;
     }
 
     function addCashRow() {
@@ -1602,7 +1820,7 @@ if (!films.length) {
                 if (markerItem) {
                     const markerData = inst[mt.name];
                     if (markerData && markerData.code) {
-                        const qty = parseFloat(markerData.sheets || markerData.qty || 0);
+                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
                         totalCost += qty * (parseFloat(markerData.price)||0);
                     }
                 }
@@ -1985,6 +2203,15 @@ function deleteOrder(orderId) {
     }
 
     function renderCalendar() {
+        // Проверяем авторизацию
+        if (!window.currentUserData) {
+            const grid = document.getElementById('calendarGrid');
+            if (grid) {
+                grid.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра календаря необходимо <b>войти в систему</b></div>';
+            }
+            return;
+        }
+        
         // Обновляем фильтр услуг
         document.getElementById('serviceFilterContainer').innerHTML = getServiceFilterButtons();
         
@@ -1995,6 +2222,7 @@ function deleteOrder(orderId) {
         checkTomorrowNotifications();
         
         const grid = document.getElementById('calendarGrid');
+        if (!grid) return;
         
         if (calendarViewMode === 'week') {
             renderWeekView();
@@ -2003,7 +2231,8 @@ function deleteOrder(orderId) {
         
         const year = currentDate.getFullYear(), month = currentDate.getMonth();
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-        document.getElementById('calendarTitle').textContent = `${months[month]} ${year}`;
+        const calendarTitle = document.getElementById('calendarTitle');
+        if (calendarTitle) calendarTitle.textContent = `${months[month]} ${year}`;
         
         grid.innerHTML = '';
         const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -2454,6 +2683,24 @@ function deleteOrder(orderId) {
 
     // ========== РЕНДЕР ==========
     function renderAll() {
+        // Проверяем авторизацию - если не авторизован, скрываем всё
+        if (!window.currentUserData) {
+            document.getElementById('ordersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра данных необходимо <b>войти в систему</b></div>';
+            document.getElementById('stockBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
+            document.getElementById('cashBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
+            document.getElementById('calendarGrid').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра календаря необходимо <b>войти в систему</b></div>';
+            document.getElementById('summaryBlock').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('purchaseOrdersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('budgetDistributionResult').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('mandatoryPaymentsProgress').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('debtsProgress').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('walletsOverview').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('distributionHistory').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('cashBudgetSummary').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            document.getElementById('incomePlanContainer').innerHTML = '<div style="text-align:center;padding:40px;color:#888;">🔒 Войдите в систему</div>';
+            return;
+        }
+        
         renderOrders();
         renderStock();
         renderCash();
@@ -2463,7 +2710,6 @@ function deleteOrder(orderId) {
         renderRefs();
         renderPurchaseOrdersList();
         updateUnpaidSummary();
-        renderBudget();
     }
 
     // ========== СПРАВОЧНИКИ ==========
@@ -2658,6 +2904,9 @@ function deleteOrder(orderId) {
             <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${net.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>📊 Заказов за период</label><span>${filteredOrders.length}</span></div>
         `;
+        
+        // Рендерим план дохода
+        renderIncomePlan(startDate, endDate);
     }
 
     function createSampleOrders() {
