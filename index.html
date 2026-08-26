@@ -7,6 +7,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Авто-ателье">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Учет авто-ателье</title>
     <base href="./">
     <link rel="stylesheet" href="css/styles.css">
@@ -889,7 +892,6 @@
     console.log('>>> getUserDataForAuth вызван для', user.email, 'uid:', user.uid);
     get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
       console.log('>>> snapshot.exists =', snapshot.exists());
-      const userData = snapshot.val();
       const userData = snapshot.val();
       if (userData) {
         window.currentUserData = {
