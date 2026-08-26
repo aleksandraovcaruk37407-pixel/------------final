@@ -552,4 +552,145 @@
             border: 1px solid #dee2e6;
         }
 
-   
+        /* ========== HELPER INTERFACE ========== */
+        .helper-task-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #f39c12;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .helper-task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .helper-task-card.completed {
+            border-left-color: #27ae60;
+            background: #f0fff4;
+        }
+        .helper-task-card.overdue {
+            border-left-color: #e74c3c;
+            background: #fff5f5;
+        }
+        .helper-report-card {
+            background: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            margin-bottom: 15px;
+        }
+        .helper-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .helper-stat-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e9ecef;
+        }
+        .helper-stat-item.highlight {
+            background: #d4edda;
+            border: 2px solid #27ae60;
+        }
+        .helper-stat-item.warning {
+            background: #f8d7da;
+            border: 2px solid #e74c3c;
+        }
+        .helper-stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            margin-top: 5px;
+        }
+        .helper-stat-label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .helper-empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 2px dashed #dee2e6;
+        }
+        .helper-section-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a3c5e;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .helper-info-box {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-top: 15px;
+        }
+        .helper-info-box ul {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        /* ========== ADMIN HELPER TASKS VIEW ========== */
+        .admin-task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .admin-task-meta {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .admin-task-meta span {
+            margin-right: 15px;
+            display: inline-block;
+        }
+        .admin-task-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .admin-task-actions button {
+            padding: 6px 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .admin-task-actions button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .edit-task-info {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        .admin-filter-select {
+            width: 250px;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #ced4da;
+            font-size: 14px;
+        }
+    
