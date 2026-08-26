@@ -781,8 +781,32 @@ if (!films.length) {
         saveBudgetData();
         renderAll();
     }
+
+
+    // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
+    let selectedLoginRole = 'admin';
+
+    function setLoginRole(role) {
+        selectedLoginRole = role;
+        const btnAdmin = document.getElementById('btnRoleAdmin');
+        const btnHelper = document.getElementById('btnRoleHelper');
+        if (btnAdmin && btnHelper) {
+            if (role === 'admin') {
+                btnAdmin.style.background = '#1a3c5e';
+                btnAdmin.style.color = '#fff';
+                btnHelper.style.background = '#6c757d';
+                btnHelper.style.color = '#fff';
+            } else {
+                btnHelper.style.background = '#1a3c5e';
+                btnHelper.style.color = '#fff';
+                btnAdmin.style.background = '#6c757d';
+                btnAdmin.style.color = '#fff';
+            }
+        }
     }
 
+    // Инициализация роли по умолчанию
+    setLoginRole('admin');
 
     // ========== СИСТЕМА ДЛЯ ПОМОЩНИКА ==========
     function renderHelperTasks() {
@@ -964,7 +988,391 @@ if (!films.length) {
         renderHelperReport();
     }
 
-    // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА ==========
+    // ========== УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
+    let currentEditingTask = null;
+
+    function populateAdminHelperFilter() {
+        const filterSelect = document.getElementById('adminHelperFilter');
+        if (!filterSelect) return;
+        
+        const emails = new Set();
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo) emails.add(task.assignedTo);
+                });
+            });
+        });
+        
+        const currentValue = filterSelect.value;
+        filterSelect.innerHTML = '<option value="all">Все помощники</option>';
+        emails.forEach(email => {
+            const opt = document.createElement('option');
+            opt.value = email;
+            opt.textContent = email;
+            filterSelect.appendChild(opt);
+        });
+        if (currentValue && [...emails].includes(currentValue)) {
+            filterSelect.value = currentValue;
+        }
+    }
+
+    function renderAdminHelperTasks() {
+        const container = document.getElementById('adminHelperTasksContainer');
+        if (!container) return;
+        
+        const filterEmail = document.getElementById('adminHelperFilter')?.value || 'all';
+        
+        // Собираем все задачи
+        let allTasks = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach((service, svcIdx) => {
+                (service.tasks || []).forEach(task => {
+                    if (filterEmail !== 'all' && task.assignedTo !== filterEmail) return;
+                    allTasks.push({
+                        ...task,
+                        orderNumber: order.orderNumber,
+                        client: order.client,
+                        serviceName: service.serviceName,
+                        orderDate: order.date,
+                        serviceIndex: svcIdx
+                    });
+                });
+            });
+        });
+        
+        // Сортируем: сначала просроченные, затем по сроку
+        allTasks.sort((a, b) => {
+            if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+            if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+            if (a.status === 'completed' && b.status !== 'completed') return 1;
+            if (a.status !== 'completed' && b.status === 'completed') return -1;
+            return new Date(a.deadline) - new Date(b.deadline);
+        });
+        
+        // Статистика
+        const totalTasks = allTasks.length;
+        const pendingTasks = allTasks.filter(t => t.status === 'pending').length;
+        const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+        const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
+        const totalPay = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
+        const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0);
+        
+        if (allTasks.length === 0) {
+            container.innerHTML = `
+                <div class="helper-empty-state">
+                    <div style="font-size:48px;margin-bottom:15px;">📋</div>
+                    <div style="font-size:16px;margin-bottom:8px;">Задач не найдено</div>
+                    <div style="font-size:14px;color:#888;">${filterEmail !== 'all' ? 'Нет задач для выбранного помощника' : 'Помощники ещё не получили задач'}</div>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <!-- Статистика -->
+            <div class="helper-stat-grid" style="margin-bottom:20px;">
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">📋 Всего задач</div>
+                    <div class="helper-stat-value" style="color:#1a3c5e;">${totalTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">⏳ В процессе</div>
+                    <div class="helper-stat-value" style="color:#f39c12;">${pendingTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">✅ Выполнено</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${completedTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">❌ Просрочено</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${overdueTasks}</div>
+                </div>
+                <div class="helper-stat-item highlight">
+                    <div class="helper-stat-label">💰 Выплачено</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${totalPay.toLocaleString()} ₽</div>
+                </div>
+                <div class="helper-stat-item warning">
+                    <div class="helper-stat-label">⚠️ Штрафы</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
+                </div>
+            </div>
+            
+            <!-- Список задач -->
+            <div class="helper-section-title">Все задачи</div>
+            ${allTasks.map(task => {
+                const isOverdue = task.status === 'overdue';
+                const isCompleted = task.status === 'completed';
+                const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+                const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+                const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
+                
+                return `
+                    <div class="helper-task-card ${cardClass}" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${statusColor};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                            <div style="flex:1;min-width:200px;">
+                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                                    <span style="font-weight:700;font-size:16px;">Заказ №${task.orderNumber}</span>
+                                    <span style="color:#666;font-size:14px;">(${task.client})</span>
+                                </div>
+                                <div style="font-size:13px;color:#666;">
+                                    <span>👷 ${task.assignedTo}</span>
+                                    ${task.serviceName ? `<span style="margin-left:10px;">🔧 ${task.serviceName}</span>` : ''}
+                                    ${task.orderDate ? `<span style="margin-left:10px;">📅 ${task.orderDate}</span>` : ''}
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-weight:600;color:${statusColor};font-size:14px;">${statusText}</span>
+                            </div>
+                        </div>
+                        <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${task.description}</div>
+                        <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;flex-wrap:wrap;">
+                            <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${task.deadline}</b></span>
+                            <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
+                            ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
+                            ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
+                            ${task.completedAt ? `<span>✅ Выполнена: ${new Date(task.completedAt).toLocaleDateString('ru-RU')}</span>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn-add" onclick="openEditTaskModal('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;background:#007bff;">✏️ Редактировать</button>
+                            ${!isCompleted ? `<button class="btn-add" onclick="adminChangeTaskStatus('${task.orderNumber}', '${task.id}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Завершить</button>` : ''}
+                            ${!isOverdue && !isCompleted ? `<button class="btn-del" onclick="adminChangeTaskStatus('${task.orderNumber}', '${task.id}', 'overdue')" style="padding:6px 12px;font-size:12px;">❌ Просрочить</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        `;
+    }
+
+    function openHelperTaskModalFromAdmin() {
+        openHelperTaskModal(null);
+        // Очистить поле заказа для создания новой задачи
+        document.getElementById('helperTaskOrder').value = '';
+    }
+
+    function openEditTaskModal(orderNumber, taskId) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        // Найти задачу
+        let task = null;
+        (order.services || []).forEach((service, idx) => {
+            (service.tasks || []).forEach(t => {
+                if (String(t.id) === String(taskId)) {
+                    task = { ...t, orderNumber, client: order.client, serviceName: service.serviceName, serviceIndex: idx };
+                }
+            });
+        });
+        
+        if (!task) {
+            alert('Задача не найдена!');
+            return;
+        }
+        
+        currentEditingTask = task;
+        
+        // Заполнить форму
+        document.getElementById('editTaskOrderInfo').innerHTML = `
+            <strong>Заказ №${task.orderNumber}</strong> (${task.client})<br>
+            <span style="color:#666;">Услуга: ${task.serviceName}</span>
+        `;
+        document.getElementById('editTaskDescription').value = task.description || '';
+        document.getElementById('editTaskDeadline').value = task.deadline || '';
+        document.getElementById('editTaskAssignee').value = task.assignedTo || '';
+        document.getElementById('editTaskPay').value = task.helperPay || '';
+        document.getElementById('editTaskPenalty').value = task.penalty || '';
+        document.getElementById('editTaskStatus').value = task.status || 'pending';
+        
+        document.getElementById('editTaskModal').classList.add('active');
+    }
+
+    function closeEditTaskModal() {
+        document.getElementById('editTaskModal').classList.remove('active');
+        currentEditingTask = null;
+    }
+
+    function saveEditTask() {
+        if (!currentEditingTask) return;
+        
+        const { orderNumber, id, serviceIndex } = currentEditingTask;
+        const description = document.getElementById('editTaskDescription').value.trim();
+        const deadline = document.getElementById('editTaskDeadline').value;
+        const assignedTo = document.getElementById('editTaskAssignee').value.trim();
+        const helperPay = parseFloat(document.getElementById('editTaskPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('editTaskPenalty').value) || 0;
+        const status = document.getElementById('editTaskStatus').value;
+        
+        if (!description || !deadline || !assignedTo) {
+            alert('Заполните все обязательные поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        const service = order.services[serviceIndex];
+        if (!service) {
+            alert('Услуга не найдена!');
+            return;
+        }
+        
+        const task = (service.tasks || []).find(t => String(t.id) === String(id));
+        if (!task) {
+            alert('Задача не найдена!');
+            return;
+        }
+        
+        // Обновить задачу
+        task.description = description;
+        task.deadline = deadline;
+        task.assignedTo = assignedTo;
+        task.helperPay = helperPay;
+        task.penalty = penalty;
+        task.status = status;
+        
+        saveAll();
+        closeEditTaskModal();
+        renderAll();
+        alert('✅ Задача обновлена!');
+    }
+
+    function deleteTaskFromEditModal() {
+        if (!currentEditingTask) return;
+        if (!confirm('Удалить эту задачу?')) return;
+        deleteTask(currentEditingTask.orderNumber, currentEditingTask.id, currentEditingTask.serviceIndex);
+        closeEditTaskModal();
+    }
+
+    function deleteTask(orderNumber, taskId, serviceIndex) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        const service = order.services[serviceIndex];
+        if (!service) return;
+        
+        const taskIdx = (service.tasks || []).findIndex(t => String(t.id) === String(taskId));
+        if (taskIdx === -1) return;
+        
+        if (!confirm('Удалить эту задачу?')) return;
+        
+        service.tasks.splice(taskIdx, 1);
+        saveAll();
+        renderAll();
+    }
+
+    function adminChangeTaskStatus(orderNumber, taskId, newStatus) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        let statusText = '';
+        if (newStatus === 'completed') statusText = 'завершена';
+        else if (newStatus === 'overdue') statusText = 'просрочена';
+        else statusText = 'изменена';
+        
+        if (!confirm(`Отметить задачу как ${statusText}?`)) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = newStatus;
+                    if (newStatus === 'completed') {
+                        task.completedAt = new Date().toISOString();
+                    }
+                }
+            });
+        });
+        
+        saveAll();
+        renderAll();
+    }
+
+    // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
+    function openHelperTaskModal(orderNumber) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        // Заполняем список заказов
+        const orderSelect = document.getElementById('helperTaskOrder');
+        orderSelect.innerHTML = '<option value="">-- Выбери заказ --</option>';
+        ordersData.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.orderNumber;
+            opt.textContent = `№${o.orderNumber} — ${o.client || 'Без клиента'}`;
+            if (o.orderNumber == orderNumber) opt.selected = true;
+            orderSelect.appendChild(opt);
+        });
+        
+        // Заполняем список помощников (используем email как идентификатор)
+        const assigneeSelect = document.getElementById('helperTaskAssignee');
+        assigneeSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
+        const opt1 = document.createElement('option');
+        opt1.value = 'helper@auto-atelier.ru';
+        opt1.textContent = 'helper@auto-atelier.ru';
+        assigneeSelect.appendChild(opt1);
+        
+        // Устанавливаем дату по умолчанию - завтра
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('helperTaskDeadline').value = formatDate(tomorrow);
+        document.getElementById('helperTaskDescription').value = '';
+        document.getElementById('helperTaskPay').value = '';
+        document.getElementById('helperTaskPenalty').value = '';
+        
+        document.getElementById('helperTaskModal').classList.add('active');
+    }
+
+    function closeHelperTaskModal() {
+        document.getElementById('helperTaskModal').classList.remove('active');
+    }
+
+    function saveHelperTask() {
+        const orderNumber = document.getElementById('helperTaskOrder').value;
+        const assignedTo = document.getElementById('helperTaskAssignee').value;
+        const description = document.getElementById('helperTaskDescription').value.trim();
+        const deadline = document.getElementById('helperTaskDeadline').value;
+        const helperPay = parseFloat(document.getElementById('helperTaskPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('helperTaskPenalty').value) || 0;
+        
+        if (!orderNumber || !assignedTo || !description || !deadline) {
+            alert('Заполните все поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        // Добавляем задачу в первую услугу заказа
+        if (!order.services || order.services.length === 0) {
+            alert('В заказе нет услуг!');
+            return;
+        }
+        
+        const service = order.services[0];
+        if (!service.tasks) service.tasks = [];
+        
+        service.tasks.push({
+            id: Date.now().toString(),
+            description,
+            deadline,
+            assignedTo,
+            helperPay,
+            penalty,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        });
+        
+        saveAll();
+        closeHelperTaskModal();
+        renderAll();
+        alert('✅ Задача создана для ' + assignedTo);
+    }
+
     function openTaskModal(orderNumber) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         if (!order) return;
@@ -1275,6 +1683,12 @@ if (!films.length) {
         const income = parseFloat(prompt('Приход:', '0')) || 0;
         const expense = parseFloat(prompt('Расход:', '0')) || 0;
         cashOps.push({date, desc, income, expense});
+        saveAll();
+        renderAll();
+    }
+
+    function deleteCashOp(idx) {
+        cashOps.splice(idx, 1);
         saveAll();
         renderAll();
     }
@@ -2112,7 +2526,16 @@ if (!films.length) {
         }
         recalcOrder(orderData);
         recalculateStockFromAllOrders();
-        if (paid) distributePayment(orderData);
+        if (paid) {
+            // При редактировании существующего оплаченного заказа - удаляем старые транзакции
+            if (orderEditId) {
+                const existingOrder = ordersData.find(o => o.id === orderEditId);
+                if (existingOrder && existingOrder.paid) {
+                    removePaymentDistribution(existingOrder.orderNumber);
+                }
+            }
+            distributePayment(orderData);
+        }
         saveAll();
         renderAll();
         closeOrderModal();
@@ -2947,6 +3370,14 @@ function deleteOrder(orderId) {
         renderRefs();
         renderPurchaseOrdersList();
         updateUnpaidSummary();
+        
+        // Рендеринг для помощника
+        if (window.currentUserData) {
+            if (window.currentUserData.role === 'helper') {
+                renderHelperTasks();
+                renderHelperReport();
+            }
+        }
     }
 
     // ========== СПРАВОЧНИКИ ==========
@@ -2970,6 +3401,11 @@ function deleteOrder(orderId) {
             if (!show) return;
             const div = document.createElement('div');
             div.className = `order-item status-${color}`;
+            
+            // Считаем количество задач
+            let taskCount = 0;
+            (order.services || []).forEach(s => { taskCount += (s.tasks || []).length; });
+            
             div.innerHTML = `
                 <div class="order-header">
                     <span class="order-number">№${order.orderNumber}</span>
@@ -2981,8 +3417,9 @@ function deleteOrder(orderId) {
                     <span class="order-sum ${order.paid?'paid':'unpaid'}">${(parseFloat(order.clientPrice)||0).toFixed(2)}₽</span>
                     <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${order.id}, this.checked)"> Оплачено</span>
                     <span class="color-indicator ${color}"></span>
+                    <button class="btn-extra" onclick="event.stopPropagation(); openHelperTaskModal(${order.orderNumber})" title="Добавить задачу">📝 Задача${taskCount > 0 ? ' (' + taskCount + ')' : ''}</button>
                 </div>`;
-            div.onclick = (e) => { if (e.target.tagName !== 'INPUT') openOrderModal(order.id); };
+            div.onclick = (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') openOrderModal(order.id); };
             list.appendChild(div);
         });
         document.getElementById('orderCount').textContent = ordersData.length;
@@ -3391,6 +3828,12 @@ function deleteOrder(orderId) {
                 if (btn.dataset.tab === 'tab-calendar') renderCalendar();
                 if (btn.dataset.tab === 'tab-ref') renderRefs();
                 if (btn.dataset.tab === 'tab-purchase') renderPurchaseOrdersList();
+                if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
+                if (btn.dataset.tab === 'helper-report') renderHelperReport();
+                if (btn.dataset.tab === 'tab-helper-admin') {
+                    populateAdminHelperFilter();
+                    renderAdminHelperTasks();
+                }
             });
         });
 
@@ -3412,6 +3855,8 @@ function deleteOrder(orderId) {
         document.getElementById('addPaintModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddPaintModal(); });
         document.getElementById('addFilmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddFilmModal(); });
         document.getElementById('addExtraRefModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
+        document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
+        document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
 
         document.getElementById('orderDate').addEventListener('input', updateDeadline);
         document.getElementById('orderDurationDays').addEventListener('input', updateDeadline);
@@ -3463,7 +3908,7 @@ window.updateCloudData = function(data) {
 document.addEventListener('keydown', (e) => {
     // Проверяем, что не находимся в поле ввода
     const isInInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-    const isModalOpen = document.querySelector('.modal-overlay.active');
+    const isModalOpen = document.querySelector('.modal-overlay.active') || document.querySelector('.notification-modal.active');
     
     if (isInInput || isModalOpen) return;
     
@@ -3480,34 +3925,44 @@ document.addEventListener('keydown', (e) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
         currentDate = new Date(tomorrow);
         selectedDate = new Date(tomorrow);
-        openOrderModal();
+        openOrderModal(null, formatDate(tomorrow));
     }
     
     // Стрелки влево/вправо — переключение дней
     if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         if (calendarViewMode === 'week') {
             currentDate.setDate(currentDate.getDate() - 7);
         } else {
             currentDate.setMonth(currentDate.getMonth() - 1);
         }
+        selectedDate = new Date(currentDate);
         renderCalendar();
     }
     
     if (e.key === 'ArrowRight') {
+        e.preventDefault();
         if (calendarViewMode === 'week') {
             currentDate.setDate(currentDate.getDate() + 7);
         } else {
             currentDate.setMonth(currentDate.getMonth() + 1);
         }
+        selectedDate = new Date(currentDate);
         renderCalendar();
     }
     
     // Escape — закрыть модальные окна
     if (e.key === 'Escape') {
         closeNotificationModal();
+        // Закрыть все modal-overlay
         document.querySelectorAll('.modal-overlay.active').forEach(modal => {
             modal.classList.remove('active');
         });
+        // Закрыть notification-modal
+        const notifModal = document.getElementById('notificationModal');
+        if (notifModal && notifModal.classList.contains('active')) {
+            notifModal.classList.remove('active');
+        }
     }
 });
 
