@@ -3968,4 +3968,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Закрытие модального уведомления по клику вне него
-document.getElementById('notificationModal')?.addEventListener('click', 
+document.getElementById('notificationModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'notificationModal') {
+        closeNotificationModal();
+    }
+});
+
+
+                
