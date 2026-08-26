@@ -75,6 +75,7 @@
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
+        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -334,6 +335,21 @@
         <div id="helperReportContainer"></div>
     </div>
 
+    <!-- Вкладка Задачи помощников (для админа) -->
+    <div id="tab-helper-admin" class="tab-content">
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">👥 Задачи помощников</h2>
+        <div style="margin-bottom:15px;">
+            <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
+        </div>
+        <div style="margin-bottom:15px;">
+            <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
+            <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
+                <option value="all">Все помощники</option>
+            </select>
+        </div>
+        <div id="adminHelperTasksContainer"></div>
+    </div>
+
     <!-- Модалка заказа -->
     <div class="modal-overlay" id="orderModal">
         <div class="modal">
@@ -552,6 +568,51 @@
         </div>
     </div>
 
+    <!-- Модалка редактирования задачи -->
+    <div class="modal-overlay" id="editTaskModal">
+        <div class="modal" style="max-width:600px;">
+            <h3>✏️ Редактировать задачу</h3>
+            <div id="editTaskOrderInfo" style="background:#f8f9fa;padding:10px;border-radius:6px;margin-bottom:15px;font-size:14px;"></div>
+            <div class="form-group">
+                <label>📝 Описание задачи</label>
+                <textarea id="editTaskDescription" rows="3" placeholder="Опишите задачу..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>⏰ Срок выполнения</label>
+                    <input type="date" id="editTaskDeadline">
+                </div>
+                <div class="form-group">
+                    <label>👷 Помощник</label>
+                    <input type="email" id="editTaskAssignee" placeholder="email@example.com">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>💰 Оплата (₽)</label>
+                    <input type="number" id="editTaskPay" placeholder="0" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>⚠️ Штраф (₽)</label>
+                    <input type="number" id="editTaskPenalty" placeholder="0" step="0.01">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>📊 Статус задачи</label>
+                <select id="editTaskStatus" style="width:100%;">
+                    <option value="pending">⏳ В процессе</option>
+                    <option value="completed">✅ Выполнена</option>
+                    <option value="overdue">❌ Просрочена</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button class="btn-del" onclick="deleteTaskFromEditModal()" style="margin-right:auto;">🗑️ Удалить задачу</button>
+                <button class="btn-cancel" onclick="closeEditTaskModal()">Отмена</button>
+                <button class="btn-save" onclick="saveEditTask()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Модальное окно уведомлений -->
     <div class="notification-modal" id="notificationModal">
         <div class="notification-content">
@@ -655,15 +716,16 @@
       // Проверяем роль пользователя
       get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
         const userData = snapshot.val();
-        if (userData) {
-          window.currentUserData = {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName || 'Пользователь',
-            role: userData.role || 'user'
-          };
-          updateAuthUI();
-        }
+          if (userData) {
+            window.currentUserData = {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || 'Пользователь',
+              role: userData.role || 'user'
+            };
+            updateAuthUI();
+            updateRoleTabs();
+          }
         
         // Ждём загрузки app.js перед вызовом updateCloudData
         const checkUpdateCloudData = () => {
@@ -704,6 +766,60 @@
       `;
     } else {
       authSection.innerHTML = '';
+    }
+  }
+
+  function updateRoleTabs() {
+    if (!window.currentUserData) return;
+    
+    const isAdmin = window.currentUserData.role === 'admin';
+    const adminTabs = document.getElementById('adminTabs');
+    const helperTabs = document.getElementById('helperTabs');
+    
+    if (isAdmin) {
+      adminTabs.style.display = 'flex';
+      helperTabs.style.display = 'none';
+      
+      // Показать вкладки админа, скрыть помощника
+      document.getElementById('tab-orders').style.display = '';
+      document.getElementById('tab-stock').style.display = '';
+      document.getElementById('tab-cash').style.display = '';
+      document.getElementById('tab-summary').style.display = '';
+      document.getElementById('tab-calendar').style.display = '';
+      document.getElementById('tab-ref').style.display = '';
+      document.getElementById('tab-purchase').style.display = '';
+      document.getElementById('helper-tasks').style.display = 'none';
+      document.getElementById('helper-report').style.display = 'none';
+      
+      // Активировать вкладку заказов
+      document.querySelectorAll('#adminTabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('#adminTabs .tab-btn[data-tab="tab-orders"]').classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('tab-orders').classList.add('active');
+    } else {
+      adminTabs.style.display = 'none';
+      helperTabs.style.display = 'flex';
+      
+      // Скрыть вкладки админа, показать помощника
+      document.getElementById('tab-orders').style.display = 'none';
+      document.getElementById('tab-stock').style.display = 'none';
+      document.getElementById('tab-cash').style.display = 'none';
+      document.getElementById('tab-summary').style.display = 'none';
+      document.getElementById('tab-calendar').style.display = 'none';
+      document.getElementById('tab-ref').style.display = 'none';
+      document.getElementById('tab-purchase').style.display = 'none';
+      document.getElementById('helper-tasks').style.display = '';
+      document.getElementById('helper-report').style.display = '';
+      
+      // Активировать вкладку задач помощника
+      document.querySelectorAll('#helperTabs .tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('#helperTabs .tab-btn[data-tab="helper-tasks"]').classList.add('active');
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('helper-tasks').classList.add('active');
+      
+      // Рендер задач и отчёта помощника
+      if (typeof renderHelperTasks === 'function') renderHelperTasks();
+      if (typeof renderHelperReport === 'function') renderHelperReport();
     }
   }
 </div>
