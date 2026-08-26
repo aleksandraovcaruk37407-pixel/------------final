@@ -22,6 +22,13 @@
         <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
             <h1 style="font-size:48px;margin-bottom:20px;">🚗</h1>
             <h2 style="color:#1a3c5e;margin-bottom:30px;">Учет авто-ателье</h2>
+            
+            <!-- Выбор роли -->
+            <div style="display:flex;gap:10px;margin-bottom:20px;">
+                <button class="btn-add" onclick="setLoginRole('admin')" id="btnRoleAdmin" style="flex:1;padding:10px;font-size:14px;background:#1a3c5e;">👨‍💼 Администратор</button>
+                <button class="btn-add" onclick="setLoginRole('helper')" id="btnRoleHelper" style="flex:1;padding:10px;font-size:14px;background:#6c757d;">👷 Помощник</button>
+            </div>
+            
             <button class="btn-add" onclick="openAuthModal()" style="padding:12px 40px;font-size:16px;">🔑 Войти в систему</button>
             <p style="margin-top:20px;font-size:13px;color:#888;">Введите email и пароль для доступа</p>
         </div>
@@ -60,7 +67,7 @@
     </div>
     </div>
 
-    <div class="tabs">
+    <div class="tabs" id="adminTabs">
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
         <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
         <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
@@ -68,6 +75,12 @@
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
+    </div>
+    
+    <!-- Вкладки для помощника (скрыты по умолчанию) -->
+    <div class="tabs" id="helperTabs" style="display:none;">
+        <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
+        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
     </div>
 
     <!-- Вкладка Заказы -->
@@ -309,6 +322,18 @@
         <div id="purchaseDocumentContainer" style="margin-top:20px;"></div>
     </div>
 
+    <!-- Вкладка Мои задачи (для помощника) -->
+    <div id="helper-tasks" class="tab-content">
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">📋 Мои задачи</h2>
+        <div id="helperTasksContainer"></div>
+    </div>
+
+    <!-- Вкладка Мой отчёт (для помощника) -->
+    <div id="helper-report" class="tab-content">
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
+        <div id="helperReportContainer"></div>
+    </div>
+
     <!-- Модалка заказа -->
     <div class="modal-overlay" id="orderModal">
         <div class="modal">
@@ -482,6 +507,47 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeAddExtraRefModal()">Отмена</button>
                 <button class="btn-save" onclick="saveNewExtraRef()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка создания задачи для помощника -->
+    <div class="modal-overlay" id="helperTaskModal">
+        <div class="modal" style="max-width:600px;">
+            <h3>📝 Создать задачу для помощника</h3>
+            <div class="form-group">
+                <label>📋 Заказ</label>
+                <select id="helperTaskOrder" style="width:100%;">
+                    <option value="">-- Выбери заказ --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>👷 Помощник</label>
+                <select id="helperTaskAssignee" style="width:100%;">
+                    <option value="">-- Выбери помощника --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>📝 Описание задачи</label>
+                <textarea id="helperTaskDescription" rows="3" placeholder="Опишите задачу..."></textarea>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>⏰ Срок выполнения</label>
+                    <input type="date" id="helperTaskDeadline">
+                </div>
+                <div class="form-group">
+                    <label>💰 Оплата за задачу (₽)</label>
+                    <input type="number" id="helperTaskPay" placeholder="0" step="0.01">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>⚠️ Штраф за просрочку (₽)</label>
+                <input type="number" id="helperTaskPenalty" placeholder="0" step="0.01">
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeHelperTaskModal()">Отмена</button>
+                <button class="btn-save" onclick="saveHelperTask()">Создать задачу</button>
             </div>
         </div>
     </div>
