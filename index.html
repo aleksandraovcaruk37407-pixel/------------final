@@ -895,8 +895,8 @@
           displayName: user.displayName || userData.displayName || 'Пользователь',
           role: userData.role || 'user'
         };
-        updateAuthUI();
-        updateRoleTabs();
+        window.updateAuthUI();
+        window.updateRoleTabs();
         
         // Ждём загрузки app.js перед вызовом updateCloudData
         const checkUpdateCloudData = () => {
@@ -912,49 +912,17 @@
           }
         };
         checkUpdateCloudData();
-        
-        // Рендерим интерфейс после установки пользователя
-        if (typeof renderAll === 'function') renderAll();
       }
     }).catch(err => {
       console.error('Ошибка получения данных пользователя:', err);
     });
   }
+  
+  // Делаем функцию глобально доступной
+  window.getUserDataForAuth = getUserDataForAuth;
 
-  // Проверяем состояние авторизации
-  onAuthStateChanged(window.auth, (user) => {
-    if (user) {
-      // Пользователь авторизован - показываем приложение
-      console.log('Пользователь авторизован:', user.email);
-      
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('appContent').style.display = 'block';
-      
-      // Создаём запись пользователя в базе, если её нет, затем загружаем данные
-      get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
-        if (!snapshot.exists()) {
-          return set(ref(window.db), 'users/' + user.uid, {
-            email: user.email,
-            displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-            role: 'admin',
-            createdAt: new Date().toISOString()
-          });
-        }
-      }).then(() => {
-        getUserDataForAuth(user);
-      }).catch(err => {
-        console.error('Ошибка работы с пользователем:', err);
-      });
-    } else {
-      // Пользователь не авторизован - показываем экран входа
-      console.log('Пользователь не авторизован');
-      window.currentUserData = null;
-      
-      document.getElementById('loginScreen').style.display = 'flex';
-      document.getElementById('appContent').style.display = 'none';
-      updateAuthUI();
-    }
-  });
+  // Проверяем состояние авторизации (перенесено ПОСЛЕ DOMContentLoaded)
+  // onAuthStateChanged перемещён вниз файла
 
   function updateAuthUI() {
     const authSection = document.getElementById('authSection');
@@ -1023,6 +991,45 @@
       if (typeof renderHelperReport === 'function') renderHelperReport();
     }
   }
+  
+  // Делаем функции глобально доступными
+  window.updateAuthUI = updateAuthUI;
+  window.updateRoleTabs = updateRoleTabs;
+  });
+
+  // ========== ПРОВЕРКА АВТОРИЗАЦИИ (ПОСЛЕ DOMContentLoaded) ==========
+  onAuthStateChanged(window.auth, (user) => {
+    if (user) {
+      // Пользователь авторизован - показываем приложение
+      console.log('Пользователь авторизован:', user.email);
+      
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appContent').style.display = 'block';
+      
+      // Создаём запись пользователя в базе, если её нет, затем загружаем данные
+      get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+        if (!snapshot.exists()) {
+          return set(ref(window.db), 'users/' + user.uid, {
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
+            role: 'admin',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }).then(() => {
+        getUserDataForAuth(user);
+      }).catch(err => {
+        console.error('Ошибка работы с пользователем:', err);
+      });
+    } else {
+      // Пользователь не авторизован - показываем экран входа
+      console.log('Пользователь не авторизован');
+      window.currentUserData = null;
+      
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('appContent').style.display = 'none';
+      window.updateAuthUI();
+    }
   });
 </script>
 </div>
