@@ -781,6 +781,241 @@ if (!films.length) {
         saveBudgetData();
         renderAll();
     }
+    }
+
+
+    // ========== СИСТЕМА ДЛЯ ПОМОЩНИКА ==========
+    function renderHelperTasks() {
+        const container = document.getElementById('helperTasksContainer');
+        if (!container || !window.currentUserData) return;
+        
+        const helperEmail = window.currentUserData.email;
+        
+        // Собираем все задачи из всех заказов
+        let allTasks = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        allTasks.push({
+                            ...task,
+                            orderNumber: order.orderNumber,
+                            client: order.client,
+                            serviceName: service.serviceName,
+                            orderDate: order.date
+                        });
+                    }
+                });
+            });
+        });
+        
+        // Сортируем: сначала просроченные, затем по сроку
+        allTasks.sort((a, b) => {
+            if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+            if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+            return new Date(a.deadline) - new Date(b.deadline);
+        });
+        
+        if (allTasks.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">У вас пока нет задач. Администратор назначит задачи в заказах.</div>';
+            return;
+        }
+        
+        container.innerHTML = allTasks.map((task, idx) => {
+            const isOverdue = task.status === 'overdue';
+            const isCompleted = task.status === 'completed';
+            const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+            const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+            
+            return `
+                <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div>
+                            <span style="font-weight:700;font-size:16px;">Заказ №${task.orderNumber}</span>
+                            <span style="color:#666;margin-left:10px;">(${task.client})</span>
+                        </div>
+                        <span style="font-weight:600;color:${statusColor};">${statusText}</span>
+                    </div>
+                    <div style="font-size:14px;margin-bottom:6px;"><b>Услуга:</b> ${task.serviceName}</div>
+                    <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${task.description}</div>
+                    <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;">
+                        <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${task.deadline}</b></span>
+                        <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
+                        ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
+                    </div>
+                    ${!isCompleted ? `
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-add" onclick="completeTask('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;">✅ Отметить выполненной</button>
+                            ${!isOverdue ? `<button class="btn-del" onclick="markOverdue('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;">❌ Отметить просроченной</button>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderHelperReport() {
+        const container = document.getElementById('helperReportContainer');
+        if (!container || !window.currentUserData) return;
+        
+        const helperEmail = window.currentUserData.email;
+        
+        let totalEarned = 0;
+        let totalLost = 0;
+        let totalPenalties = 0;
+        let completedTasks = 0;
+        let overdueTasks = 0;
+        
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        if (task.status === 'completed') {
+                            totalEarned += parseFloat(task.helperPay) || 0;
+                            completedTasks++;
+                        } else if (task.status === 'overdue') {
+                            totalLost += parseFloat(task.helperPay) || 0;
+                            totalPenalties += parseFloat(task.penalty) || 0;
+                            overdueTasks++;
+                        }
+                    }
+                });
+            });
+        });
+        
+        const netEarned = totalEarned - totalPenalties;
+        
+        container.innerHTML = `
+            <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
+                <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⚠️ Штрафы</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalPenalties.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
+                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано (просрочка)</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
+                <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
+                    <li>За каждую выполненную задачу начисляется <b>${'указанная сумма'} ₽</b></li>
+                    <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
+                    <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    function completeTask(orderNumber, taskId) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = 'completed';
+                    task.completedAt = new Date().toISOString();
+                }
+            });
+        });
+        
+        saveAll();
+        renderHelperTasks();
+        renderHelperReport();
+    }
+
+    function markOverdue(orderNumber, taskId) {
+        if (!confirm('Отметить задачу как просроченную?')) return;
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = 'overdue';
+                }
+            });
+        });
+        
+        saveAll();
+        renderHelperTasks();
+        renderHelperReport();
+    }
+
+    // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА ==========
+    function openTaskModal(orderNumber) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        const modal = document.getElementById('taskModal');
+        document.getElementById('taskOrderNumber').textContent = `Заказ №${orderNumber} (${order.client})`;
+        document.getElementById('taskModal').classList.add('active');
+    }
+
+    function closeTaskModal() {
+        document.getElementById('taskModal').classList.remove('active');
+    }
+
+    function saveNewTask() {
+        const orderNumber = document.getElementById('taskOrderNumberInput').value;
+        const description = document.getElementById('taskDescription').value.trim();
+        const deadline = document.getElementById('taskDeadline').value;
+        const assignedTo = document.getElementById('taskAssignedTo').value.trim();
+        const helperPay = parseFloat(document.getElementById('taskHelperPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('taskPenalty').value) || 0;
+        
+        if (!description || !deadline || !assignedTo) {
+            alert('Заполните все поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        // Находим первую услугу или создаём новую
+        let service = order.services[0];
+        if (!service.tasks) service.tasks = [];
+        
+        service.tasks.push({
+            id: Date.now().toString(),
+            description,
+            deadline,
+            assignedTo,
+            helperPay,
+            penalty,
+            status: 'pending'
+        });
+        
+        saveAll();
+        closeTaskModal();
+        renderOrders();
+        alert('✅ Задача добавлена!');
+    }
 
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
