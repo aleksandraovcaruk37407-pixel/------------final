@@ -1335,6 +1335,10 @@ if (!films.length) {
     function closeHelperTaskModal() {
         document.getElementById('helperTaskModal').classList.remove('active');
     }
+    
+    // Делаем функции глобально доступными
+    window.openHelperTaskModal = openHelperTaskModal;
+    window.closeHelperTaskModal = closeHelperTaskModal;
 
     function saveHelperTask() {
         const orderNumber = document.getElementById('helperTaskOrder').value;
@@ -1754,8 +1758,9 @@ if (!films.length) {
             if (!markerType) return;
             
             markerType.articles.forEach((art, idx) => {
+                const unit = getUnitFromArticleName(art.name);
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${art.code}</td><td>${art.name}</td>
+                tr.innerHTML = `<td>${art.code}</td><td>${art.name}</td><td>${unit}</td>
                     <td><input type="number" class="marker-price-input" value="${parseFloat(art.price)||0}" step="0.01" data-marker="${markerName}" data-idx="${idx}"></td>`;
                 tbody.appendChild(tr);
             });
@@ -1817,6 +1822,33 @@ if (!films.length) {
         renderOrders();
     }
 
+    // Автоматическое определение единицы измерения по названию артикула
+    function getUnitFromArticleName(articleName) {
+        const name = (articleName || '').toLowerCase();
+        if (name.includes('лист')) return 'лист';
+        if (name.includes('упак') || name.includes('уп.')) return 'уп';
+        if (name.includes('м2') || name.includes('м²')) return 'м²';
+        return 'м²'; // по умолчанию
+    }
+
+    function renderMaterialTypes() {
+        const container = document.getElementById('materialTypesContainer');
+        if (!container) return;
+        container.innerHTML = '';
+        materialTypes.forEach((mt, idx) => {
+            const div = document.createElement('div');
+            div.innerHTML = `<strong>${mt.name}</strong> (${mt.unit}) <button class="btn-extra" onclick="addArticleToType(${idx})">➕ Артикул</button> <button class="btn-del" onclick="deleteMaterialType(${idx})">✕</button>`;
+            const table = document.createElement('table');
+            table.innerHTML = `<tr><th>Артикул</th><th>Наименование</th><th>Цена</th><th></th></tr>`;
+            mt.articles.forEach((art, artIdx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td><input type="text" value="${art.code}" onchange="updateTypeArticleCode(${idx}, ${artIdx}, this.value)" style="width:100px;"></td><td><input type="text" value="${art.name}" onchange="updateTypeArticleName(${idx}, ${artIdx}, this.value)" style="width:150px;"></td><td><input type="number" value="${parseFloat(art.price)||0}" onchange="updateTypeArticlePrice(${idx}, ${artIdx}, this.value)" step="0.01" style="width:80px;"></td><td><button class="btn-del" onclick="deleteArticleFromType(${idx}, ${artIdx})">✕</button></td>`;
+                table.appendChild(tr);
+            });
+            div.appendChild(table);
+            container.appendChild(div);
+        });
+    }
 
     function renderColorTable() {
         const tbody = document.getElementById('colorRefBody');
@@ -2390,10 +2422,12 @@ if (!films.length) {
                 const div = document.createElement('div');
                 const markerData = inst[mt.name] || {};
                 const icon = markerIcons[mt.name] || '📦';
+                // Определяем единицу измерения по названию типа
+                const unitLabel = getUnitFromArticleName(mt.name);
                 div.innerHTML = `<div class="section-title">${icon} ${mt.name}</div>
                     <label>Артикул или поиск по названию</label><input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Введите код или название для поиска">
-                    <label>Цена за лист</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
-                    <label>Количество листов</label><input type="number" class="custom-qty" value="${markerData.sheets||''}" step="1" placeholder="0">
+                    <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
+                    <label>Количество ${unitLabel}</label><input type="number" class="custom-qty" value="${markerData.qty||''}" step="0.1" placeholder="0.0">
                     <label>Стоимость</label><input type="text" class="custom-cost" value="0.00" readonly>`;
                 container.appendChild(div);
                 const codeInput = div.querySelector('.custom-code');
@@ -2412,14 +2446,22 @@ if (!films.length) {
                     }
                     if (art) { 
                         codeInput.value = art.code;
-                        priceInput.value = parseFloat(art.price)||0; 
+                        // Автоматически определяем единицу измерения по названию артикула
+                        const detectedUnit = getUnitFromArticleName(art.name);
+                        priceInput.value = parseFloat(art.price)||0;
+                        // Обновляем лейблы если единица изменилась
+                        const priceLabel = priceInput.parentElement;
+                        const qtyLabel = qtyInput.parentElement;
+                        if (priceLabel) priceLabel.textContent = `Цена за ${detectedUnit}`;
+                        if (qtyLabel) qtyLabel.textContent = `Количество ${detectedUnit}`;
                     }
                     inst[mt.name] = {
                         code: codeInput.value, 
                         price: art ? (parseFloat(art.price)||0) : (parseFloat(priceInput.value)||0), 
-                        sheets: parseInt(qtyInput.value) || 0
+                        qty: parseFloat(qtyInput.value) || 0,
+                        unit: art ? getUnitFromArticleName(art.name) : unitLabel
                     };
-                    costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].sheets)||0)).toFixed(2);
+                    costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].qty)||0)).toFixed(2);
                     updateModalTotals();
                 };
                 codeInput.addEventListener('input', update);
@@ -3384,6 +3426,7 @@ function deleteOrder(orderId) {
     function renderRefs() {
         renderServicesTable();
         renderMarkersTable();
+        renderMaterialTypes();
         renderColorTable();
         renderPaintTable();
         renderFilmTable();
