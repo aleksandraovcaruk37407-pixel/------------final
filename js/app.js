@@ -786,7 +786,7 @@ if (!films.length) {
     // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
     let selectedLoginRole = 'admin';
 
-    function setLoginRole(role) {
+    window.setLoginRole = function(role) {
         selectedLoginRole = role;
         const btnAdmin = document.getElementById('btnRoleAdmin');
         const btnHelper = document.getElementById('btnRoleHelper');
