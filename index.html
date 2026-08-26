@@ -683,6 +683,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
   import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
@@ -698,6 +699,7 @@
   };
 
   const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
   window.db = getDatabase(app);
   window.auth = getAuth(app);
   window.fbRef = ref;
@@ -724,12 +726,8 @@
     if (registerForm) registerForm.style.display = 'none';
   };
 
-  // ========== DOMContentLoaded ==========
+  // ========== ВСЕ ФУНКЦИИ ВНУТРИ DOMContentLoaded ==========
   document.addEventListener('DOMContentLoaded', () => {
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
-    getAnalytics(app);
-
-    // ========== ФУНКЦИИ АВТОРИЗАЦИИ ==========
     window.handleRegister = async () => {
     const name = document.getElementById('registerName').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
