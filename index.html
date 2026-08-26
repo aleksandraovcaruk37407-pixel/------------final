@@ -18,7 +18,7 @@
 </head>
 <body>
 <!-- Сначала загружаем app.js ДО Firebase -->
-<script src="js/app.js"></script>
+<script src="js/app.js?v=2"></script>
 
 <!-- Модальное окно авторизации (всегда доступно, перед container) -->
 <div class="modal-overlay" id="authModal">
@@ -1034,6 +1034,11 @@
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
             role: 'admin',
             createdAt: new Date().toISOString()
+          }).then(() => {
+            console.log('Запись пользователя создана успешно');
+          }).catch(err => {
+            console.error('Ошибка создания записи пользователя:', err);
+            throw err;
           });
         }
       }).then(() => {
@@ -1041,6 +1046,8 @@
         getUserDataForAuth(user);
       }).catch(err => {
         console.error('Ошибка работы с пользователем:', err);
+        // Даже если ошибка — пробуем войти
+        getUserDataForAuth(user);
       });
     } else {
       // Пользователь не авторизован - показываем экран входа
