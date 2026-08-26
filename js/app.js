@@ -614,7 +614,7 @@ if (!films.length) {
         const mandatoryTotal = budgetData.mandatoryPayments.reduce((sum, mp) => sum + (mp.amount || 0), 0);
         
         // Процент на личные
-        const personalPercent = budgetData.incomePlan.personalPercent / 100;
+        const personalPercent = (budgetData.incomePlan?.personalPercent || 10) / 100;
         
         // Коэффициент (1 - все проценты)
         const rateSum = 0.04 + personalPercent + 0.05 + 0.05; // налог + личные + бизнес + инвестиции
@@ -651,7 +651,7 @@ if (!films.length) {
         const progressPercent = minIncome > 0 ? Math.min(100, (actualIncome / minIncome) * 100) : 0;
         
         // Дополнительные цели
-        const goalsProgress = budgetData.incomePlan.additionalGoals.map(goal => ({
+        const goalsProgress = (budgetData.incomePlan?.additionalGoals || []).map(goal => ({
             ...goal,
             percent: Math.min(100, (goal.saved / goal.target) * 100)
         }));
@@ -669,7 +669,7 @@ if (!films.length) {
             investmentAmount,
             progressPercent,
             goalsProgress,
-            personalPercent: budgetData.incomePlan.personalPercent
+            personalPercent: budgetData.incomePlan?.personalPercent || 10
         };
     }
 
@@ -730,7 +730,7 @@ if (!films.length) {
                 <h4 style="margin:0 0 10px 0;">⚙️ Настройка личных расходов</h4>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <label style="font-size:14px;">Процент на личные:</label>
-                    <input type="number" id="personalPercentInput" value="${budgetData.incomePlan.personalPercent}" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
+                    <input type="number" id="personalPercentInput" value="${budgetData.incomePlan?.personalPercent || 10}" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
                     <span style="font-size:14px;">%</span>
                     <button onclick="savePersonalPercent()" class="btn-add" style="padding:6px 12px;font-size:12px;margin-left:auto;">💾 Сохранить</button>
                 </div>
@@ -761,6 +761,7 @@ if (!films.length) {
     }
 
     function updatePersonalPercent(value) {
+        budgetData.incomePlan = budgetData.incomePlan || {};
         budgetData.incomePlan.personalPercent = parseInt(value) || 10;
         saveBudgetData();
     }
@@ -771,7 +772,8 @@ if (!films.length) {
     }
 
     function addGoalSaved(goalIdx) {
-        const goal = budgetData.incomePlan.additionalGoals[goalIdx];
+        const goals = budgetData.incomePlan?.additionalGoals || [];
+        const goal = goals[goalIdx];
         if (!goal) return;
         const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${goal.saved.toLocaleString()} ₽):`, '0');
         if (!amount || isNaN(amount)) return;
