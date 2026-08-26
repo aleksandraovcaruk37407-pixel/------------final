@@ -886,7 +886,10 @@
 
   // Вспомогательная функция для получения данных пользователя
   function getUserDataForAuth(user) {
+    console.log('>>> getUserDataForAuth вызван для', user.email, 'uid:', user.uid);
     get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+      console.log('>>> snapshot.exists =', snapshot.exists());
+      const userData = snapshot.val();
       const userData = snapshot.val();
       if (userData) {
         window.currentUserData = {
@@ -912,6 +915,17 @@
           }
         };
         checkUpdateCloudData();
+        
+        // Явно вызываем рендер после установки пользователя
+        if (typeof window.renderAll === 'function') {
+            console.log('Вызываю renderAll через setTimeout');
+            setTimeout(() => {
+                console.log('renderAll вызывается, appContent.style.display =', document.getElementById('appContent')?.style.display);
+                window.renderAll();
+            }, 100);
+        } else {
+            console.error('renderAll не определена!');
+        }
       }
     }).catch(err => {
       console.error('Ошибка получения данных пользователя:', err);
@@ -999,6 +1013,7 @@
 
   // ========== ПРОВЕРКА АВТОРИЗАЦИИ (ПОСЛЕ DOMContentLoaded) ==========
   onAuthStateChanged(window.auth, (user) => {
+    console.log('onAuthStateChanged: user есть, uid =', user.uid);
     if (user) {
       // Пользователь авторизован - показываем приложение
       console.log('Пользователь авторизован:', user.email);
@@ -1007,8 +1022,11 @@
       document.getElementById('appContent').style.display = 'block';
       
       // Создаём запись пользователя в базе, если её нет, затем загружаем данные
+      console.log('Проверяю запись пользователя в базе...');
       get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+        console.log('Пользователь найден в базе:', snapshot.exists());
         if (!snapshot.exists()) {
+          console.log('Создаю запись пользователя...');
           return set(ref(window.db), 'users/' + user.uid, {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
@@ -1017,6 +1035,7 @@
           });
         }
       }).then(() => {
+        console.log('Вызываю getUserDataForAuth...');
         getUserDataForAuth(user);
       }).catch(err => {
         console.error('Ошибка работы с пользователем:', err);
