@@ -878,6 +878,10 @@ if (!films.length) {
         }).join('');
     }
 
+    // Делаем функции глобально доступными
+    window.renderHelperTasks = renderHelperTasks;
+    window.renderHelperReport = renderHelperReport;
+
     function renderHelperReport() {
         const container = document.getElementById('helperReportContainer');
         if (!container || !window.currentUserData) return;
@@ -968,6 +972,9 @@ if (!films.length) {
         renderHelperTasks();
         renderHelperReport();
     }
+
+    // Делаем функции глобально доступными
+    window.renderHelperReport = renderHelperReport;
 
     function markOverdue(orderNumber, taskId) {
         if (!confirm('Отметить задачу как просроченную?')) return;
@@ -1143,6 +1150,10 @@ if (!films.length) {
             }).join('')}
         `;
     }
+    
+    // Делаем функции глобально доступными
+    window.renderAdminHelperTasks = renderAdminHelperTasks;
+    window.populateAdminHelperFilter = populateAdminHelperFilter;
 
     function openHelperTaskModalFromAdmin() {
         openHelperTaskModal(null);
@@ -3345,7 +3356,7 @@ function deleteOrder(orderId) {
     function renderAll() {
         // Проверяем авторизацию - если appContent скрыт, не рендерим данные
         const appContent = document.getElementById('appContent');
-        if (!appContent || appContent.style.display === 'none') {
+        if (!appContent || appContent.style.display === 'none' || !appContent.style.display) {
             document.getElementById('ordersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра данных необходимо <b>войти в систему</b></div>';
             document.getElementById('stockBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
             document.getElementById('cashBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
@@ -3380,6 +3391,9 @@ function deleteOrder(orderId) {
             }
         }
     }
+    
+    // Делаем renderAll глобально доступной
+    window.renderAll = renderAll;
 
     // ========== СПРАВОЧНИКИ ==========
     function renderRefs() {
@@ -3967,6 +3981,18 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ========== АВТО-РЕНДЕР ПРИ АВТОРИЗАЦИИ ==========
+let lastUserData = null;
+setInterval(() => {
+    if (window.currentUserData && window.currentUserData !== lastUserData) {
+        lastUserData = window.currentUserData;
+        const appContent = document.getElementById('appContent');
+        if (appContent && appContent.style.display !== 'none') {
+            renderAll();
+        }
+    }
+}, 500);
+
 // Закрытие модального уведомления по клику вне него
 document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'notificationModal') {
@@ -3974,5 +4000,3 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     }
 });
 
-
-                
