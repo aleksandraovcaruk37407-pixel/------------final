@@ -319,10 +319,7 @@ if (!films.length) {
             cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes
         };
         window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
-            .then(() => {
-                // Синхронизировано успешно
-            })
-            .catch(err => console.error("Ошибка сохранения в Firebase:", err));
+            .catch(() => {}); // Игнорируем ошибки Firebase — работаем с localStorage
     }
 }
 
