@@ -1,6 +1,7 @@
 
     // ========== ГЛОБАЛЬНЫЕ ДАННЫЕ ==========
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
+    let budgetData = null;
     let currentFilter = 'all';
     let currentDate = new Date();
     let selectedDate = new Date();
@@ -12,6 +13,43 @@
     let currentServices = [];
     let localChangesPending = false;
     let currentReportPeriodType = 'month';
+
+    function getDefaultBudgetData() {
+        return {
+            wallets: {
+                tax: { name: 'Налог (4%)', target: 0, rate: 0.04, color: '#ffc107', icon: '💰' },
+                personal: { name: 'Личные накопления (10%)', target: 0, rate: 0.10, color: '#17a2b8', icon: '👤' },
+                business: { name: 'Улучшение бизнеса (5%)', target: 0, rate: 0.05, color: '#e67e22', icon: '🚀' },
+                investments: { name: 'Инвестиции/Активы (5%)', target: 0, rate: 0.05, color: '#9b59b6', icon: '📈' }
+            },
+            mandatoryPayments: [
+                { id: 'rent_place', name: 'Аренда помещения', amount: 30000, day: 28, icon: '🏢', target: 30000, saved: 0, paid: false },
+                { id: 'rent_flat', name: 'Аренда квартиры', amount: 15000, day: 4, icon: '🏠', target: 15000, saved: 0, paid: false },
+                { id: 'credit1', name: 'Кредит', amount: 13000, day: 27, icon: '🏦', target: 13000, saved: 0, paid: false },
+                { id: 'iphone', name: 'Кредит на айфон', amount: 13000, day: 27, icon: '📱', target: 13000, saved: 0, paid: false },
+                { id: 'alimony', name: 'Алименты', amount: 10000, day: 1, icon: '👶', target: 10000, saved: 0, paid: false },
+                { id: 'mobile', name: 'Сотовая связь', amount: 3000, day: 1, icon: '📞', target: 3000, saved: 0, paid: false },
+                { id: 'marketing', name: 'Реклама/Маркетинг', amount: 5000, day: 1, icon: '📢', target: 5000, saved: 0, paid: false }
+            ],
+            debts: [
+                { id: 'credit1', name: 'Основной кредит', total: 260000, monthly: 13000, paid: 0, icon: '🏦' },
+                { id: 'iphone', name: 'Кредит на айфон', total: 75000, monthly: 13000, paid: 0, icon: '📱' },
+                { id: 'alimony', name: 'Алименты', total: 340000, monthly: 10000, paid: 0, icon: '👶' }
+            ],
+            distributionHistory: [],
+            // Планирование дохода
+            incomePlan: {
+                personalPercent: 10, // % на личные расходы
+                manualMode: false, // ручной режим
+                manualPersonalAmount: 0, // ручная сумма на личные
+                additionalGoals: [
+                    { id: 'emergency', name: 'Подушка безопасности', target: 252000, saved: 0, icon: '🛡️', color: '#3498db' },
+                    { id: 'vacation', name: 'Отпуск', target: 50000, saved: 0, icon: '✈️', color: '#e74c3c' },
+                    { id: 'education', name: 'Обучение', target: 30000, saved: 0, icon: '📚', color: '#9b59b6' }
+                ]
+            }
+        };
+    }
 
     function loadData() {
     colors = JSON.parse(localStorage.getItem('colors_data') || '[]');
@@ -26,6 +64,14 @@
     regularExpenses = JSON.parse(localStorage.getItem('regularExpenses_data') || '[]');
     regularIncomes = JSON.parse(localStorage.getItem('regularIncomes_data') || '[]');
     notes = JSON.parse(localStorage.getItem('notes_data') || '[]');
+
+    budgetData = JSON.parse(localStorage.getItem('budget_data') || 'null') || getDefaultBudgetData();
+    
+    // Гарантия что все поля существуют (для старых данных)
+    if (!budgetData.wallets) budgetData.wallets = getDefaultBudgetData().wallets;
+    if (!budgetData.mandatoryPayments) budgetData.mandatoryPayments = getDefaultBudgetData().mandatoryPayments;
+    if (!budgetData.debts) budgetData.debts = getDefaultBudgetData().debts;
+    if (!budgetData.distributionHistory) budgetData.distributionHistory = [];
 
     rates.forEach(r => { if (!r.items) r.items = []; });
     const accidentService = rates.find(r => r.service === 'Восстановление после ДТП');
@@ -265,6 +311,7 @@ if (!films.length) {
     localStorage.setItem('regularExpenses_data', JSON.stringify(regularExpenses));
     localStorage.setItem('regularIncomes_data', JSON.stringify(regularIncomes));
     localStorage.setItem('notes_data', JSON.stringify(notes));
+    localStorage.setItem('budget_data', JSON.stringify(budgetData));
 
     if (window.db && window.fbSet && window.fbRef) {
         const syncPayload = {
@@ -278,6 +325,1116 @@ if (!films.length) {
             .catch(err => console.error("Ошибка сохранения в Firebase:", err));
     }
 }
+
+    // ========== БЮДЖЕТ: РАСПРЕДЕЛЕНИЕ ОТ ЗАКАЗА К ЗАКАЗУ ==========
+    function saveBudgetData() {
+        localStorage.setItem('budget_data', JSON.stringify(budgetData));
+    }
+
+    function getOrderCost(order) {
+        let cost = 0;
+        (order.services || []).forEach(inst => {
+            const svc = rates.find(r => r.service === inst.serviceName);
+            if (!svc) return;
+            svc.items.forEach(item => {
+                if (item.enabled === false) return;
+                if (item.customMarker) return;
+                if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
+                if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
+                if (item.name === 'Ткань' && svc.usesFabric) return;
+                let qty = 0;
+                if ((inst.manualItems || {})[item.name] !== undefined) qty = parseFloat((inst.manualItems || {})[item.name])||0;
+                else if (!item.manual) qty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
+                cost += qty * (parseFloat(item.price)||0);
+            });
+            materialTypes.forEach(mt => {
+                const markerItem = svc.items.find(item => item.enabled !== false && item.name === mt.name);
+                if (markerItem) {
+                    const markerData = inst[mt.name];
+                    if (markerData && markerData.code) {
+                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
+                        cost += qty * (parseFloat(markerData.price)||0);
+                    }
+                }
+            });
+        });
+        return cost;
+    }
+
+    function populateBudgetOrderSelect() {
+        const select = document.getElementById('budgetOrderSelect');
+        if (!select) return;
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">-- Выбери заказ --</option>';
+        ordersData.forEach(order => {
+            const opt = document.createElement('option');
+            opt.value = order.orderNumber;
+            opt.textContent = `№${order.orderNumber} — ${order.client || 'Без клиента'} — ${parseFloat(order.clientPrice || 0).toLocaleString()} ₽`;
+            select.appendChild(opt);
+        });
+        if (currentValue) select.value = currentValue;
+    }
+
+    function distributeFromOrder() {
+        const select = document.getElementById('budgetOrderSelect');
+        const orderNumber = select.value;
+        if (!orderNumber) {
+            alert('Выбери заказ!');
+            return;
+        }
+
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) { alert('Заказ не найден!'); return; }
+
+        const clientPrice = parseFloat(order.clientPrice) || 0;
+        const orderCost = getOrderCost(order);
+        const helperPay = parseFloat(order.helperPay) || 0;
+        const netProfit = Math.max(0, clientPrice - orderCost - helperPay);
+
+        if (netProfit <= 0) {
+            alert('Чистая прибыль с этого заказа 0 или отрицательная (расходы >= оплата). Распределить нечего.');
+            return;
+        }
+
+        const tax = netProfit * 0.04;
+        const personal = netProfit * 0.10;
+        const business = netProfit * 0.05;
+        const investments = netProfit * 0.05;
+        const mandatory = netProfit - tax - personal - business - investments;
+
+        budgetData.wallets.tax.target += tax;
+        budgetData.wallets.personal.target += personal;
+        budgetData.wallets.business.target += business;
+        budgetData.wallets.investments.target += investments;
+
+        // Распределяем на обязательные платежи
+        let remaining = mandatory;
+        const distributions = [];
+
+        budgetData.mandatoryPayments
+            .filter(mp => !mp.paid)
+            .sort((a, b) => a.day - b.day)
+            .forEach(mp => {
+                if (remaining <= 0) return;
+                const needed = mp.target - mp.saved;
+                const toAdd = Math.min(remaining, needed);
+                mp.saved += toAdd;
+                remaining -= toAdd;
+                distributions.push({ name: mp.name, amount: toAdd });
+            });
+
+        // Если остались деньги → на досрочное погашение долгов
+        let extraDebt = 0;
+        if (remaining > 0) {
+            budgetData.debts.forEach(debt => {
+                if (remaining <= 0) return;
+                const payment = Math.min(remaining, debt.monthly);
+                debt.paid += payment;
+                extraDebt += payment;
+                remaining -= payment;
+            });
+        }
+
+        // Записываем в историю
+        budgetData.distributionHistory.unshift({
+            date: new Date().toLocaleString('ru-RU'),
+            orderNumber: order.orderNumber,
+            client: order.client || 'Без клиента',
+            clientPrice,
+            orderCost,
+            helperPay,
+            netProfit,
+            tax,
+            personal,
+            business,
+            investments,
+            mandatory,
+            extraDebt,
+            distributions
+        });
+
+        // Не более 50 записей
+        if (budgetData.distributionHistory.length > 50) {
+            budgetData.distributionHistory = budgetData.distributionHistory.slice(0, 50);
+        }
+
+        saveBudgetData();
+        renderBudget();
+
+        // Показываем результат
+        const resultDiv = document.getElementById('budgetDistributionResult');
+        resultDiv.innerHTML = `
+            <div class="budget-result">
+                <div style="font-weight:700;margin-bottom:8px;font-size:15px;">✅ Распределение выполнено:</div>
+                <div class="budget-result-row"><span class="label">Оплата от клиента:</span><span class="value">${clientPrice.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row"><span class="label">Расходы на заказ:</span><span class="value" style="color:#e74c3c;">-${orderCost.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row"><span class="label">Помощник:</span><span class="value" style="color:#e74c3c;">-${helperPay.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row highlight"><span class="label">Чистая прибыль:</span><span class="value" style="color:#27ae60;">${netProfit.toLocaleString()} ₽</span></div>
+                <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
+                    <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${tax.toFixed(2)} ₽</span></div>
+                    <div class="budget-result-row personal"><span class="label">👤 Личные (10%):</span><span class="value">${personal.toFixed(2)} ₽</span></div>
+                    <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#e67e22;">${business.toFixed(2)} ₽</span></div>
+                    <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции/Активы (5%):</span><span class="value" style="color:#9b59b6;">${investments.toFixed(2)} ₽</span></div>
+                    <div class="budget-result-row mandatory"><span class="label">📌 Обязательные платежи:</span><span class="value">${mandatory.toFixed(2)} ₽</span></div>
+                </div>
+                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#fff3cd;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#e67e22;">${extraDebt.toFixed(2)} ₽</span></div>` : ''}
+                <div style="margin-top:8px;font-size:13px;color:#666;">
+                    <b>Куда пошло:</b><br>
+                    ${distributions.map(d => `${d.name}: +${d.amount.toFixed(2)} ₽`).join('<br>')}
+                    ${extraDebt > 0 ? `<br>Досрочное погашение: +${extraDebt.toFixed(2)} ₽` : ''}
+                </div>
+            </div>
+        `;
+    }
+
+    function payMandatoryPayment(idx) {
+        const mp = budgetData.mandatoryPayments[idx];
+        if (!mp || mp.paid) return;
+        if (!confirm(`Отметить "${mp.name}" как оплаченный?`)) return;
+        mp.paid = true;
+        saveBudgetData();
+        renderBudget();
+    }
+
+    function resetMandatoryPayment(idx) {
+        const mp = budgetData.mandatoryPayments[idx];
+        if (!mp) return;
+        if (!confirm(`Сбросить статус оплаты "${mp.name}"?`)) return;
+        mp.paid = false;
+        saveBudgetData();
+        renderBudget();
+    }
+
+    function renderBudget() {
+        renderMandatoryPayments();
+        renderDebts();
+        renderWallets();
+        renderDistributionHistory();
+        populateBudgetOrderSelect();
+        renderCashBudgetSummary();
+    }
+
+    function renderMandatoryPayments() {
+        const container = document.getElementById('mandatoryPaymentsProgress');
+        if (!container) return;
+
+        const sorted = budgetData.mandatoryPayments.map((mp, idx) => ({...mp, idx}))
+            .sort((a, b) => a.day - b.day);
+
+        container.innerHTML = sorted.map(mp => {
+            const percent = Math.min(100, (mp.saved / mp.target) * 100);
+            const isPaid = mp.paid;
+            return `
+                <div class="budget-progress-item ${isPaid ? 'paid' : ''}">
+                    <div class="budget-progress-header">
+                        <span class="name">${mp.icon} ${mp.name}</span>
+                        <span class="amount">${isPaid ? '✅ Оплачен' : `${mp.saved.toLocaleString()} / ${mp.target.toLocaleString()} ₽`}</span>
+                    </div>
+                    <div class="progress-bar-budget">
+                        <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(0)}%</div>
+                    </div>
+                    <div class="budget-progress-meta">
+                        <span>Накоплено: ${mp.saved.toLocaleString()} ₽ из ${mp.target.toLocaleString()} ₽</span>
+                        <span>День месяца: ${mp.day}</span>
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:6px;">
+                        ${!isPaid ? `<button class="btn-budget-pay" onclick="payMandatoryPayment(${mp.idx})">💰 Отметить оплаченным</button>` : ''}
+                        ${isPaid ? `<button class="btn-budget-pay" style="background:#6c757d;" onclick="resetMandatoryPayment(${mp.idx})">↺ Сбросить</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderDebts() {
+        const container = document.getElementById('debtsProgress');
+        if (!container) return;
+
+        container.innerHTML = budgetData.debts.map(debt => {
+            const remaining = debt.total - debt.paid;
+            const percent = Math.min(100, (debt.paid / debt.total) * 100);
+            const monthsLeft = Math.ceil(remaining / debt.monthly);
+
+            return `
+                <div class="budget-progress-item">
+                    <div class="budget-progress-header">
+                        <span class="name">${debt.icon} ${debt.name}</span>
+                        <span class="amount">${remaining.toLocaleString()} ₽ осталось</span>
+                    </div>
+                    <div class="progress-bar-budget">
+                        <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(1)}%</div>
+                    </div>
+                    <div class="budget-progress-meta">
+                        <span>Оплачено: ${debt.paid.toLocaleString()} ₽ из ${debt.total.toLocaleString()} ₽</span>
+                        <span>~${monthsLeft} мес. осталось</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderWallets() {
+        const container = document.getElementById('walletsOverview');
+        if (!container) return;
+
+        container.innerHTML = Object.entries(budgetData.wallets).map(([key, wallet]) => `
+            <div class="wallet-item">
+                <span class="wallet-name" style="color:${wallet.color}">${wallet.icon || '💰'} ${wallet.name}</span>
+                <span class="wallet-amount">${wallet.target.toLocaleString()} ₽</span>
+            </div>
+        `).join('');
+    }
+
+    function renderDistributionHistory() {
+        const container = document.getElementById('distributionHistory');
+        if (!container) return;
+
+        if (!budgetData.distributionHistory || budgetData.distributionHistory.length === 0) {
+            container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">Пока нет распределений. Выбери заказ и нажми "Распределить"</div>';
+            return;
+        }
+
+        container.innerHTML = budgetData.distributionHistory.map(dist => `
+            <div class="dist-history-item">
+                <div class="dist-history-date">${dist.date} — №${dist.orderNumber} (${dist.client || 'Без клиента'})</div>
+                <div class="dist-history-row"><span>Чистая прибыль:</span><span style="color:#27ae60;font-weight:600;">${dist.netProfit.toLocaleString()} ₽</span></div>
+                <div class="dist-history-row"><span>Налог:</span><span style="color:#ffc107;">${dist.tax.toFixed(2)} ₽</span></div>
+                <div class="dist-history-row"><span>Личные:</span><span style="color:#17a2b8;">${dist.personal.toFixed(2)} ₽</span></div>
+                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#e67e22;">${dist.business.toFixed(2)} ₽</span></div>
+                <div class="dist-history-row"><span>Инвестиции:</span><span style="color:#9b59b6;">${dist.investments.toFixed(2)} ₽</span></div>
+                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#e67e22;">${dist.mandatory.toFixed(2)} ₽</span></div>
+                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#e67e22;font-weight:600;">+${dist.extraDebt.toFixed(2)} ₽</span></div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    // ========== ПЛАНИРОВАНИЕ ДОХОДА ==========
+    function calculateIncomePlan(startDate, endDate) {
+        // Считаем обязательные платежи
+        const mandatoryTotal = budgetData.mandatoryPayments.reduce((sum, mp) => sum + (mp.amount || 0), 0);
+        
+        // Процент на личные
+        const personalPercent = (budgetData.incomePlan?.personalPercent || 10) / 100;
+        
+        // Коэффициент (1 - все проценты)
+        const rateSum = 0.04 + personalPercent + 0.05 + 0.05; // налог + личные + бизнес + инвестиции
+        const coefficient = 1 - rateSum;
+        
+        // Минимальный доход для покрытия всех расходов
+        const minIncome = coefficient > 0 ? mandatoryTotal / coefficient : mandatoryTotal;
+        
+        // Рассчитываем фактический доход за период
+        let actualIncome = 0;
+        ordersData.forEach(order => {
+            if (order.date >= startDate && order.date <= endDate) {
+                actualIncome += parseFloat(order.clientPrice) || 0;
+            }
+        });
+        
+        // Считаем дни в периоде
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const daysInPeriod = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+        const daysPassed = Math.max(1, Math.ceil((new Date() - start) / (1000 * 60 * 60 * 24)));
+        
+        // Прогноз на конец периода
+        const dailyRate = actualIncome / daysPassed;
+        const projectedIncome = dailyRate * daysInPeriod;
+        
+        // Распределение минимального дохода
+        const taxAmount = minIncome * 0.04;
+        const personalAmount = minIncome * personalPercent;
+        const businessAmount = minIncome * 0.05;
+        const investmentAmount = minIncome * 0.05;
+        
+        // Прогресс
+        const progressPercent = minIncome > 0 ? Math.min(100, (actualIncome / minIncome) * 100) : 0;
+        
+        // Дополнительные цели
+        const goalsProgress = (budgetData.incomePlan?.additionalGoals || []).map(goal => ({
+            ...goal,
+            percent: Math.min(100, (goal.saved / goal.target) * 100)
+        }));
+        
+        return {
+            mandatoryTotal,
+            minIncome,
+            actualIncome,
+            projectedIncome,
+            daysInPeriod,
+            daysPassed,
+            taxAmount,
+            personalAmount,
+            businessAmount,
+            investmentAmount,
+            progressPercent,
+            goalsProgress,
+            personalPercent: budgetData.incomePlan?.personalPercent || 10
+        };
+    }
+
+    function renderIncomePlan(startDate, endDate) {
+        const container = document.getElementById('incomePlanContainer');
+        if (!container) return;
+        
+        const plan = calculateIncomePlan(startDate, endDate);
+        
+        container.innerHTML = `
+            <!-- Сводка плана -->
+            <div class="plan-summary" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Требуемый доход</div>
+                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${plan.minIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">в месяц</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">📈 Фактический доход</div>
+                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${plan.actualIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">за период</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">🔮 Прогноз</div>
+                        <div style="font-size:20px;font-weight:700;color:#3498db;">${Math.round(plan.projectedIncome).toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;">на конец периода</div>
+                    </div>
+                </div>
+                
+                <!-- Прогресс -->
+                <div style="margin-top:15px;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                        <span style="font-size:13px;color:#666;">✅ План выполнен</span>
+                        <span style="font-size:14px;font-weight:700;color:${plan.progressPercent >= 100 ? '#27ae60' : '#e67e22'};">${plan.progressPercent.toFixed(1)}%</span>
+                    </div>
+                    <div class="progress-bar-budget">
+                        <div class="progress-fill-budget" style="width:${plan.progressPercent}%;background:${plan.progressPercent >= 100 ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#e67e22,#f39c12)'};">
+                            ${plan.progressPercent.toFixed(0)}%
+                        </div>
+                    </div>
+                    ${plan.progressPercent < 100 ? `<div style="margin-top:8px;font-size:13px;color:#e74c3c;">⚠️ Не хватает ${Math.round(plan.minIncome - plan.actualIncome).toLocaleString()} ₽ для выполнения плана</div>` : '<div style="margin-top:8px;font-size:13px;color:#27ae60;">🎉 План выполнен! Можно досрочно гасить долги.</div>'}
+                </div>
+            </div>
+            
+            <!-- Распределение дохода -->
+            <div class="plan-breakdown" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+                <h4 style="margin:0 0 10px 0;">📊 Распределение при доходе ${Math.round(plan.minIncome).toLocaleString()} ₽</h4>
+                <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${plan.mandatoryTotal.toLocaleString()} ₽ (76%)</span></div>
+                <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${Math.round(plan.taxAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${Math.round(plan.personalAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${Math.round(plan.businessAmount).toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${Math.round(plan.investmentAmount).toLocaleString()} ₽</span></div>
+            </div>
+            
+            <!-- Настройка личных расходов -->
+            <div class="plan-settings" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 10px 0;">⚙️ Настройка личных расходов</h4>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <label style="font-size:14px;">Процент на личные:</label>
+                    <input type="number" id="personalPercentInput" value="${budgetData.incomePlan?.personalPercent || 10}" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
+                    <span style="font-size:14px;">%</span>
+                    <button onclick="savePersonalPercent()" class="btn-add" style="padding:6px 12px;font-size:12px;margin-left:auto;">💾 Сохранить</button>
+                </div>
+                <div style="margin-top:8px;font-size:13px;color:#666;">
+                    При доходе ${Math.round(plan.minIncome).toLocaleString()} ₽ на личные будет идти ${Math.round(plan.personalAmount).toLocaleString()} ₽
+                </div>
+            </div>
+            
+            <!-- Дополнительные цели -->
+            <div class="plan-goals" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+                <h4 style="margin:0 0 10px 0;">🎯 Дополнительные цели</h4>
+                ${plan.goalsProgress.map((goal, idx) => `
+                    <div class="budget-progress-item" style="margin-bottom:10px;">
+                        <div class="budget-progress-header">
+                            <span class="name">${goal.icon} ${goal.name}</span>
+                            <span class="amount">${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()} ₽</span>
+                        </div>
+                        <div class="progress-bar-budget">
+                            <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
+                        </div>
+                        <div style="margin-top:8px;display:flex;gap:6px;">
+                            <button class="btn-budget-pay" onclick="addGoalSaved(${idx})">➕ Добавить накопление</button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function updatePersonalPercent(value) {
+        budgetData.incomePlan = budgetData.incomePlan || {};
+        budgetData.incomePlan.personalPercent = parseInt(value) || 10;
+        saveBudgetData();
+    }
+
+    function savePersonalPercent() {
+        renderAll();
+        alert('✅ Процент на личные расходы сохранён!');
+    }
+
+    function addGoalSaved(goalIdx) {
+        const goals = budgetData.incomePlan?.additionalGoals || [];
+        const goal = goals[goalIdx];
+        if (!goal) return;
+        const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${goal.saved.toLocaleString()} ₽):`, '0');
+        if (!amount || isNaN(amount)) return;
+        goal.saved += parseFloat(amount) || 0;
+        saveBudgetData();
+        renderAll();
+    }
+
+
+    // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
+    let selectedLoginRole = 'admin';
+
+    window.setLoginRole = function(role) {
+        selectedLoginRole = role;
+        const btnAdmin = document.getElementById('btnRoleAdmin');
+        const btnHelper = document.getElementById('btnRoleHelper');
+        if (btnAdmin && btnHelper) {
+            if (role === 'admin') {
+                btnAdmin.style.background = '#1a3c5e';
+                btnAdmin.style.color = '#fff';
+                btnHelper.style.background = '#6c757d';
+                btnHelper.style.color = '#fff';
+            } else {
+                btnHelper.style.background = '#1a3c5e';
+                btnHelper.style.color = '#fff';
+                btnAdmin.style.background = '#6c757d';
+                btnAdmin.style.color = '#fff';
+            }
+        }
+    }
+
+    // Инициализация роли по умолчанию
+    setLoginRole('admin');
+
+    // ========== СИСТЕМА ДЛЯ ПОМОЩНИКА ==========
+    function renderHelperTasks() {
+        const container = document.getElementById('helperTasksContainer');
+        if (!container || !window.currentUserData) return;
+        
+        const helperEmail = window.currentUserData.email;
+        
+        // Собираем все задачи из всех заказов
+        let allTasks = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        allTasks.push({
+                            ...task,
+                            orderNumber: order.orderNumber,
+                            client: order.client,
+                            serviceName: service.serviceName,
+                            orderDate: order.date
+                        });
+                    }
+                });
+            });
+        });
+        
+        // Сортируем: сначала просроченные, затем по сроку
+        allTasks.sort((a, b) => {
+            if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+            if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+            return new Date(a.deadline) - new Date(b.deadline);
+        });
+        
+        if (allTasks.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">У вас пока нет задач. Администратор назначит задачи в заказах.</div>';
+            return;
+        }
+        
+        container.innerHTML = allTasks.map((task, idx) => {
+            const isOverdue = task.status === 'overdue';
+            const isCompleted = task.status === 'completed';
+            const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+            const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+            
+            return `
+                <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div>
+                            <span style="font-weight:700;font-size:16px;">Заказ №${task.orderNumber}</span>
+                            <span style="color:#666;margin-left:10px;">(${task.client})</span>
+                        </div>
+                        <span style="font-weight:600;color:${statusColor};">${statusText}</span>
+                    </div>
+                    <div style="font-size:14px;margin-bottom:6px;"><b>Услуга:</b> ${task.serviceName}</div>
+                    <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${task.description}</div>
+                    <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;">
+                        <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${task.deadline}</b></span>
+                        <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
+                        ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
+                    </div>
+                    ${!isCompleted ? `
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-add" onclick="completeTask('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;">✅ Отметить выполненной</button>
+                            ${!isOverdue ? `<button class="btn-del" onclick="markOverdue('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;">❌ Отметить просроченной</button>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Делаем функции глобально доступными
+    window.renderHelperTasks = renderHelperTasks;
+    window.renderHelperReport = renderHelperReport;
+
+    function renderHelperReport() {
+        const container = document.getElementById('helperReportContainer');
+        if (!container || !window.currentUserData) return;
+        
+        const helperEmail = window.currentUserData.email;
+        
+        let totalEarned = 0;
+        let totalLost = 0;
+        let totalPenalties = 0;
+        let completedTasks = 0;
+        let overdueTasks = 0;
+        
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        if (task.status === 'completed') {
+                            totalEarned += parseFloat(task.helperPay) || 0;
+                            completedTasks++;
+                        } else if (task.status === 'overdue') {
+                            totalLost += parseFloat(task.helperPay) || 0;
+                            totalPenalties += parseFloat(task.penalty) || 0;
+                            overdueTasks++;
+                        }
+                    }
+                });
+            });
+        });
+        
+        const netEarned = totalEarned - totalPenalties;
+        
+        container.innerHTML = `
+            <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
+                <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⚠️ Штрафы</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalPenalties.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
+                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано (просрочка)</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
+                <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
+                    <li>За каждую выполненную задачу начисляется <b>${'указанная сумма'} ₽</b></li>
+                    <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
+                    <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    function completeTask(orderNumber, taskId) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = 'completed';
+                    task.completedAt = new Date().toISOString();
+                }
+            });
+        });
+        
+        saveAll();
+        renderHelperTasks();
+        renderHelperReport();
+    }
+
+    // Делаем функции глобально доступными
+    window.renderHelperReport = renderHelperReport;
+
+    function markOverdue(orderNumber, taskId) {
+        if (!confirm('Отметить задачу как просроченную?')) return;
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = 'overdue';
+                }
+            });
+        });
+        
+        saveAll();
+        renderHelperTasks();
+        renderHelperReport();
+    }
+
+    // ========== УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
+    let currentEditingTask = null;
+
+    function populateAdminHelperFilter() {
+        const filterSelect = document.getElementById('adminHelperFilter');
+        if (!filterSelect) return;
+        
+        const emails = new Set();
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo) emails.add(task.assignedTo);
+                });
+            });
+        });
+        
+        const currentValue = filterSelect.value;
+        filterSelect.innerHTML = '<option value="all">Все помощники</option>';
+        emails.forEach(email => {
+            const opt = document.createElement('option');
+            opt.value = email;
+            opt.textContent = email;
+            filterSelect.appendChild(opt);
+        });
+        if (currentValue && [...emails].includes(currentValue)) {
+            filterSelect.value = currentValue;
+        }
+    }
+
+    function renderAdminHelperTasks() {
+        const container = document.getElementById('adminHelperTasksContainer');
+        if (!container) return;
+        
+        const filterEmail = document.getElementById('adminHelperFilter')?.value || 'all';
+        
+        // Собираем все задачи
+        let allTasks = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach((service, svcIdx) => {
+                (service.tasks || []).forEach(task => {
+                    if (filterEmail !== 'all' && task.assignedTo !== filterEmail) return;
+                    allTasks.push({
+                        ...task,
+                        orderNumber: order.orderNumber,
+                        client: order.client,
+                        serviceName: service.serviceName,
+                        orderDate: order.date,
+                        serviceIndex: svcIdx
+                    });
+                });
+            });
+        });
+        
+        // Сортируем: сначала просроченные, затем по сроку
+        allTasks.sort((a, b) => {
+            if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+            if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+            if (a.status === 'completed' && b.status !== 'completed') return 1;
+            if (a.status !== 'completed' && b.status === 'completed') return -1;
+            return new Date(a.deadline) - new Date(b.deadline);
+        });
+        
+        // Статистика
+        const totalTasks = allTasks.length;
+        const pendingTasks = allTasks.filter(t => t.status === 'pending').length;
+        const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+        const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
+        const totalPay = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
+        const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0);
+        
+        if (allTasks.length === 0) {
+            container.innerHTML = `
+                <div class="helper-empty-state">
+                    <div style="font-size:48px;margin-bottom:15px;">📋</div>
+                    <div style="font-size:16px;margin-bottom:8px;">Задач не найдено</div>
+                    <div style="font-size:14px;color:#888;">${filterEmail !== 'all' ? 'Нет задач для выбранного помощника' : 'Помощники ещё не получили задач'}</div>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <!-- Статистика -->
+            <div class="helper-stat-grid" style="margin-bottom:20px;">
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">📋 Всего задач</div>
+                    <div class="helper-stat-value" style="color:#1a3c5e;">${totalTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">⏳ В процессе</div>
+                    <div class="helper-stat-value" style="color:#f39c12;">${pendingTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">✅ Выполнено</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${completedTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">❌ Просрочено</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${overdueTasks}</div>
+                </div>
+                <div class="helper-stat-item highlight">
+                    <div class="helper-stat-label">💰 Выплачено</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${totalPay.toLocaleString()} ₽</div>
+                </div>
+                <div class="helper-stat-item warning">
+                    <div class="helper-stat-label">⚠️ Штрафы</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
+                </div>
+            </div>
+            
+            <!-- Список задач -->
+            <div class="helper-section-title">Все задачи</div>
+            ${allTasks.map(task => {
+                const isOverdue = task.status === 'overdue';
+                const isCompleted = task.status === 'completed';
+                const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+                const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+                const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
+                
+                return `
+                    <div class="helper-task-card ${cardClass}" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${statusColor};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
+                            <div style="flex:1;min-width:200px;">
+                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                                    <span style="font-weight:700;font-size:16px;">Заказ №${task.orderNumber}</span>
+                                    <span style="color:#666;font-size:14px;">(${task.client})</span>
+                                </div>
+                                <div style="font-size:13px;color:#666;">
+                                    <span>👷 ${task.assignedTo}</span>
+                                    ${task.serviceName ? `<span style="margin-left:10px;">🔧 ${task.serviceName}</span>` : ''}
+                                    ${task.orderDate ? `<span style="margin-left:10px;">📅 ${task.orderDate}</span>` : ''}
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-weight:600;color:${statusColor};font-size:14px;">${statusText}</span>
+                            </div>
+                        </div>
+                        <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${task.description}</div>
+                        <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;flex-wrap:wrap;">
+                            <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${task.deadline}</b></span>
+                            <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
+                            ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
+                            ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
+                            ${task.completedAt ? `<span>✅ Выполнена: ${new Date(task.completedAt).toLocaleDateString('ru-RU')}</span>` : ''}
+                        </div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="btn-add" onclick="openEditTaskModal('${task.orderNumber}', '${task.id}')" style="padding:6px 12px;font-size:12px;background:#007bff;">✏️ Редактировать</button>
+                            ${!isCompleted ? `<button class="btn-add" onclick="adminChangeTaskStatus('${task.orderNumber}', '${task.id}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Завершить</button>` : ''}
+                            ${!isOverdue && !isCompleted ? `<button class="btn-del" onclick="adminChangeTaskStatus('${task.orderNumber}', '${task.id}', 'overdue')" style="padding:6px 12px;font-size:12px;">❌ Просрочить</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        `;
+    }
+    
+    // Делаем функции глобально доступными
+    window.renderAdminHelperTasks = renderAdminHelperTasks;
+    window.populateAdminHelperFilter = populateAdminHelperFilter;
+
+    function openHelperTaskModalFromAdmin() {
+        openHelperTaskModal(null);
+        // Очистить поле заказа для создания новой задачи
+        document.getElementById('helperTaskOrder').value = '';
+    }
+
+    function openEditTaskModal(orderNumber, taskId) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        // Найти задачу
+        let task = null;
+        (order.services || []).forEach((service, idx) => {
+            (service.tasks || []).forEach(t => {
+                if (String(t.id) === String(taskId)) {
+                    task = { ...t, orderNumber, client: order.client, serviceName: service.serviceName, serviceIndex: idx };
+                }
+            });
+        });
+        
+        if (!task) {
+            alert('Задача не найдена!');
+            return;
+        }
+        
+        currentEditingTask = task;
+        
+        // Заполнить форму
+        document.getElementById('editTaskOrderInfo').innerHTML = `
+            <strong>Заказ №${task.orderNumber}</strong> (${task.client})<br>
+            <span style="color:#666;">Услуга: ${task.serviceName}</span>
+        `;
+        document.getElementById('editTaskDescription').value = task.description || '';
+        document.getElementById('editTaskDeadline').value = task.deadline || '';
+        document.getElementById('editTaskAssignee').value = task.assignedTo || '';
+        document.getElementById('editTaskPay').value = task.helperPay || '';
+        document.getElementById('editTaskPenalty').value = task.penalty || '';
+        document.getElementById('editTaskStatus').value = task.status || 'pending';
+        
+        document.getElementById('editTaskModal').classList.add('active');
+    }
+
+    function closeEditTaskModal() {
+        document.getElementById('editTaskModal').classList.remove('active');
+        currentEditingTask = null;
+    }
+
+    function saveEditTask() {
+        if (!currentEditingTask) return;
+        
+        const { orderNumber, id, serviceIndex } = currentEditingTask;
+        const description = document.getElementById('editTaskDescription').value.trim();
+        const deadline = document.getElementById('editTaskDeadline').value;
+        const assignedTo = document.getElementById('editTaskAssignee').value.trim();
+        const helperPay = parseFloat(document.getElementById('editTaskPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('editTaskPenalty').value) || 0;
+        const status = document.getElementById('editTaskStatus').value;
+        
+        if (!description || !deadline || !assignedTo) {
+            alert('Заполните все обязательные поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        const service = order.services[serviceIndex];
+        if (!service) {
+            alert('Услуга не найдена!');
+            return;
+        }
+        
+        const task = (service.tasks || []).find(t => String(t.id) === String(id));
+        if (!task) {
+            alert('Задача не найдена!');
+            return;
+        }
+        
+        // Обновить задачу
+        task.description = description;
+        task.deadline = deadline;
+        task.assignedTo = assignedTo;
+        task.helperPay = helperPay;
+        task.penalty = penalty;
+        task.status = status;
+        
+        saveAll();
+        closeEditTaskModal();
+        renderAll();
+        alert('✅ Задача обновлена!');
+    }
+
+    function deleteTaskFromEditModal() {
+        if (!currentEditingTask) return;
+        if (!confirm('Удалить эту задачу?')) return;
+        deleteTask(currentEditingTask.orderNumber, currentEditingTask.id, currentEditingTask.serviceIndex);
+        closeEditTaskModal();
+    }
+
+    function deleteTask(orderNumber, taskId, serviceIndex) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        const service = order.services[serviceIndex];
+        if (!service) return;
+        
+        const taskIdx = (service.tasks || []).findIndex(t => String(t.id) === String(taskId));
+        if (taskIdx === -1) return;
+        
+        if (!confirm('Удалить эту задачу?')) return;
+        
+        service.tasks.splice(taskIdx, 1);
+        saveAll();
+        renderAll();
+    }
+
+    function adminChangeTaskStatus(orderNumber, taskId, newStatus) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        let statusText = '';
+        if (newStatus === 'completed') statusText = 'завершена';
+        else if (newStatus === 'overdue') statusText = 'просрочена';
+        else statusText = 'изменена';
+        
+        if (!confirm(`Отметить задачу как ${statusText}?`)) return;
+        
+        order.services.forEach(service => {
+            (service.tasks || []).forEach(task => {
+                if (String(task.id) === String(taskId)) {
+                    task.status = newStatus;
+                    if (newStatus === 'completed') {
+                        task.completedAt = new Date().toISOString();
+                    }
+                }
+            });
+        });
+        
+        saveAll();
+        renderAll();
+    }
+
+    // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
+    function openHelperTaskModal(orderNumber) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        // Заполняем список заказов
+        const orderSelect = document.getElementById('helperTaskOrder');
+        orderSelect.innerHTML = '<option value="">-- Выбери заказ --</option>';
+        ordersData.forEach(o => {
+            const opt = document.createElement('option');
+            opt.value = o.orderNumber;
+            opt.textContent = `№${o.orderNumber} — ${o.client || 'Без клиента'}`;
+            if (o.orderNumber == orderNumber) opt.selected = true;
+            orderSelect.appendChild(opt);
+        });
+        
+        // Заполняем список помощников (используем email как идентификатор)
+        const assigneeSelect = document.getElementById('helperTaskAssignee');
+        assigneeSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
+        const opt1 = document.createElement('option');
+        opt1.value = 'helper@auto-atelier.ru';
+        opt1.textContent = 'helper@auto-atelier.ru';
+        assigneeSelect.appendChild(opt1);
+        
+        // Устанавливаем дату по умолчанию - завтра
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('helperTaskDeadline').value = formatDate(tomorrow);
+        document.getElementById('helperTaskDescription').value = '';
+        document.getElementById('helperTaskPay').value = '';
+        document.getElementById('helperTaskPenalty').value = '';
+        
+        document.getElementById('helperTaskModal').classList.add('active');
+    }
+
+    function closeHelperTaskModal() {
+        document.getElementById('helperTaskModal').classList.remove('active');
+    }
+
+    function saveHelperTask() {
+        const orderNumber = document.getElementById('helperTaskOrder').value;
+        const assignedTo = document.getElementById('helperTaskAssignee').value;
+        const description = document.getElementById('helperTaskDescription').value.trim();
+        const deadline = document.getElementById('helperTaskDeadline').value;
+        const helperPay = parseFloat(document.getElementById('helperTaskPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('helperTaskPenalty').value) || 0;
+        
+        if (!orderNumber || !assignedTo || !description || !deadline) {
+            alert('Заполните все поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        // Добавляем задачу в первую услугу заказа
+        if (!order.services || order.services.length === 0) {
+            alert('В заказе нет услуг!');
+            return;
+        }
+        
+        const service = order.services[0];
+        if (!service.tasks) service.tasks = [];
+        
+        service.tasks.push({
+            id: Date.now().toString(),
+            description,
+            deadline,
+            assignedTo,
+            helperPay,
+            penalty,
+            status: 'pending',
+            createdAt: new Date().toISOString()
+        });
+        
+        saveAll();
+        closeHelperTaskModal();
+        renderAll();
+        alert('✅ Задача создана для ' + assignedTo);
+    }
+
+    function openTaskModal(orderNumber) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) return;
+        
+        const modal = document.getElementById('taskModal');
+        document.getElementById('taskOrderNumber').textContent = `Заказ №${orderNumber} (${order.client})`;
+        document.getElementById('taskModal').classList.add('active');
+    }
+
+    function closeTaskModal() {
+        document.getElementById('taskModal').classList.remove('active');
+    }
+
+    function saveNewTask() {
+        const orderNumber = document.getElementById('taskOrderNumberInput').value;
+        const description = document.getElementById('taskDescription').value.trim();
+        const deadline = document.getElementById('taskDeadline').value;
+        const assignedTo = document.getElementById('taskAssignedTo').value.trim();
+        const helperPay = parseFloat(document.getElementById('taskHelperPay').value) || 0;
+        const penalty = parseFloat(document.getElementById('taskPenalty').value) || 0;
+        
+        if (!description || !deadline || !assignedTo) {
+            alert('Заполните все поля!');
+            return;
+        }
+        
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        if (!order) {
+            alert('Заказ не найден!');
+            return;
+        }
+        
+        // Находим первую услугу или создаём новую
+        let service = order.services[0];
+        if (!service.tasks) service.tasks = [];
+        
+        service.tasks.push({
+            id: Date.now().toString(),
+            description,
+            deadline,
+            assignedTo,
+            helperPay,
+            penalty,
+            status: 'pending'
+        });
+        
+        saveAll();
+        closeTaskModal();
+        renderOrders();
+        alert('✅ Задача добавлена!');
+    }
 
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -365,7 +1522,7 @@ if (!films.length) {
                 if (markerItem && markerData && markerData.code) {
                     const art = mt.articles.find(a => a.code === markerData.code);
                     if (art) {
-                        const qty = parseFloat(markerData.m2 || markerData.qty || 0);
+                        const qty = parseFloat(markerData.sheets || markerData.qty || 0);
                         totalCost += qty * (parseFloat(art.price)||0);
                     }
                 }
@@ -479,6 +1636,10 @@ if (!films.length) {
             tbody.appendChild(tr);
         });
         document.getElementById('cashBalance').textContent = balance.toFixed(2);
+        
+        // Вызываем все функции бюджета
+        renderBudget();
+        
         const regDiv = document.getElementById('regularExpensesList');
         regDiv.innerHTML = '';
         regularExpenses.forEach((exp, idx) => {
@@ -495,6 +1656,36 @@ if (!films.length) {
         });
     }
 
+    function renderCashBudgetSummary() {
+        const container = document.getElementById('cashBudgetSummary');
+        if (!container) return;
+        
+        // Считаем общий доход из заказов
+        const totalIncome = ordersData.reduce((sum, o) => sum + (parseFloat(o.clientPrice) || 0), 0);
+        const totalCost = ordersData.reduce((sum, o) => sum + (parseFloat(o.materialCost) || 0), 0);
+        const totalHelper = ordersData.reduce((sum, o) => sum + (parseFloat(o.helperPay) || 0), 0);
+        const netProfit = totalIncome - totalCost - totalHelper;
+        
+        // Считаем кошельки бюджета
+        const taxWallet = budgetData.wallets.tax?.target || 0;
+        const personalWallet = budgetData.wallets.personal?.target || 0;
+        const businessWallet = budgetData.wallets.business?.target || 0;
+        const investmentWallet = budgetData.wallets.investments?.target || 0;
+        
+        container.innerHTML = `
+            <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${totalIncome.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${totalCost.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${totalHelper.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${netProfit.toLocaleString()} ₽</span></div>
+            <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
+                <div class="budget-result-row tax"><span class="label">💰 Налог (копилка):</span><span class="value">${taxWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (копилка):</span><span class="value">${personalWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (копилка):</span><span class="value">${businessWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (копилка):</span><span class="value">${investmentWallet.toLocaleString()} ₽</span></div>
+            </div>
+        `;
+    }
+
     function addCashRow() {
         const date = prompt('Дата (ГГГГ-ММ-ДД):', formatDate(new Date()));
         if (!date) return;
@@ -503,6 +1694,12 @@ if (!films.length) {
         const income = parseFloat(prompt('Приход:', '0')) || 0;
         const expense = parseFloat(prompt('Расход:', '0')) || 0;
         cashOps.push({date, desc, income, expense});
+        saveAll();
+        renderAll();
+    }
+
+    function deleteCashOp(idx) {
+        cashOps.splice(idx, 1);
         saveAll();
         renderAll();
     }
@@ -623,23 +1820,6 @@ if (!films.length) {
         renderOrders();
     }
 
-    function renderMaterialTypes() {
-        const container = document.getElementById('materialTypesContainer');
-        container.innerHTML = '';
-        materialTypes.forEach((mt, idx) => {
-            const div = document.createElement('div');
-            div.innerHTML = `<strong>${mt.name}</strong> (${mt.unit}) <button class="btn-extra" onclick="addArticleToType(${idx})">➕ Артикул</button> <button class="btn-del" onclick="deleteMaterialType(${idx})">✕</button>`;
-            const table = document.createElement('table');
-            table.innerHTML = `<tr><th>Артикул</th><th>Наименование</th><th>Цена</th><th></th></tr>`;
-            mt.articles.forEach((art, artIdx) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td><input type="text" value="${art.code}" onchange="updateTypeArticleCode(${idx}, ${artIdx}, this.value)" style="width:100px;"></td><td><input type="text" value="${art.name}" onchange="updateTypeArticleName(${idx}, ${artIdx}, this.value)" style="width:150px;"></td><td><input type="number" value="${parseFloat(art.price)||0}" onchange="updateTypeArticlePrice(${idx}, ${artIdx}, this.value)" step="0.01" style="width:80px;"></td><td><button class="btn-del" onclick="deleteArticleFromType(${idx}, ${artIdx})">✕</button></td>`;
-                table.appendChild(tr);
-            });
-            div.appendChild(table);
-            container.appendChild(div);
-        });
-    }
 
     function renderColorTable() {
         const tbody = document.getElementById('colorRefBody');
@@ -799,52 +1979,6 @@ if (!films.length) {
         materialTypes.forEach(mt => { const opt = document.createElement('option'); opt.value = mt.name; dl.appendChild(opt); });
     }
 
-    // ========== ТИПЫ МАТЕРИАЛОВ ==========
-    function addMaterialType() {
-        const name = prompt('Название типа материала (на русском, например, «Нитки»):', '');
-        if (!name) return;
-        const unit = prompt('Единица измерения (например, «шт»):', 'шт');
-        if (!unit) return;
-        materialTypes.push({ name, unit, articles: [] });
-        saveAll();
-        renderRefs();
-    }
-    function deleteMaterialType(idx) {
-        if (confirm(`Удалить тип "${materialTypes[idx].name}" и все его артикулы?`)) {
-            materialTypes.splice(idx, 1);
-            saveAll();
-            renderRefs();
-        }
-    }
-    function addArticleToType(idx) {
-        const code = prompt('Артикул (например, МТ-001):', '');
-        if (!code) return;
-        const name = prompt('Наименование (на русском):', '');
-        if (!name) return;
-        const price = parseFloat(prompt('Цена за единицу (₽):', '0'));
-        if (isNaN(price)) return;
-        materialTypes[idx].articles.push({ code, name, price });
-        saveAll();
-        renderRefs();
-    }
-    function deleteArticleFromType(mtIdx, artIdx) {
-        materialTypes[mtIdx].articles.splice(artIdx, 1);
-        saveAll();
-        renderRefs();
-    }
-    function updateTypeArticleCode(mtIdx, artIdx, value) {
-        materialTypes[mtIdx].articles[artIdx].code = value;
-        saveAll();
-    }
-    function updateTypeArticleName(mtIdx, artIdx, value) {
-        materialTypes[mtIdx].articles[artIdx].name = value;
-        saveAll();
-    }
-    function updateTypeArticlePrice(mtIdx, artIdx, value) {
-        materialTypes[mtIdx].articles[artIdx].price = parseFloat(value) || 0;
-        saveAll();
-        renderAll();
-    }
 
     function getMarkerDefinition(name) {
         const normalizedName = String(name || '').trim().toLowerCase();
@@ -1261,8 +2395,8 @@ if (!films.length) {
                 const icon = markerIcons[mt.name] || '📦';
                 div.innerHTML = `<div class="section-title">${icon} ${mt.name}</div>
                     <label>Артикул или поиск по названию</label><input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Введите код или название для поиска">
-                    <label>Цена за м²</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
-                    <label>М² (введите количество)</label><input type="number" class="custom-qty" value="${markerData.m2||''}" step="0.1" placeholder="0.0">
+                    <label>Цена за лист</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
+                    <label>Количество листов</label><input type="number" class="custom-qty" value="${markerData.sheets||''}" step="1" placeholder="0">
                     <label>Стоимость</label><input type="text" class="custom-cost" value="0.00" readonly>`;
                 container.appendChild(div);
                 const codeInput = div.querySelector('.custom-code');
@@ -1286,9 +2420,9 @@ if (!films.length) {
                     inst[mt.name] = {
                         code: codeInput.value, 
                         price: art ? (parseFloat(art.price)||0) : (parseFloat(priceInput.value)||0), 
-                        m2: parseFloat(qtyInput.value) || 0
+                        sheets: parseInt(qtyInput.value) || 0
                     };
-                    costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].m2)||0)).toFixed(2);
+                    costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].sheets)||0)).toFixed(2);
                     updateModalTotals();
                 };
                 codeInput.addEventListener('input', update);
@@ -1348,7 +2482,7 @@ if (!films.length) {
                 if (markerItem) {
                     const markerData = inst[mt.name];
                     if (markerData && markerData.code) {
-                        const qty = parseFloat(markerData.m2 || markerData.qty || 0);
+                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
                         totalCost += qty * (parseFloat(markerData.price)||0);
                     }
                 }
@@ -1403,7 +2537,16 @@ if (!films.length) {
         }
         recalcOrder(orderData);
         recalculateStockFromAllOrders();
-        if (paid) distributePayment(orderData);
+        if (paid) {
+            // При редактировании существующего оплаченного заказа - удаляем старые транзакции
+            if (orderEditId) {
+                const existingOrder = ordersData.find(o => o.id === orderEditId);
+                if (existingOrder && existingOrder.paid) {
+                    removePaymentDistribution(existingOrder.orderNumber);
+                }
+            }
+            distributePayment(orderData);
+        }
         saveAll();
         renderAll();
         closeOrderModal();
@@ -1731,6 +2874,15 @@ function deleteOrder(orderId) {
     }
 
     function renderCalendar() {
+        // Проверяем авторизацию
+        if (!window.currentUserData) {
+            const grid = document.getElementById('calendarGrid');
+            if (grid) {
+                grid.innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра календаря необходимо <b>войти в систему</b></div>';
+            }
+            return;
+        }
+        
         // Обновляем фильтр услуг
         document.getElementById('serviceFilterContainer').innerHTML = getServiceFilterButtons();
         
@@ -1741,6 +2893,7 @@ function deleteOrder(orderId) {
         checkTomorrowNotifications();
         
         const grid = document.getElementById('calendarGrid');
+        if (!grid) return;
         
         if (calendarViewMode === 'week') {
             renderWeekView();
@@ -1749,7 +2902,8 @@ function deleteOrder(orderId) {
         
         const year = currentDate.getFullYear(), month = currentDate.getMonth();
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-        document.getElementById('calendarTitle').textContent = `${months[month]} ${year}`;
+        const calendarTitle = document.getElementById('calendarTitle');
+        if (calendarTitle) calendarTitle.textContent = `${months[month]} ${year}`;
         
         grid.innerHTML = '';
         const dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -2200,6 +3354,13 @@ function deleteOrder(orderId) {
 
     // ========== РЕНДЕР ==========
     function renderAll() {
+        console.log('renderAll вызван, ordersData.length:', ordersData.length);
+        // Если appContent скрыт — ничего не рендерим
+        const appContent = document.getElementById('appContent');
+        if (appContent && (appContent.style.display === 'none' || !appContent.style.display)) {
+            return;
+        }
+        
         renderOrders();
         renderStock();
         renderCash();
@@ -2209,13 +3370,23 @@ function deleteOrder(orderId) {
         renderRefs();
         renderPurchaseOrdersList();
         updateUnpaidSummary();
+        
+        // Рендеринг для помощника
+        if (window.currentUserData) {
+            if (window.currentUserData.role === 'helper') {
+                renderHelperTasks();
+                renderHelperReport();
+            }
+        }
     }
+    
+    // Делаем renderAll глобально доступной
+    window.renderAll = renderAll;
 
     // ========== СПРАВОЧНИКИ ==========
     function renderRefs() {
         renderServicesTable();
         renderMarkersTable();
-        renderMaterialTypes();
         renderColorTable();
         renderPaintTable();
         renderFilmTable();
@@ -2233,6 +3404,11 @@ function deleteOrder(orderId) {
             if (!show) return;
             const div = document.createElement('div');
             div.className = `order-item status-${color}`;
+            
+            // Считаем количество задач
+            let taskCount = 0;
+            (order.services || []).forEach(s => { taskCount += (s.tasks || []).length; });
+            
             div.innerHTML = `
                 <div class="order-header">
                     <span class="order-number">№${order.orderNumber}</span>
@@ -2244,8 +3420,9 @@ function deleteOrder(orderId) {
                     <span class="order-sum ${order.paid?'paid':'unpaid'}">${(parseFloat(order.clientPrice)||0).toFixed(2)}₽</span>
                     <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${order.id}, this.checked)"> Оплачено</span>
                     <span class="color-indicator ${color}"></span>
+                    <button class="btn-extra" onclick="event.stopPropagation(); openHelperTaskModal(${order.orderNumber})" title="Добавить задачу">📝 Задача${taskCount > 0 ? ' (' + taskCount + ')' : ''}</button>
                 </div>`;
-            div.onclick = (e) => { if (e.target.tagName !== 'INPUT') openOrderModal(order.id); };
+            div.onclick = (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') openOrderModal(order.id); };
             list.appendChild(div);
         });
         document.getElementById('orderCount').textContent = ordersData.length;
@@ -2404,6 +3581,9 @@ function deleteOrder(orderId) {
             <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${net.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>📊 Заказов за период</label><span>${filteredOrders.length}</span></div>
         `;
+        
+        // Рендерим план дохода
+        renderIncomePlan(startDate, endDate);
     }
 
     function createSampleOrders() {
@@ -2651,6 +3831,12 @@ function deleteOrder(orderId) {
                 if (btn.dataset.tab === 'tab-calendar') renderCalendar();
                 if (btn.dataset.tab === 'tab-ref') renderRefs();
                 if (btn.dataset.tab === 'tab-purchase') renderPurchaseOrdersList();
+                if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
+                if (btn.dataset.tab === 'helper-report') renderHelperReport();
+                if (btn.dataset.tab === 'tab-helper-admin') {
+                    populateAdminHelperFilter();
+                    renderAdminHelperTasks();
+                }
             });
         });
 
@@ -2671,7 +3857,9 @@ function deleteOrder(orderId) {
         document.getElementById('addColorModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddColorModal(); });
         document.getElementById('addPaintModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddPaintModal(); });
         document.getElementById('addFilmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddFilmModal(); });
-        document.getElementById('addExtraRefModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
+        document.getElementById('addExtraRefModal')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
+        document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
+        document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
 
         document.getElementById('orderDate').addEventListener('input', updateDeadline);
         document.getElementById('orderDurationDays').addEventListener('input', updateDeadline);
@@ -2723,7 +3911,7 @@ window.updateCloudData = function(data) {
 document.addEventListener('keydown', (e) => {
     // Проверяем, что не находимся в поле ввода
     const isInInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
-    const isModalOpen = document.querySelector('.modal-overlay.active');
+    const isModalOpen = document.querySelector('.modal-overlay.active') || document.querySelector('.notification-modal.active');
     
     if (isInInput || isModalOpen) return;
     
@@ -2740,34 +3928,44 @@ document.addEventListener('keydown', (e) => {
         tomorrow.setDate(tomorrow.getDate() + 1);
         currentDate = new Date(tomorrow);
         selectedDate = new Date(tomorrow);
-        openOrderModal();
+        openOrderModal(null, formatDate(tomorrow));
     }
     
     // Стрелки влево/вправо — переключение дней
     if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         if (calendarViewMode === 'week') {
             currentDate.setDate(currentDate.getDate() - 7);
         } else {
             currentDate.setMonth(currentDate.getMonth() - 1);
         }
+        selectedDate = new Date(currentDate);
         renderCalendar();
     }
     
     if (e.key === 'ArrowRight') {
+        e.preventDefault();
         if (calendarViewMode === 'week') {
             currentDate.setDate(currentDate.getDate() + 7);
         } else {
             currentDate.setMonth(currentDate.getMonth() + 1);
         }
+        selectedDate = new Date(currentDate);
         renderCalendar();
     }
     
     // Escape — закрыть модальные окна
     if (e.key === 'Escape') {
         closeNotificationModal();
+        // Закрыть все modal-overlay
         document.querySelectorAll('.modal-overlay.active').forEach(modal => {
             modal.classList.remove('active');
         });
+        // Закрыть notification-modal
+        const notifModal = document.getElementById('notificationModal');
+        if (notifModal && notifModal.classList.contains('active')) {
+            notifModal.classList.remove('active');
+        }
     }
 });
 
