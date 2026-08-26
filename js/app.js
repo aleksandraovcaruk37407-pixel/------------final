@@ -3343,8 +3343,9 @@ function deleteOrder(orderId) {
 
     // ========== РЕНДЕР ==========
     function renderAll() {
-        // Проверяем авторизацию - если не авторизован, скрываем всё
-        if (!window.currentUserData) {
+        // Проверяем авторизацию - если appContent скрыт, не рендерим данные
+        const appContent = document.getElementById('appContent');
+        if (!appContent || appContent.style.display === 'none') {
             document.getElementById('ordersList').innerHTML = '<div style="text-align:center;padding:40px;color:#888;font-size:18px;">🔒 Для просмотра данных необходимо <b>войти в систему</b></div>';
             document.getElementById('stockBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
             document.getElementById('cashBody').innerHTML = '<tr><td style="text-align:center;padding:20px;color:#888;">🔒 Войдите в систему</td></tr>';
@@ -3967,9 +3968,4 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Закрытие модального уведомления по клику вне него
-document.getElementById('notificationModal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'notificationModal') {
-        closeNotificationModal();
-    }
-});
-
+document.getElementById('notificationModal')?.addEventListener('click', 
