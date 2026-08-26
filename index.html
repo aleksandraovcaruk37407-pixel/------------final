@@ -912,6 +912,9 @@
           }
         };
         checkUpdateCloudData();
+        
+        // Рендерим интерфейс после установки пользователя
+        if (typeof renderAll === 'function') renderAll();
       }
     }).catch(err => {
       console.error('Ошибка получения данных пользователя:', err);
