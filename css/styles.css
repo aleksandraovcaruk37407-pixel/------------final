@@ -66,26 +66,20 @@
         .calendar-grid .day-name { font-weight: 600; text-align: center; background: #e9ecef; padding: 8px 0; border-radius: 6px; }
         .calendar-grid .day-cell { background: #f8f9fa; border-radius: 6px; padding: 10px 4px; text-align: center; cursor: pointer; min-height: 50px; border: 1px solid transparent; position: relative; }
         .calendar-grid .day-cell.selected { border-color: #1a3c5e; background: #cfe2ff; }
-        .calendar-grid .day-cell .day-number { font-weight: 600; font-size: 16px; }
-        .calendar-grid .day-cell .task-badge {
-            position: absolute;
-            top: 2px;
-            right: 4px;
-            background: #dc3545;
-            color: #fff;
-            border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 11px;
-            line-height: 18px;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            max-width: 60px;
-            white-space: nowrap;
-        }
+.calendar-grid .day-cell .day-number { font-weight: 600; font-size: 16px; display: block; margin-bottom: 4px; }
+.calendar-grid .day-cell .task-badge {
+    display: inline-block !important;
+    background: #dc3545;
+    color: #fff;
+    border-radius: 10px;
+    padding: 2px 6px;
+    font-size: 10px;
+    line-height: 1.2;
+    margin-top: 2px;
+    max-width: 100%;
+    word-wrap: break-word;
+    white-space: normal;
+}
         .calendar-grid .day-cell.color-new { background: #d4edda; border-color: #28a745; }
         .calendar-grid .day-cell.color-middle { background: #fff3cd; border-color: #ffc107; }
         .calendar-grid .day-cell.color-critical { background: #f8d7da; border-color: #dc3545; }
