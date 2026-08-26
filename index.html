@@ -884,28 +884,19 @@
     }
   };
 
-  // Проверяем состояние авторизации
-  onAuthStateChanged(window.auth, (user) => {
-    if (user) {
-      // Пользователь авторизован - показываем приложение
-      console.log('Пользователь авторизован:', user.email);
-      
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('appContent').style.display = 'block';
-      
-      // Проверяем роль пользователя
-      get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
-        const userData = snapshot.val();
-          if (userData) {
-            window.currentUserData = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName || 'Пользователь',
-              role: userData.role || 'user'
-            };
-            updateAuthUI();
-            updateRoleTabs();
-          }
+  // Вспомогательная функция для получения данных пользователя
+  function getUserDataForAuth(user) {
+    get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+      const userData = snapshot.val();
+      if (userData) {
+        window.currentUserData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || userData.displayName || 'Пользователь',
+          role: userData.role || 'user'
+        };
+        updateAuthUI();
+        updateRoleTabs();
         
         // Ждём загрузки app.js перед вызовом updateCloudData
         const checkUpdateCloudData = () => {
@@ -921,8 +912,35 @@
           }
         };
         checkUpdateCloudData();
+      }
+    }).catch(err => {
+      console.error('Ошибка получения данных пользователя:', err);
+    });
+  }
+
+  // Проверяем состояние авторизации
+  onAuthStateChanged(window.auth, (user) => {
+    if (user) {
+      // Пользователь авторизован - показываем приложение
+      console.log('Пользователь авторизован:', user.email);
+      
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appContent').style.display = 'block';
+      
+      // Создаём запись пользователя в базе, если её нет, затем загружаем данные
+      get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+        if (!snapshot.exists()) {
+          return set(ref(window.db), 'users/' + user.uid, {
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
+            role: 'admin',
+            createdAt: new Date().toISOString()
+          });
+        }
+      }).then(() => {
+        getUserDataForAuth(user);
       }).catch(err => {
-        console.error('Ошибка получения данных пользователя:', err);
+        console.error('Ошибка работы с пользователем:', err);
       });
     } else {
       // Пользователь не авторизован - показываем экран входа
