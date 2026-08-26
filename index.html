@@ -81,7 +81,6 @@
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="tab-btn" data-tab="tab-budget" style="background:#e74c3c;color:#fff;">💸 Бюджет</button>
     </div>
 
     <!-- Вкладка Заказы -->
@@ -116,25 +115,75 @@
         </div>
     </div>
 
-    <!-- Вкладка Деньги -->
+    <!-- Вкладка Деньги и Бюджет -->
     <div id="tab-cash" class="tab-content">
-        <div class="inline-flex" style="justify-content:space-between;">
-            <button class="btn-add" onclick="addCashRow()">+ Добавить операцию</button>
-            <span style="font-size:14px; color:#6c757d;">Баланс: <b id="cashBalance">0</b> ₽</span>
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">💰 Финансы и бюджет</h2>
+        
+        <!-- Распределение при оплате заказа -->
+        <div class="budget-card" style="background:#d4edda;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #28a745;">
+            <h3 style="margin:0 0 10px 0;">✅ Распределение при оплате заказа</h3>
+            <div class="budget-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <select id="budgetOrderSelect" style="flex:1;min-width:200px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
+                    <option value="">-- Выбери заказ --</option>
+                </select>
+                <button onclick="distributeFromOrder()" class="btn-add" style="white-space:nowrap;background:#28a745;color:#fff;">📊 Распределить</button>
+            </div>
+            <div id="budgetDistributionResult" style="margin-top:12px;"></div>
         </div>
-        <div class="scroll-wrap">
-            <table>
-                <thead><tr><th>Дата</th><th>Описание</th><th>Приход</th><th>Расход</th><th>Баланс</th><th></th></tr></thead>
-                <tbody id="cashBody"></tbody>
-            </table>
+
+        <!-- Сводка по бюджету -->
+        <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
+            <h3 style="margin:0 0 10px 0;">📊 Сводка по бюджету</h3>
+            <div id="cashBudgetSummary"></div>
         </div>
-        <div style="margin-top:20px;">
-            <h3>Регулярные расходы</h3>
-            <div id="regularExpensesList"></div>
-            <button class="btn-extra" onclick="addRegularExpense()">➕ Добавить регулярный расход</button>
-            <h3 style="margin-top:15px;">Регулярные доходы</h3>
-            <div id="regularIncomesList"></div>
-            <button class="btn-extra" onclick="addRegularIncome()">➕ Добавить регулярный доход</button>
+
+        <!-- Кошельки (накопительные счета) -->
+        <div class="budget-card" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #6c757d;">
+            <h3 style="margin:0 0 10px 0;">💰 Кошельки (накопления)</h3>
+            <div id="walletsOverview"></div>
+        </div>
+
+        <!-- Обязательные платежи (накопление) -->
+        <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
+            <h3 style="margin:0 0 10px 0;">📌 Обязательные платежи (накопление)</h3>
+            <div id="mandatoryPaymentsProgress"></div>
+        </div>
+
+        <!-- Долги (досрочное погашение) -->
+        <div class="budget-card" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+            <h3 style="margin:0 0 10px 0;">📊 Долги (досрочное погашение)</h3>
+            <div id="debtsProgress"></div>
+        </div>
+
+        <!-- История распределений -->
+        <div class="budget-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+            <h3 style="margin:0 0 10px 0;">📜 История распределений</h3>
+            <div id="distributionHistory"></div>
+        </div>
+
+        <!-- Операции -->
+        <div style="margin-top:30px;">
+            <h3 style="color:#1a3c5e; margin-bottom:10px;">💵 Операции</h3>
+            <div class="inline-flex" style="justify-content:space-between;margin-bottom:10px;">
+                <button class="btn-add" onclick="addCashRow()">+ Добавить операцию</button>
+                <span style="font-size:14px; color:#6c757d;">Баланс: <b id="cashBalance">0</b> ₽</span>
+            </div>
+            <div class="scroll-wrap">
+                <table>
+                    <thead><tr><th>Дата</th><th>Описание</th><th>Приход</th><th>Расход</th><th>Баланс</th><th></th></tr></thead>
+                    <tbody id="cashBody"></tbody>
+                </table>
+            </div>
+            
+            <!-- Регулярные платежи -->
+            <div style="margin-top:20px;">
+                <h3>📌 Регулярные платежи</h3>
+                <div id="regularExpensesList"></div>
+                <button class="btn-extra" onclick="addRegularExpense()">➕ Добавить регулярный расход</button>
+                <h3 style="margin-top:15px;">💵 Регулярные доходы</h3>
+                <div id="regularIncomesList"></div>
+                <button class="btn-extra" onclick="addRegularIncome()">➕ Добавить регулярный доход</button>
+            </div>
         </div>
     </div>
 
@@ -163,6 +212,12 @@
         <div class="summary-subtitle" id="summarySubtitle"></div>
         
         <div class="summary-block" id="summaryBlock"></div>
+        
+        <!-- План дохода -->
+        <div style="margin-top:30px;">
+            <h3 style="color:#1a3c5e; margin-bottom:15px;">📊 План дохода с учётом всех потребностей</h3>
+            <div id="incomePlanContainer"></div>
+        </div>
         
         <div class="summary-footer" style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-sm btn-success" onclick="printSummaryReport()">🖨️ Печать отчёта</button>
@@ -254,58 +309,6 @@
         <p style="font-size:12px;color:#6c757d;margin-bottom:10px;">Листы 750 х 1000 мм. Введите количество м² при создании заказа.</p>
         <div class="scroll-wrap">
             <table><thead><tr><th>Артикул</th><th>Наименование</th><th>Цена за м² (₽)</th></tr></thead><tbody id="soundAbsorptionBody"></tbody></table>
-        </div>
-    </div>
-
-    <!-- Вкладка Бюджет -->
-    <div id="tab-budget" class="tab-content">
-        <h2 style="color:#1a3c5e;">💸 Распределение бюджета "От заказа к заказу"</h2>
-        
-        <div class="budget-intro" style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
-            <h4 style="margin:0 0 8px 0;">💡 Как это работает:</h4>
-            <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.6;">
-                <li>При оплате заказа распределяем <b>чистую прибыль</b> (оплата − материалы − помощник)</li>
-                <li><b>4%</b> → налог, <b>10%</b> → личные накопления, <b>5%</b> → улучшение бизнеса</li>
-                <li><b>5%</b> → инвестиции/активы, <b>76%</b> → обязательные платежи</li>
-                <li>Когда накопили на платёж → переходим к следующему</li>
-                <li>Когда все обязательные покрыты → <b>досрочное погашение долгов</b></li>
-            </ul>
-        </div>
-
-        <!-- Блок распределения при оплате -->
-        <div class="budget-card" style="background:#d4edda;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #28a745;">
-            <h3 style="margin:0 0 10px 0;">✅ Распределение при оплате заказа</h3>
-            <div class="budget-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <select id="budgetOrderSelect" style="flex:1;min-width:200px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
-                    <option value="">-- Выбери заказ --</option>
-                </select>
-                <button onclick="distributeFromOrder()" class="btn-add" style="white-space:nowrap;background:#28a745;color:#fff;">📊 Распределить</button>
-            </div>
-            <div id="budgetDistributionResult" style="margin-top:12px;"></div>
-        </div>
-
-        <!-- Обязательные платежи (накопление) -->
-        <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
-            <h3 style="margin:0 0 10px 0;">📌 Обязательные платежи (накопление)</h3>
-            <div id="mandatoryPaymentsProgress"></div>
-        </div>
-
-        <!-- Долги (досрочное погашение) -->
-        <div class="budget-card" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
-            <h3 style="margin:0 0 10px 0;">📊 Долги (досрочное погашение)</h3>
-            <div id="debtsProgress"></div>
-        </div>
-
-        <!-- Кошельки (накопительные счета) -->
-        <div class="budget-card" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #6c757d;">
-            <h3 style="margin:0 0 10px 0;">💰 Кошельки (накопления)</h3>
-            <div id="walletsOverview"></div>
-        </div>
-
-        <!-- История распределений -->
-        <div class="budget-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
-            <h3 style="margin:0 0 10px 0;">📜 История распределений</h3>
-            <div id="distributionHistory"></div>
         </div>
     </div>
 
