@@ -683,7 +683,6 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
   import { getDatabase, ref, set, get, child, remove } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
@@ -699,54 +698,38 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  
   window.db = getDatabase(app);
   window.auth = getAuth(app);
   window.fbRef = ref;
   window.fbSet = set;
 
-  // Дождаться загрузки DOM перед назначением функций
+  // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ (ДОСТУПНЫ ИЗ HTML) ==========
+  window.openAuthModal = () => {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.add('active');
+    if (typeof showLoginForm === 'function') showLoginForm();
+  };
+
+  window.closeAuthModal = () => {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.remove('active');
+    const fields = ['authEmail', 'authPassword', 'registerName', 'registerEmail', 'registerPassword'];
+    fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  };
+
+  window.showLoginForm = () => {
+    const loginForm = document.getElementById('authLoginForm');
+    const registerForm = document.getElementById('authRegisterForm');
+    if (loginForm) loginForm.style.display = 'block';
+    if (registerForm) registerForm.style.display = 'none';
+  };
+
+  // ========== DOMContentLoaded ==========
   document.addEventListener('DOMContentLoaded', () => {
-    const analytics = getAnalytics(app);
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-analytics.js";
+    getAnalytics(app);
 
-    // Глобальные функции для auth
-    window.openAuthModal = () => {
-      const modal = document.getElementById('authModal');
-      if (modal) {
-        modal.classList.add('active');
-      }
-      showLoginForm();
-    };
-
-    window.closeAuthModal = () => {
-      const modal = document.getElementById('authModal');
-      if (modal) {
-        modal.classList.remove('active');
-      }
-      const authEmail = document.getElementById('authEmail');
-      const authPassword = document.getElementById('authPassword');
-      const registerName = document.getElementById('registerName');
-      const registerEmail = document.getElementById('registerEmail');
-      const registerPassword = document.getElementById('registerPassword');
-      
-      if (authEmail) authEmail.value = '';
-      if (authPassword) authPassword.value = '';
-      if (registerName) registerName.value = '';
-      if (registerEmail) registerEmail.value = '';
-      if (registerPassword) registerPassword.value = '';
-    };
-
-    window.showLoginForm = () => {
-      const loginForm = document.getElementById('authLoginForm');
-      if (loginForm) {
-        loginForm.style.display = 'block';
-      }
-      const registerForm = document.getElementById('authRegisterForm');
-      if (registerForm) {
-        registerForm.style.display = 'none';
-      }
-    };
-
+    // ========== ФУНКЦИИ АВТОРИЗАЦИИ ==========
     window.handleRegister = async () => {
     const name = document.getElementById('registerName').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
@@ -791,9 +774,7 @@
     }
   };
 
-  // Весь остальной код внутри DOMContentLoaded
-  document.addEventListener('DOMContentLoaded', () => {
-    window.handleLogin = async () => {
+  window.handleLogin = async () => {
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
     if (!email || !password) {
@@ -1078,7 +1059,7 @@
       }
     });
   }
-  });
+});
 </script>
 </body>
 </html>
