@@ -875,6 +875,80 @@ if (!films.length) {
         }).join('');
     }
 
+    // ========== ФУНКЦИЯ ОТЧЁТА ПОМОЩНИКА ==========
+    function renderHelperReport() {
+        const container = document.getElementById('helperReportContainer');
+        if (!container || !window.currentUserData) return;
+        
+        const helperEmail = window.currentUserData.email;
+        
+        let totalEarned = 0;
+        let totalLost = 0;
+        let totalPenalties = 0;
+        let completedTasks = 0;
+        let overdueTasks = 0;
+        
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        if (task.status === 'completed') {
+                            totalEarned += parseFloat(task.helperPay) || 0;
+                            completedTasks++;
+                        } else if (task.status === 'overdue') {
+                            totalLost += parseFloat(task.helperPay) || 0;
+                            totalPenalties += parseFloat(task.penalty) || 0;
+                            overdueTasks++;
+                        }
+                    }
+                });
+            });
+        });
+        
+        const netEarned = totalEarned - totalPenalties;
+        
+        container.innerHTML = `
+            <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
+                <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено задач</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⚠️ Штрафы</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalPenalties.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
+                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано (просрочка)</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
+                <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
+                    <li>За каждую выполненную задачу начисляется <b>указанная сумма</b> ₽</li>
+                    <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
+                    <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
+                </ul>
+            </div>
+        `;
+    }
+
     // Делаем функции глобально доступными
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
@@ -1067,6 +1141,7 @@ if (!films.length) {
     }
 
     // Делаем функции глобально доступными
+    window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
 
     function markOverdue(orderNumber, taskId) {
@@ -1096,8 +1171,16 @@ if (!films.length) {
         const filterSelect = document.getElementById('adminHelperFilter');
         if (!filterSelect) return;
         
-        const ref = window.fbRef(window.db);
-        window.get(window.child(ref, 'users')).then((snapshot) => {
+        // Проверяем, доступны ли Firebase функции
+        if (typeof window.get !== 'function' || typeof window.child !== 'function') {
+            // Fallback: показываем помощников из задач
+            populateAdminHelperFilterFallback();
+            return;
+        }
+        
+        try {
+            const ref = window.fbRef(window.db);
+            window.get(window.child(ref, 'users')).then((snapshot) => {
             if (!snapshot.exists()) return;
             
             const users = snapshot.val();
@@ -1133,6 +1216,10 @@ if (!films.length) {
             // Fallback: показываем помощников из задач
             populateAdminHelperFilterFallback();
         });
+        } catch (e) {
+            console.error('Ошибка в updateHelperFilter:', e);
+            populateAdminHelperFilterFallback();
+        }
     }
     
     // Fallback для случаев когда Firebase недоступен
