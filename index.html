@@ -25,36 +25,13 @@
   window.openAuthModal = () => {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.add('active');
-    if (typeof showLoginForm === 'function') showLoginForm();
   };
 
   window.closeAuthModal = () => {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.remove('active');
-    const fields = ['authEmail', 'authPassword', 'registerName', 'registerEmail', 'registerPassword'];
+    const fields = ['authEmail', 'authPassword'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  };
-
-  window.showLoginForm = () => {
-    const loginForm = document.getElementById('authLoginForm');
-    const registerForm = document.getElementById('authRegisterForm');
-    const tabLogin = document.getElementById('tabLogin');
-    const tabRegister = document.getElementById('tabRegister');
-    if (loginForm) loginForm.style.display = 'block';
-    if (registerForm) registerForm.style.display = 'none';
-    if (tabLogin) { tabLogin.style.background = '#28a745'; tabLogin.style.color = '#fff'; }
-    if (tabRegister) { tabRegister.style.background = '#6c757d'; tabRegister.style.color = '#fff'; }
-  };
-
-  window.showRegisterForm = () => {
-    const loginForm = document.getElementById('authLoginForm');
-    const registerForm = document.getElementById('authRegisterForm');
-    const tabLogin = document.getElementById('tabLogin');
-    const tabRegister = document.getElementById('tabRegister');
-    if (loginForm) loginForm.style.display = 'none';
-    if (registerForm) registerForm.style.display = 'block';
-    if (tabLogin) { tabLogin.style.background = '#6c757d'; tabLogin.style.color = '#fff'; }
-    if (tabRegister) { tabRegister.style.background = '#dc3545'; tabRegister.style.color = '#fff'; }
   };
 
   // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
@@ -88,57 +65,12 @@
       alert('❌ Ошибка выхода');
     }
   };
-
-  // ========== РЕГИСТРАЦИЯ ==========
-  window.handleRegister = async () => {
-    const name = document.getElementById('registerName').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value;
-    const role = document.getElementById('registerRole').value;
-    
-    if (!name || !email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    
-    if (password.length < 6) {
-      alert('Пароль должен быть минимум 6 символов!');
-      return;
-    }
-    
-    try {
-      const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
-      const user = userCredential.user;
-      await window.updateProfile(user, { displayName: name });
-      await window.set(window.fbRef(window.db), 'users/' + user.uid, {
-        email: email,
-        displayName: name,
-        role: role,
-        createdAt: new Date().toISOString()
-      });
-      alert('✅ Регистрация успешна!\n\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник') + '\n\nТеперь войдите в систему.');
-      closeAuthModal();
-    } catch (error) {
-      console.error('Ошибка регистрации:', error);
-      let msg = 'Ошибка регистрации';
-      if (error.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
-      if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
-      if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
-      alert('❌ ' + msg);
-    }
-  };
-</script></script>
+</script>
 
 <!-- Модальное окно авторизации (всегда доступно, перед container) -->
 <div class="modal-overlay" id="authModal">
     <div class="modal" style="max-width:400px;">
         <h3 style="margin-bottom:20px;">🔑 Вход в систему</h3>
-        
-        <!-- Вкладки: Вход / Регистрация -->
-        <div style="display:flex;gap:10px;margin-bottom:20px;">
-            <button class="btn-add" onclick="showLoginForm()" id="tabLogin" style="flex:1;padding:8px;">Вход</button>
-            <button class="btn-del" onclick="showRegisterForm()" id="tabRegister" style="flex:1;padding:8px;">Регистрация</button>
-        </div>
         
         <!-- Форма входа -->
         <div id="authLoginForm" style="display:block;">
@@ -152,33 +84,6 @@
             </div>
             <div style="display:flex;gap:10px;margin-top:15px;">
                 <button class="btn-add" onclick="handleLogin()" style="flex:1;">Войти</button>
-                <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
-            </div>
-        </div>
-        
-        <!-- Форма регистрации -->
-        <div id="authRegisterForm" style="display:none;">
-            <div class="form-group">
-                <label>👤 Имя</label>
-                <input type="text" id="registerName" placeholder="Ваше имя">
-            </div>
-            <div class="form-group">
-                <label>📧 Email</label>
-                <input type="email" id="registerEmail" placeholder="your@email.com">
-            </div>
-            <div class="form-group">
-                <label>🔒 Пароль (мин. 6 символов)</label>
-                <input type="password" id="registerPassword" placeholder="Минимум 6 символов">
-            </div>
-            <div class="form-group">
-                <label>👥 Роль</label>
-                <select id="registerRole" style="width:100%;padding:8px;border-radius:6px;border:1px solid #ced4da;">
-                    <option value="admin">👨‍💼 Администратор</option>
-                    <option value="helper">👷 Помощник</option>
-                </select>
-            </div>
-            <div style="display:flex;gap:10px;margin-top:15px;">
-                <button class="btn-add" onclick="handleRegister()" style="flex:1;">Зарегистрироваться</button>
                 <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
             </div>
         </div>
@@ -485,8 +390,9 @@
     <!-- Вкладка Задачи помощников (для админа) -->
     <div id="tab-helper-admin" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">👥 Задачи помощников</h2>
-        <div style="margin-bottom:15px;">
-            <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
+        <div style="margin-bottom:15px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;background:#17a2b8;">➕ Добавить помощника</button>
+            <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">📋 Создать задачу</button>
         </div>
         <div style="margin-bottom:15px;">
             <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
@@ -495,6 +401,39 @@
             </select>
         </div>
         <div id="adminHelperTasksContainer"></div>
+    </div>
+
+    <!-- Модалка добавления помощника -->
+    <div class="modal-overlay" id="addHelperModal">
+        <div class="modal" style="max-width:500px;">
+            <h3>➕ Регистрация нового помощника</h3>
+            <div style="background:#e3f2fd;padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px;border-left:4px solid #2196f3;">
+                📌 После регистрации помощник сможет войти в систему по email и паролю. Пароль будет виден только один раз!
+            </div>
+            <div class="form-group">
+                <label>👤 Имя помощника</label>
+                <input type="text" id="helperName" placeholder="Введите имя">
+            </div>
+            <div class="form-group">
+                <label>📧 Email</label>
+                <input type="email" id="helperEmail" placeholder="helper@example.com">
+            </div>
+            <div class="form-group">
+                <label>🔒 Пароль (мин. 6 символов)</label>
+                <input type="password" id="helperPassword" placeholder="Минимум 6 символов">
+                <button class="btn-extra" onclick="toggleHelperPassword()" style="margin-top:5px;">👁️ Показать пароль</button>
+            </div>
+            <div id="helperCreatedResult" style="display:none;background:#d4edda;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #28a745;">
+                <h4 style="margin:0 0 10px 0;color:#155724;">✅ Помощник создан!</h4>
+                <div id="helperCredentials" style="background:#fff;padding:10px;border-radius:6px;font-family:monospace;font-size:14px;"></div>
+                <button class="btn-add" onclick="copyHelperCredentials()" style="margin-top:10px;width:100%;">📋 Копировать данные</button>
+                <p style="margin:10px 0 0 0;font-size:12px;color:#856404;">⚠️ Помощник должен запомнить или скопировать эти данные!</p>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddHelperModal()">Отмена</button>
+                <button class="btn-save" onclick="createHelper()">Создать помощника</button>
+            </div>
+        </div>
     </div>
 
     <!-- Модалка заказа -->
@@ -1061,6 +1000,9 @@
       document.querySelector('#adminTabs .tab-btn[data-tab="tab-orders"]').classList.add('active');
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.getElementById('tab-orders').classList.add('active');
+      
+      // Обновить список помощников
+      if (typeof updateHelperFilter === 'function') updateHelperFilter();
     } else {
       adminTabs.style.display = 'none';
       helperTabs.style.display = 'flex';
