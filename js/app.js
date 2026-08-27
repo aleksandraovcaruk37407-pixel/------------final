@@ -39,8 +39,10 @@
                 { id: 'alimony', name: 'Алименты', total: 340000, monthly: 10000, paid: 0, icon: '👶' }
             ],
             distributionHistory: [],
-            // Выплаты помощникам
+            // Выплаты помощникам (текущие)
             helperPayments: {},
+            // История всех выплат (плоский массив)
+            paymentHistory: [],
             // Планирование дохода
             incomePlan: {
                 personalPercent: 10, // % на личные расходы
@@ -77,6 +79,7 @@
     if (!budgetData.debts) budgetData.debts = getDefaultBudgetData().debts;
     if (!budgetData.distributionHistory) budgetData.distributionHistory = [];
     if (!budgetData.helperPayments) budgetData.helperPayments = {};
+    if (!budgetData.paymentHistory) budgetData.paymentHistory = [];
 
     rates.forEach(r => { if (!r.items) r.items = []; });
     const accidentService = rates.find(r => r.service === 'Восстановление после ДТП');
@@ -519,6 +522,13 @@ if (!films.length) {
         renderDistributionHistory();
         populateBudgetOrderSelect();
         renderCashBudgetSummary();
+        // Рендерим план дохода и личные расходы
+        const now = new Date();
+        const startDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+        const endDate = formatDate(now);
+        renderIncomePlan(startDate, endDate);
+        // Рендерим историю выплат
+        renderPaymentHistory();
     }
 
     function renderMandatoryPayments() {
@@ -727,13 +737,13 @@ if (!films.length) {
     }
 
     function renderIncomePlan(startDate, endDate) {
-        const container = document.getElementById('incomePlanContainer');
-        if (!container) return;
+        const incomePlanContainer = document.getElementById('incomePlanContainer');
+        const goalsContainer = document.getElementById('goalsContainer');
+        if (!incomePlanContainer) return;
         
         const plan = calculateIncomePlan(startDate, endDate);
-        const salary = calculateAdminSalary(startDate, endDate);
         
-        container.innerHTML = `
+        incomePlanContainer.innerHTML = `
             <!-- Сводка плана -->
             <div class="plan-summary" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
@@ -779,39 +789,6 @@ if (!films.length) {
                 <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${Math.round(plan.investmentAmount).toLocaleString()} ₽</span></div>
             </div>
             
-            <!-- Настройка личных расходов -->
-            <div class="plan-settings" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
-                <h4 style="margin:0 0 10px 0;">⚙️ Настройка личных расходов</h4>
-                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-                    <label style="font-size:14px;">Процент на личные:</label>
-                    <input type="number" id="personalPercentInput" value="${budgetData.incomePlan?.personalPercent || 10}" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
-                    <span style="font-size:14px;">%</span>
-                    <button onclick="savePersonalPercent()" class="btn-add" style="padding:6px 12px;font-size:12px;margin-left:auto;">💾 Сохранить</button>
-                </div>
-                <div style="margin-top:8px;font-size:13px;color:#666;">
-                    При доходе ${Math.round(plan.minIncome).toLocaleString()} ₽ на личные будет идти ${Math.round(plan.personalAmount).toLocaleString()} ₽
-                </div>
-            </div>
-            
-            <!-- Дополнительные цели -->
-            <div class="plan-goals" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
-                <h4 style="margin:0 0 10px 0;">🎯 Дополнительные цели</h4>
-                ${plan.goalsProgress.map((goal, idx) => `
-                    <div class="budget-progress-item" style="margin-bottom:10px;">
-                        <div class="budget-progress-header">
-                            <span class="name">${goal.icon} ${goal.name}</span>
-                            <span class="amount">${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()} ₽</span>
-                        </div>
-                        <div class="progress-bar-budget">
-                            <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
-                        </div>
-                        <div style="margin-top:8px;display:flex;gap:6px;">
-                            <button class="btn-budget-pay" onclick="addGoalSaved(${idx})">➕ Добавить накопление</button>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-            
             <!-- Чистая зарплата администратора -->
             <div style="background:#d4edda;padding:20px;border-radius:8px;margin-top:20px;border-left:4px solid #28a745;">
                 <h4 style="margin:0 0 15px 0;">💼 Чистая зарплата администратора</h4>
@@ -840,6 +817,24 @@ if (!films.length) {
                 </div>
             </div>
         `;
+        
+        // Рендерим дополнительные цели в goalsContainer
+        if (goalsContainer && plan.goalsProgress && plan.goalsProgress.length > 0) {
+            goalsContainer.innerHTML = plan.goalsProgress.map((goal, idx) => `
+                <div class="budget-progress-item" style="margin-bottom:10px;">
+                    <div class="budget-progress-header">
+                        <span class="name">${goal.icon} ${goal.name}</span>
+                        <span class="amount">${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()} ₽</span>
+                    </div>
+                    <div class="progress-bar-budget">
+                        <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:6px;">
+                        <button class="btn-budget-pay" onclick="addGoalSaved(${idx})">➕ Добавить накопление</button>
+                    </div>
+                </div>
+            `).join('');
+        }
     }
 
     function updatePersonalPercent(value) {
@@ -1070,6 +1065,7 @@ if (!films.length) {
     // Инициализация кнопок периода
     window.setHelperReportPeriod('all');
     window.setAdminHelperReportPeriod('all');
+    window.setPaymentHistoryPeriod('all');
 
     // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
     window.openAddHelperModal = function() {
@@ -1176,6 +1172,7 @@ if (!films.length) {
             
             // Обновить список помощников в фильтре
             updateHelperFilter();
+            updatePaymentHelperFilter();
             
         } catch (error) {
             console.error('Ошибка создания помощника:', error);
@@ -1677,16 +1674,239 @@ if (!films.length) {
             if (!confirm(`Вы платите ${paymentAmount.toLocaleString()} ₽, но должно быть только ${unpaid.toLocaleString()} ₽. Переплата будет учтена в будущем.`)) return;
         }
         
+        const paymentDate = new Date().toISOString();
+        
+        // Записываем в текущие выплаты
         budgetData.helperPayments[helperEmail].push({
             amount: paymentAmount,
-            date: new Date().toISOString(),
+            date: paymentDate,
             paidBy: window.currentUserData ? window.currentUserData.email : 'admin'
+        });
+        
+        // Записываем в историю выплат (плоский массив для гибкой фильтрации)
+        if (!budgetData.paymentHistory) {
+            budgetData.paymentHistory = [];
+        }
+        budgetData.paymentHistory.push({
+            id: Date.now().toString(),
+            date: paymentDate,
+            helperEmail: helperEmail,
+            amount: paymentAmount,
+            paidBy: window.currentUserData ? window.currentUserData.email : 'admin',
+            description: `Выплата помощнику ${helperEmail}`
         });
         
         saveBudgetData();
         renderAdminHelperTasks();
+        renderPaymentHistory();
         alert(`✅ Выплата ${paymentAmount.toLocaleString()} ₽ для ${helperEmail} отмечена!`);
     };
+
+    // ========== ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
+    let currentPaymentHistoryPeriod = 'all';
+
+    window.setPaymentHistoryPeriod = function(period) {
+        currentPaymentHistoryPeriod = period;
+        ['Day', 'Week', 'Month', 'Year', 'All'].forEach(p => {
+            const btn = document.getElementById('btnPay' + p);
+            if (btn) {
+                btn.style.background = '#6c757d';
+                btn.style.color = '#fff';
+            }
+        });
+        const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
+        const activeBtn = document.getElementById('btnPay' + periodMap[period]);
+        if (activeBtn) {
+            activeBtn.style.background = '#007bff';
+            activeBtn.style.color = '#fff';
+        }
+        renderPaymentHistory();
+    };
+
+    function getPaymentHistoryForPeriod(period) {
+        if (!budgetData.paymentHistory || budgetData.paymentHistory.length === 0) return [];
+        
+        const now = new Date();
+        let startDate = '';
+        
+        switch(period) {
+            case 'day':
+                startDate = formatDate(now);
+                break;
+            case 'week':
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                startDate = formatDate(weekAgo);
+                break;
+            case 'month':
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                startDate = formatDate(monthAgo);
+                break;
+            case 'year':
+                const yearAgo = new Date(now);
+                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                startDate = formatDate(yearAgo);
+                break;
+            default:
+                startDate = '2000-01-01';
+        }
+        
+        return budgetData.paymentHistory.filter(p => p.date >= startDate);
+    }
+
+    function renderPaymentHistory() {
+        const container = document.getElementById('paymentHistoryContainer');
+        if (!container) return;
+        
+        const filterEmail = document.getElementById('paymentHelperFilter')?.value || 'all';
+        const filteredPayments = getPaymentHistoryForPeriod(currentPaymentHistoryPeriod)
+            .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
+        
+        if (filteredPayments.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:30px;color:#888;">
+                    <div style="font-size:48px;margin-bottom:10px;">💳</div>
+                    <div>Выплат не найдено</div>
+                    <div style="font-size:13px;margin-top:5px;">История выплат пуста за выбранный период</div>
+                </div>
+            `;
+            return;
+        }
+        
+        // Группируем по помощникам
+        const groupedByHelper = {};
+        let totalAll = 0;
+        
+        filteredPayments.forEach(payment => {
+            const email = payment.helperEmail;
+            if (!groupedByHelper[email]) {
+                groupedByHelper[email] = { payments: [], total: 0 };
+            }
+            groupedByHelper[email].payments.push(payment);
+            groupedByHelper[email].total += payment.amount;
+            totalAll += payment.amount;
+        });
+        
+        container.innerHTML = `
+            <div style="background:#d4edda;padding:12px;border-radius:6px;margin-bottom:15px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                    <div>
+                        <strong>📊 ${periodNames[currentPaymentHistoryPeriod]}</strong>
+                        <span style="color:#666;margin-left:10px;">(${filteredPayments.length} выплат)</span>
+                    </div>
+                    <div style="font-size:18px;font-weight:700;color:#27ae60;">
+                        💰 Всего: ${totalAll.toLocaleString()} ₽
+                    </div>
+                </div>
+            </div>
+            ${Object.entries(groupedByHelper).map(([email, data]) => {
+                const payments = data.payments;
+                const total = data.total;
+                const helperName = email.split('@')[0];
+                
+                return `
+                    <div style="background:#fff;padding:15px;border-radius:8px;margin-bottom:12px;border:1px solid #dee2e6;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
+                            <div>
+                                <strong style="font-size:16px;">👤 ${helperName}</strong>
+                                <span style="color:#666;font-size:13px;margin-left:8px;">(${email})</span>
+                            </div>
+                            <div style="font-size:16px;font-weight:700;color:#27ae60;">
+                                💰 ${total.toLocaleString()} ₽
+                            </div>
+                        </div>
+                        <div style="border-top:1px solid #eee;padding-top:8px;">
+                            ${payments.map(p => {
+                                const date = new Date(p.date);
+                                const dateStr = date.toLocaleDateString('ru-RU');
+                                const timeStr = date.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+                                const paidBy = p.paidBy ? p.paidBy.split('@')[0] : 'admin';
+                                return `
+                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14px;">
+                                        <div>
+                                            <span style="color:#666;">${dateStr} ${timeStr}</span>
+                                            <span style="margin-left:8px;">${p.description}</span>
+                                            <span style="margin-left:8px;color:#999;font-size:12px;">от ${paidBy}</span>
+                                        </div>
+                                        <span style="font-weight:600;color:#27ae60;">+${p.amount.toLocaleString()} ₽</span>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        `;
+    }
+
+    // Обновляем фильтр помощников для истории выплат
+    function updatePaymentHelperFilter() {
+        const filter = document.getElementById('paymentHelperFilter');
+        if (!filter) return;
+        
+        const ref = window.fbRef(window.db);
+        if (typeof window.get !== 'function' || typeof window.child !== 'function') {
+            // Fallback: помощники из задач
+            const emails = new Set();
+            ordersData.forEach(order => {
+                (order.services || []).forEach(service => {
+                    (service.tasks || []).forEach(task => {
+                        if (task.assignedTo) emails.add(task.assignedTo);
+                    });
+                });
+            });
+            filter.innerHTML = '<option value="all">Все помощники</option>';
+            emails.forEach(email => {
+                const opt = document.createElement('option');
+                opt.value = email;
+                opt.textContent = email;
+                filter.appendChild(opt);
+            });
+            return;
+        }
+        
+        try {
+            window.get(window.child(ref, 'users')).then((snapshot) => {
+                if (!snapshot.exists()) return;
+                
+                const users = snapshot.val();
+                const helpers = [];
+                
+                for (const uid in users) {
+                    if (users[uid].role === 'helper') {
+                        helpers.push({
+                            uid: uid,
+                            email: users[uid].email,
+                            displayName: users[uid].displayName || users[uid].email
+                        });
+                    }
+                }
+                
+                helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+                
+                const currentValue = filter.value;
+                filter.innerHTML = '<option value="all">Все помощники</option>';
+                helpers.forEach(helper => {
+                    const option = document.createElement('option');
+                    option.value = helper.email;
+                    option.textContent = `${helper.displayName} (${helper.email})`;
+                    filter.appendChild(option);
+                });
+                
+                if (currentValue && [...helpers].some(h => h.email === currentValue)) {
+                    filter.value = currentValue;
+                }
+            }).catch(err => console.error('Ошибка обновления фильтра выплат:', err));
+        } catch (e) {
+            console.error('Ошибка в updatePaymentHelperFilter:', e);
+        }
+    }
+
+    window.renderPaymentHistory = renderPaymentHistory;
 
     function openHelperTaskModalFromAdmin() {
         openHelperTaskModal(null);
@@ -4176,9 +4396,6 @@ function deleteOrder(orderId) {
             <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${net.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>📊 Заказов за период</label><span>${filteredOrders.length}</span></div>
         `;
-        
-        // Рендерим план дохода
-        renderIncomePlan(startDate, endDate);
     }
 
     function createSampleOrders() {

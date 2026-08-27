@@ -214,6 +214,43 @@
             <div id="distributionHistory"></div>
         </div>
 
+        <!-- Настройка личных расходов -->
+        <div class="budget-card" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+            <h3 style="margin:0 0 10px 0;">⚙️ Настройка личных расходов</h3>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <label style="font-size:14px;">Процент на личные:</label>
+                <input type="number" id="personalPercentInput" value="10" min="1" max="50" step="1" style="width:80px;padding:6px;border-radius:4px;border:1px solid #ced4da;" onchange="updatePersonalPercent(this.value)">
+                <span style="font-size:14px;">%</span>
+                <button onclick="savePersonalPercent()" class="btn-add" style="padding:6px 12px;font-size:12px;margin-left:auto;">💾 Сохранить</button>
+            </div>
+            <div id="incomePlanContainer" style="margin-top:15px;"></div>
+        </div>
+
+        <!-- Дополнительные цели -->
+        <div class="budget-card" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
+            <h3 style="margin:0 0 10px 0;">🎯 Дополнительные цели</h3>
+            <div id="goalsContainer"></div>
+        </div>
+
+        <!-- История выплат помощникам -->
+        <div class="budget-card" style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
+            <h3 style="margin:0 0 10px 0;">💳 История выплат помощникам</h3>
+            <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-sm btn-primary" onclick="setPaymentHistoryPeriod('day')" id="btnPayDay">📅 День</button>
+                <button class="btn btn-sm btn-success" onclick="setPaymentHistoryPeriod('week')" id="btnPayWeek">📆 Неделя</button>
+                <button class="btn btn-sm btn-info" onclick="setPaymentHistoryPeriod('month')" id="btnPayMonth" style="background:#2196f3;">🗓 Месяц</button>
+                <button class="btn btn-sm btn-warning" onclick="setPaymentHistoryPeriod('year')" id="btnPayYear">📊 Год</button>
+                <button class="btn btn-sm btn-secondary" onclick="setPaymentHistoryPeriod('all')" id="btnPayAll">⏳ Всё время</button>
+            </div>
+            <div style="margin-bottom:15px;">
+                <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
+                <select id="paymentHelperFilter" onchange="renderPaymentHistory()" style="width:250px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
+                    <option value="all">Все помощники</option>
+                </select>
+            </div>
+            <div id="paymentHistoryContainer"></div>
+        </div>
+
         <!-- Операции -->
         <div style="margin-top:30px;">
             <h3 style="color:#1a3c5e; margin-bottom:10px;">💵 Операции</h3>
@@ -265,12 +302,6 @@
         <div class="summary-subtitle" id="summarySubtitle"></div>
         
         <div class="summary-block" id="summaryBlock"></div>
-        
-        <!-- План дохода -->
-        <div style="margin-top:30px;">
-            <h3 style="color:#1a3c5e; margin-bottom:15px;">📊 План дохода с учётом всех потребностей</h3>
-            <div id="incomePlanContainer"></div>
-        </div>
         
         <div class="summary-footer" style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-sm btn-success" onclick="printSummaryReport()">🖨️ Печать отчёта</button>
