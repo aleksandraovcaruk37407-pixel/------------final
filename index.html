@@ -385,6 +385,13 @@
     <!-- Вкладка Мой отчёт (для помощника) -->
     <div id="helper-report" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
+        <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-sm btn-primary" onclick="setHelperReportPeriod('day')" id="btnHelperDay">📅 День</button>
+            <button class="btn btn-sm btn-success" onclick="setHelperReportPeriod('week')" id="btnHelperWeek">📆 Неделя</button>
+            <button class="btn btn-sm btn-info" onclick="setHelperReportPeriod('month')" id="btnHelperMonth" style="background:#2196f3;">🗓 Месяц</button>
+            <button class="btn btn-sm btn-warning" onclick="setHelperReportPeriod('year')" id="btnHelperYear">📊 Год</button>
+            <button class="btn btn-sm btn-secondary" onclick="setHelperReportPeriod('all')" id="btnHelperAll">⏳ Всё время</button>
+        </div>
         <div id="helperReportContainer"></div>
     </div>
 
@@ -394,6 +401,13 @@
         <div style="margin-bottom:15px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;background:#17a2b8;">➕ Добавить помощника</button>
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">📋 Создать задачу</button>
+        </div>
+        <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-sm btn-primary" onclick="setAdminHelperReportPeriod('day')" id="btnAdminDay">📅 День</button>
+            <button class="btn btn-sm btn-success" onclick="setAdminHelperReportPeriod('week')" id="btnAdminWeek">📆 Неделя</button>
+            <button class="btn btn-sm btn-info" onclick="setAdminHelperReportPeriod('month')" id="btnAdminMonth" style="background:#2196f3;">🗓 Месяц</button>
+            <button class="btn btn-sm btn-warning" onclick="setAdminHelperReportPeriod('year')" id="btnAdminYear">📊 Год</button>
+            <button class="btn btn-sm btn-secondary" onclick="setAdminHelperReportPeriod('all')" id="btnAdminAll">⏳ Всё время</button>
         </div>
         <div style="margin-bottom:15px;">
             <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>

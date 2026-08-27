@@ -13,6 +13,8 @@
     let currentServices = [];
     let localChangesPending = false;
     let currentReportPeriodType = 'month';
+    let currentHelperReportPeriod = 'all';
+    let currentAdminHelperReportPeriod = 'all';
 
     function getDefaultBudgetData() {
         return {
@@ -965,13 +967,19 @@ if (!films.length) {
         
         const helperEmail = window.currentUserData.email;
         
+        // Фильтруем заказы по периоду
+        const filteredOrders = getTasksForPeriod(ordersData, currentHelperReportPeriod);
+        
+        // Название периода
+        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
+        
         let totalEarned = 0;
         let totalLost = 0;
         let totalPenalties = 0;
         let completedTasks = 0;
         let overdueTasks = 0;
         
-        ordersData.forEach(order => {
+        filteredOrders.forEach(order => {
             (order.services || []).forEach(service => {
                 (service.tasks || []).forEach(task => {
                     if (task.assignedTo === helperEmail) {
@@ -996,8 +1004,11 @@ if (!films.length) {
         const totalUnpaid = Math.max(0, netEarned - totalPaid);
         
         container.innerHTML = `
+            <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
+                <h4 style="margin:0 0 5px 0;">📊 ${periodNames[currentHelperReportPeriod]}</h4>
+                <div style="font-size:13px;color:#666;">Период отчёта: ${periodNames[currentHelperReportPeriod]}</div>
+            </div>
             <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
-                <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
@@ -1055,6 +1066,10 @@ if (!films.length) {
     // Делаем функции глобально доступными
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
+
+    // Инициализация кнопок периода
+    window.setHelperReportPeriod('all');
+    window.setAdminHelperReportPeriod('all');
 
     // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
     window.openAddHelperModal = function() {
@@ -1361,9 +1376,15 @@ if (!films.length) {
         
         const filterEmail = document.getElementById('adminHelperFilter')?.value || 'all';
         
+        // Фильтруем заказы по периоду
+        const filteredOrders = getTasksForPeriod(ordersData, currentAdminHelperReportPeriod);
+        
+        // Название периода
+        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
+        
         // Собираем все задачи
         let allTasks = [];
-        ordersData.forEach(order => {
+        filteredOrders.forEach(order => {
             (order.services || []).forEach((service, svcIdx) => {
                 (service.tasks || []).forEach(task => {
                     if (filterEmail !== 'all' && task.assignedTo !== filterEmail) return;
@@ -1431,6 +1452,11 @@ if (!films.length) {
         }
         
         container.innerHTML = `
+            <!-- Период -->
+            <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
+                <h4 style="margin:0 0 5px 0;">📊 ${periodNames[currentAdminHelperReportPeriod]}</h4>
+                <div style="font-size:13px;color:#666;">Период отчёта: ${periodNames[currentAdminHelperReportPeriod]}</div>
+            </div>
             <!-- Статистика -->
             <div class="helper-stat-grid" style="margin-bottom:20px;">
                 <div class="helper-stat-item">
@@ -1543,6 +1569,74 @@ if (!films.length) {
     window.populateAdminHelperFilterFallback = populateAdminHelperFilterFallback;
 
     // ========== ВЫПЛАТЫ ПОМОЩНИКАМ ==========
+    window.setHelperReportPeriod = function(period) {
+        currentHelperReportPeriod = period;
+        // Обновляем кнопки
+        ['Day', 'Week', 'Month', 'Year', 'All'].forEach(p => {
+            const btn = document.getElementById('btnHelper' + p);
+            if (btn) {
+                btn.style.background = '#6c757d';
+                btn.style.color = '#fff';
+            }
+        });
+        const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
+        const activeBtn = document.getElementById('btnHelper' + periodMap[period]);
+        if (activeBtn) {
+            activeBtn.style.background = '#007bff';
+            activeBtn.style.color = '#fff';
+        }
+        renderHelperReport();
+    };
+
+    window.setAdminHelperReportPeriod = function(period) {
+        currentAdminHelperReportPeriod = period;
+        // Обновляем кнопки
+        ['Day', 'Week', 'Month', 'Year', 'All'].forEach(p => {
+            const btn = document.getElementById('btnAdmin' + p);
+            if (btn) {
+                btn.style.background = '#6c757d';
+                btn.style.color = '#fff';
+            }
+        });
+        const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
+        const activeBtn = document.getElementById('btnAdmin' + periodMap[period]);
+        if (activeBtn) {
+            activeBtn.style.background = '#007bff';
+            activeBtn.style.color = '#fff';
+        }
+        renderAdminHelperTasks();
+    };
+
+    function getTasksForPeriod(orders, period) {
+        const now = new Date();
+        let startDate = '';
+        
+        switch(period) {
+            case 'day':
+                startDate = formatDate(now);
+                break;
+            case 'week':
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                startDate = formatDate(weekAgo);
+                break;
+            case 'month':
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                startDate = formatDate(monthAgo);
+                break;
+            case 'year':
+                const yearAgo = new Date(now);
+                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                startDate = formatDate(yearAgo);
+                break;
+            default:
+                startDate = '2000-01-01'; // Всё время
+        }
+        
+        return orders.filter(o => o.date >= startDate);
+    }
+
     window.payHelper = function(helperEmail) {
         if (!budgetData.helperPayments[helperEmail]) {
             budgetData.helperPayments[helperEmail] = [];
