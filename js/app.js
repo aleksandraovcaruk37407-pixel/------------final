@@ -373,6 +373,8 @@ if (!films.length) {
     }
 
     function distributeFromOrder() {
+        if (!budgetData) { alert('Данные бюджета не загружены!'); return; }
+        
         const select = document.getElementById('budgetOrderSelect');
         const orderNumber = select.value;
         if (!orderNumber) {
@@ -485,6 +487,7 @@ if (!films.length) {
     }
 
     function payMandatoryPayment(idx) {
+        if (!budgetData || !budgetData.mandatoryPayments) return;
         const mp = budgetData.mandatoryPayments[idx];
         if (!mp || mp.paid) return;
         if (!confirm(`Отметить "${mp.name}" как оплаченный?`)) return;
@@ -494,6 +497,7 @@ if (!films.length) {
     }
 
     function resetMandatoryPayment(idx) {
+        if (!budgetData || !budgetData.mandatoryPayments) return;
         const mp = budgetData.mandatoryPayments[idx];
         if (!mp) return;
         if (!confirm(`Сбросить статус оплаты "${mp.name}"?`)) return;
@@ -503,6 +507,7 @@ if (!films.length) {
     }
 
     function renderBudget() {
+        if (!budgetData) return;
         renderMandatoryPayments();
         renderDebts();
         renderWallets();
@@ -513,7 +518,7 @@ if (!films.length) {
 
     function renderMandatoryPayments() {
         const container = document.getElementById('mandatoryPaymentsProgress');
-        if (!container) return;
+        if (!container || !budgetData || !budgetData.mandatoryPayments) return;
 
         const sorted = budgetData.mandatoryPayments.map((mp, idx) => ({...mp, idx}))
             .sort((a, b) => a.day - b.day);
@@ -545,7 +550,7 @@ if (!films.length) {
 
     function renderDebts() {
         const container = document.getElementById('debtsProgress');
-        if (!container) return;
+        if (!container || !budgetData || !budgetData.debts) return;
 
         container.innerHTML = budgetData.debts.map(debt => {
             const remaining = debt.total - debt.paid;
@@ -572,7 +577,7 @@ if (!films.length) {
 
     function renderWallets() {
         const container = document.getElementById('walletsOverview');
-        if (!container) return;
+        if (!container || !budgetData || !budgetData.wallets) return;
 
         container.innerHTML = Object.entries(budgetData.wallets).map(([key, wallet]) => `
             <div class="wallet-item">
@@ -607,6 +612,8 @@ if (!films.length) {
 
     // ========== ПЛАНИРОВАНИЕ ДОХОДА ==========
     function calculateIncomePlan(startDate, endDate) {
+        if (!budgetData || !budgetData.mandatoryPayments) return null;
+        
         // Считаем обязательные платежи
         const mandatoryTotal = budgetData.mandatoryPayments.reduce((sum, mp) => sum + (mp.amount || 0), 0);
         
@@ -1381,7 +1388,7 @@ if (!films.length) {
     
     // Делаем функции глобально доступными
     window.renderAdminHelperTasks = renderAdminHelperTasks;
-    window.populateAdminHelperFilter = populateAdminHelperFilter;
+    window.populateAdminHelperFilterFallback = populateAdminHelperFilterFallback;
 
     function openHelperTaskModalFromAdmin() {
         openHelperTaskModal(null);
@@ -1890,7 +1897,7 @@ if (!films.length) {
 
     function renderCashBudgetSummary() {
         const container = document.getElementById('cashBudgetSummary');
-        if (!container) return;
+        if (!container || !budgetData || !budgetData.wallets) return;
         
         // Считаем общий доход из заказов
         const totalIncome = ordersData.reduce((sum, o) => sum + (parseFloat(o.clientPrice) || 0), 0);

@@ -1039,6 +1039,10 @@
   
   // ========== ПРОВЕРКА АВТОРИЗАЦИИ ==========
   onAuthStateChanged(window.auth, (user) => {
+    if (!user) {
+      console.log('onAuthStateChanged: пользователь не авторизован');
+      return;
+    }
     console.log('onAuthStateChanged: user есть, uid =', user.uid);
     if (user) {
       // Пользователь авторизован - показываем приложение
