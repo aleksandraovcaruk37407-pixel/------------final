@@ -20,6 +20,115 @@
 <!-- Сначала загружаем app.js ДО Firebase -->
 <script src="js/app.js?v=3"></script>
 
+<!-- Глобальные функции для модальных окон -->
+<script>
+  window.openAuthModal = () => {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.add('active');
+    if (typeof showLoginForm === 'function') showLoginForm();
+  };
+
+  window.closeAuthModal = () => {
+    const modal = document.getElementById('authModal');
+    if (modal) modal.classList.remove('active');
+    const fields = ['authEmail', 'authPassword', 'registerName', 'registerEmail', 'registerPassword'];
+    fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  };
+
+  window.showLoginForm = () => {
+    const loginForm = document.getElementById('authLoginForm');
+    const registerForm = document.getElementById('authRegisterForm');
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+    if (loginForm) loginForm.style.display = 'block';
+    if (registerForm) registerForm.style.display = 'none';
+    if (tabLogin) { tabLogin.style.background = '#28a745'; tabLogin.style.color = '#fff'; }
+    if (tabRegister) { tabRegister.style.background = '#6c757d'; tabRegister.style.color = '#fff'; }
+  };
+
+  window.showRegisterForm = () => {
+    const loginForm = document.getElementById('authLoginForm');
+    const registerForm = document.getElementById('authRegisterForm');
+    const tabLogin = document.getElementById('tabLogin');
+    const tabRegister = document.getElementById('tabRegister');
+    if (loginForm) loginForm.style.display = 'none';
+    if (registerForm) registerForm.style.display = 'block';
+    if (tabLogin) { tabLogin.style.background = '#6c757d'; tabLogin.style.color = '#fff'; }
+    if (tabRegister) { tabRegister.style.background = '#dc3545'; tabRegister.style.color = '#fff'; }
+  };
+
+  // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
+  window.handleLogin = async () => {
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) {
+      alert('Заполните все поля!');
+      return;
+    }
+    try {
+      await window.signInWithEmailAndPassword(window.auth, email, password);
+      closeAuthModal();
+    } catch (error) {
+      console.error('Ошибка входа:', error);
+      let msg = 'Ошибка входа';
+      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
+      if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
+      if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
+      alert('❌ ' + msg);
+    }
+  };
+
+  window.handleLogout = async () => {
+    if (!confirm('Выйти из системы?')) return;
+    try {
+      await window.signOut(window.auth);
+      location.reload();
+    } catch (error) {
+      console.error('Ошибка выхода:', error);
+      alert('❌ Ошибка выхода');
+    }
+  };
+
+  // ========== РЕГИСТРАЦИЯ ==========
+  window.handleRegister = async () => {
+    const name = document.getElementById('registerName').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const role = document.getElementById('registerRole').value;
+    
+    if (!name || !email || !password) {
+      alert('Заполните все поля!');
+      return;
+    }
+    
+    if (password.length < 6) {
+      alert('Пароль должен быть минимум 6 символов!');
+      return;
+    }
+    
+    try {
+      const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+      const user = userCredential.user;
+      await window.updateProfile(user, { displayName: name });
+      await window.set(window.fbRef(window.db), 'users/' + user.uid, {
+        email: email,
+        displayName: name,
+        role: role,
+        createdAt: new Date().toISOString()
+      });
+      alert('✅ Регистрация успешна!\n\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник') + '\n\nТеперь войдите в систему.');
+      closeAuthModal();
+    } catch (error) {
+      console.error('Ошибка регистрации:', error);
+      let msg = 'Ошибка регистрации';
+      if (error.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
+      if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
+      if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
+      alert('❌ ' + msg);
+    }
+  };
+</script></script>
+
 <!-- Модальное окно авторизации (всегда доступно, перед container) -->
 <div class="modal-overlay" id="authModal">
     <div class="modal" style="max-width:400px;">
@@ -698,120 +807,16 @@
   window.auth = getAuth(app);
   window.fbRef = ref;
   window.fbSet = set;
+  
+  // Экспортируем Firebase функции для глобального доступа
+  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+  window.signOut = signOut;
+  window.updateProfile = updateProfile;
 
   // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ (ДОСТУПНЫ ИЗ HTML) ==========
-  window.openAuthModal = () => {
-    const modal = document.getElementById('authModal');
-    if (modal) modal.classList.add('active');
-    if (typeof showLoginForm === 'function') showLoginForm();
-  };
-
-  window.closeAuthModal = () => {
-    const modal = document.getElementById('authModal');
-    if (modal) modal.classList.remove('active');
-    const fields = ['authEmail', 'authPassword', 'registerName', 'registerEmail', 'registerPassword'];
-    fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  };
-
-  window.showLoginForm = () => {
-    const loginForm = document.getElementById('authLoginForm');
-    const registerForm = document.getElementById('authRegisterForm');
-    const tabLogin = document.getElementById('tabLogin');
-    const tabRegister = document.getElementById('tabRegister');
-    if (loginForm) loginForm.style.display = 'block';
-    if (registerForm) registerForm.style.display = 'none';
-    if (tabLogin) { tabLogin.style.background = '#28a745'; tabLogin.style.color = '#fff'; }
-    if (tabRegister) { tabRegister.style.background = '#6c757d'; tabRegister.style.color = '#fff'; }
-  };
-
-  window.showRegisterForm = () => {
-    const loginForm = document.getElementById('authLoginForm');
-    const registerForm = document.getElementById('authRegisterForm');
-    const tabLogin = document.getElementById('tabLogin');
-    const tabRegister = document.getElementById('tabRegister');
-    if (loginForm) loginForm.style.display = 'none';
-    if (registerForm) registerForm.style.display = 'block';
-    if (tabLogin) { tabLogin.style.background = '#6c757d'; tabLogin.style.color = '#fff'; }
-    if (tabRegister) { tabRegister.style.background = '#dc3545'; tabRegister.style.color = '#fff'; }
-  };
-
-  // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
-  window.handleLogin = async () => {
-    const email = document.getElementById('authEmail').value.trim();
-    const password = document.getElementById('authPassword').value;
-    if (!email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    try {
-      await signInWithEmailAndPassword(window.auth, email, password);
-      closeAuthModal();
-    } catch (error) {
-      console.error('Ошибка входа:', error);
-      let msg = 'Ошибка входа';
-      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
-      if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
-      if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
-      alert('❌ ' + msg);
-    }
-  };
-
-  // ========== РЕГИСТРАЦИЯ ==========
-  window.handleRegister = async () => {
-    const name = document.getElementById('registerName').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value;
-    const role = document.getElementById('registerRole').value;
-    
-    if (!name || !email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    
-    if (password.length < 6) {
-      alert('Пароль должен быть минимум 6 символов!');
-      return;
-    }
-    
-    try {
-      // Создаём пользователя в Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(window.auth, email, password);
-      const user = userCredential.user;
-      
-      // Обновляем displayName
-      await updateProfile(user, { displayName: name });
-      
-      // Сохраняем роль в Firebase Realtime Database
-      await set(ref(window.db), 'users/' + user.uid, {
-        email: email,
-        displayName: name,
-        role: role,
-        createdAt: new Date().toISOString()
-      });
-      
-      alert('✅ Регистрация успешна!\n\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник') + '\n\nТеперь войдите в систему.');
-      closeAuthModal();
-    } catch (error) {
-      console.error('Ошибка регистрации:', error);
-      let msg = 'Ошибка регистрации';
-      if (error.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
-      if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
-      if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
-      alert('❌ ' + msg);
-    }
-  };
-
-  // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
-  window.handleLogout = async () => {
-    if (!confirm('Выйти из системы?')) return;
-    try {
-      await signOut(window.auth);
-      location.reload();
-    } catch (error) {
-      console.error('Ошибка выхода:', error);
-      alert('❌ Ошибка выхода');
-    }
-  };
+  // handleLogin, handleLogout определены выше в глобальном скрипте
+  // handleRegister определён ниже
 
   // ========== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (ТОЛЬКО АДМИН) ==========
   window.adminRegisterUser = async () => {
@@ -1132,7 +1137,6 @@
       document.getElementById('appContent').style.display = 'none';
       window.updateAuthUI();
     }
-  });
   });
 </script>
 </div>
