@@ -3908,6 +3908,10 @@ function deleteOrder(orderId) {
 
         populateSummarySelects();
         renderSummary();
+        
+        // Инициализируем маркеры в услугах
+        configureDefaultServiceMarkers();
+        saveAll();
     });
 window.updateCloudData = function(data) {
     const localRates = JSON.parse(localStorage.getItem('rates_data') || '[]');
@@ -4015,4 +4019,3 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         closeNotificationModal();
     }
 });
-
