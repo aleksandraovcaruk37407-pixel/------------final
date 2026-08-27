@@ -879,77 +879,173 @@ if (!films.length) {
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
 
-    function renderHelperReport() {
-        const container = document.getElementById('helperReportContainer');
-        if (!container || !window.currentUserData) return;
+    // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
+    window.openAddHelperModal = function() {
+        const modal = document.getElementById('addHelperModal');
+        if (!modal) return;
         
-        const helperEmail = window.currentUserData.email;
+        // Сбросить форму
+        document.getElementById('helperName').value = '';
+        document.getElementById('helperEmail').value = '';
+        document.getElementById('helperPassword').value = '';
+        document.getElementById('helperCreatedResult').style.display = 'none';
+        document.getElementById('helperCredentials').innerHTML = '';
         
-        let totalEarned = 0;
-        let totalLost = 0;
-        let totalPenalties = 0;
-        let completedTasks = 0;
-        let overdueTasks = 0;
+        modal.classList.add('active');
+    };
+
+    window.closeAddHelperModal = function() {
+        const modal = document.getElementById('addHelperModal');
+        if (modal) modal.classList.remove('active');
+    };
+
+    window.toggleHelperPassword = function() {
+        const passwordInput = document.getElementById('helperPassword');
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+        } else {
+            passwordInput.type = 'password';
+        }
+    };
+
+    window.copyHelperCredentials = function() {
+        const name = document.getElementById('helperName').value;
+        const email = document.getElementById('helperEmail').value;
+        const password = document.getElementById('helperPassword').value;
         
-        ordersData.forEach(order => {
-            (order.services || []).forEach(service => {
-                (service.tasks || []).forEach(task => {
-                    if (task.assignedTo === helperEmail) {
-                        if (task.status === 'completed') {
-                            totalEarned += parseFloat(task.helperPay) || 0;
-                            completedTasks++;
-                        } else if (task.status === 'overdue') {
-                            totalLost += parseFloat(task.helperPay) || 0;
-                            totalPenalties += parseFloat(task.penalty) || 0;
-                            overdueTasks++;
-                        }
-                    }
-                });
-            });
+        const text = `Данные для входа в систему учёта авто-ателье:\n\nEmail: ${email}\nПароль: ${password}\n\nНе сообщайте эти данные другим людям!`;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            alert('✅ Данные скопированы в буфер обмена!\n\nОтправьте их помощнику удобным способом (мессенджер, SMS и т.д.)');
+        }).catch(() => {
+            // Fallback для старых браузеров
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            alert('✅ Данные скопированы в буфер обмена!');
         });
+    };
+
+    window.createHelper = async function() {
+        const name = document.getElementById('helperName').value.trim();
+        const email = document.getElementById('helperEmail').value.trim();
+        const password = document.getElementById('helperPassword').value;
         
-        const netEarned = totalEarned - totalPenalties;
+        // Валидация
+        if (!name || !email || !password) {
+            alert('❌ Заполните все поля!');
+            return;
+        }
         
-        container.innerHTML = `
-            <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
-                <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
-                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено задач</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
-                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⚠️ Штрафы</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalPenalties.toLocaleString()} ₽</div>
-                    </div>
-                    <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
-                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
-                    </div>
-                    <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано (просрочка)</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
-                    </div>
-                </div>
-            </div>
+        if (password.length < 6) {
+            alert('❌ Пароль должен быть минимум 6 символов!');
+            return;
+        }
+        
+        // Проверка формата email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            alert('❌ Неверный формат email!');
+            return;
+        }
+        
+        const saveBtn = document.querySelector('#addHelperModal .btn-save');
+        const originalText = saveBtn.textContent;
+        saveBtn.textContent = '⏳ Создание...';
+        saveBtn.disabled = true;
+        
+        try {
+            // Регистрация пользователя через Firebase Auth
+            const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
+            const user = userCredential.user;
             
-            <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
-                <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
-                <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
-                    <li>За каждую выполненную задачу начисляется <b>${'указанная сумма'} ₽</b></li>
-                    <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
-                    <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
-                </ul>
-            </div>
-        `;
+            // Обновление имени пользователя
+            await window.updateProfile(user, { displayName: name });
+            
+            // Сохранение данных пользователя в Realtime Database
+            await window.set(window.fbRef(window.db), 'users/' + user.uid, {
+                email: email,
+                displayName: name,
+                role: 'helper',
+                createdAt: new Date().toISOString(),
+                createdBy: window.currentUserData ? window.currentUserData.email : 'system'
+            });
+            
+            // Показать результат
+            document.getElementById('helperCreatedResult').style.display = 'block';
+            document.getElementById('helperCredentials').innerHTML = `
+                <div><b>👤 Имя:</b> ${name}</div>
+                <div><b>📧 Email:</b> ${email}</div>
+                <div><b>🔒 Пароль:</b> <span style="color:#dc3545;font-weight:700;">${password}</span></div>
+            `;
+            
+            // Обновить список помощников в фильтре
+            updateHelperFilter();
+            
+        } catch (error) {
+            console.error('Ошибка создания помощника:', error);
+            let msg = '❌ Ошибка создания помощника';
+            
+            if (error.code === 'auth/email-already-in-use') {
+                msg = '❌ Этот email уже зарегистрирован в системе!';
+            } else if (error.code === 'auth/weak-password') {
+                msg = '❌ Пароль должен быть минимум 6 символов!';
+            } else if (error.code === 'auth/invalid-email') {
+                msg = '❌ Неверный формат email!';
+            } else if (error.code === 'auth/network-request-failed') {
+                msg = '❌ Ошибка сети. Проверьте подключение к интернету.';
+            } else if (error.code === 'auth/too-many-requests') {
+                msg = '❌ Слишком много попыток. Попробуйте позже.';
+            }
+            
+            alert(msg);
+        } finally {
+            saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+        }
+    };
+
+    // Обновление фильтра помощников в админ-панели
+    function updateHelperFilter() {
+        const filter = document.getElementById('adminHelperFilter');
+        if (!filter) return;
+        
+        // Получаем всех пользователей с ролью helper
+        const ref = window.fbRef(window.db);
+        window.get(window.child(ref, 'users')).then((snapshot) => {
+            if (!snapshot.exists()) return;
+            
+            const users = snapshot.val();
+            const helpers = [];
+            
+            for (const uid in users) {
+                if (users[uid].role === 'helper') {
+                    helpers.push({
+                        uid: uid,
+                        email: users[uid].email,
+                        displayName: users[uid].displayName || users[uid].email
+                    });
+                }
+            }
+            
+            // Сохраняем текущее значение
+            const currentValue = filter.value;
+            
+            // Перестраиваем опции
+            filter.innerHTML = '<option value="all">Все помощники</option>';
+            helpers.forEach(helper => {
+                const option = document.createElement('option');
+                option.value = helper.email;
+                option.textContent = `${helper.displayName} (${helper.email})`;
+                filter.appendChild(option);
+            });
+            
+            // Восстанавливаем значение
+            if (currentValue) filter.value = currentValue;
+        }).catch(err => console.error('Ошибка обновления фильтра:', err));
     }
 
     function completeTask(orderNumber, taskId) {
@@ -995,7 +1091,52 @@ if (!films.length) {
     // ========== УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
     let currentEditingTask = null;
 
-    function populateAdminHelperFilter() {
+    // Обновление списка помощников из Firebase (все зарегистрированные)
+    function updateHelperFilter() {
+        const filterSelect = document.getElementById('adminHelperFilter');
+        if (!filterSelect) return;
+        
+        const ref = window.fbRef(window.db);
+        window.get(window.child(ref, 'users')).then((snapshot) => {
+            if (!snapshot.exists()) return;
+            
+            const users = snapshot.val();
+            const helpers = [];
+            
+            for (const uid in users) {
+                if (users[uid].role === 'helper') {
+                    helpers.push({
+                        uid: uid,
+                        email: users[uid].email,
+                        displayName: users[uid].displayName || users[uid].email
+                    });
+                }
+            }
+            
+            // Сортируем по имени
+            helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+            
+            const currentValue = filterSelect.value;
+            filterSelect.innerHTML = '<option value="all">Все помощники</option>';
+            helpers.forEach(helper => {
+                const option = document.createElement('option');
+                option.value = helper.email;
+                option.textContent = `${helper.displayName} (${helper.email})`;
+                filterSelect.appendChild(option);
+            });
+            
+            if (currentValue && [...helpers].some(h => h.email === currentValue)) {
+                filterSelect.value = currentValue;
+            }
+        }).catch(err => {
+            console.error('Ошибка обновления списка помощников:', err);
+            // Fallback: показываем помощников из задач
+            populateAdminHelperFilterFallback();
+        });
+    }
+    
+    // Fallback для случаев когда Firebase недоступен
+    function populateAdminHelperFilterFallback() {
         const filterSelect = document.getElementById('adminHelperFilter');
         if (!filterSelect) return;
         
@@ -1020,6 +1161,9 @@ if (!films.length) {
             filterSelect.value = currentValue;
         }
     }
+    
+    // Делаем функции глобально доступными
+    window.updateHelperFilter = updateHelperFilter;
 
     function renderAdminHelperTasks() {
         const container = document.getElementById('adminHelperTasksContainer');
@@ -4019,3 +4163,4 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         closeNotificationModal();
     }
 });
+
