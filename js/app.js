@@ -3237,8 +3237,11 @@ function deleteOrder(orderId) {
             const div = document.createElement('div');
             div.className = classes;
             
-            // Формируем HTML с подсказками
-            let html = `<span class="day-number">${d}</span>`;
+            // Вставляем цифру дня
+            const dayNum = document.createElement('span');
+            dayNum.className = 'day-number';
+            dayNum.textContent = d;
+            div.appendChild(dayNum);
             
             // Показываем значки с количеством
             let badgeText = [];
@@ -3678,10 +3681,12 @@ function deleteOrder(orderId) {
         list.innerHTML = '';
         ordersData.forEach(order => {
             const color = getOrderColorObj(order);
+            console.log('Order color:', order.orderNumber, color);
             const show = filterCheck(order, currentFilter);
             if (!show) return;
             const div = document.createElement('div');
             div.className = `order-item status-${color}`;
+            console.log('Order div className:', div.className);
             
             // Считаем количество задач
             let taskCount = 0;
