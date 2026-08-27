@@ -14,7 +14,24 @@
         .btn { padding: 8px 18px; border: none; border-radius: 30px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 14px; }
         .btn-export { background: #17a2b8; color: #fff; }
         .btn-import { background: #ffc107; color: #212529; }
-        .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            scroll-snap-type: x mandatory;
+            padding-bottom: 4px;
+        }
+        .tabs::-webkit-scrollbar {
+            display: none;
+        }
+        .tab-btn {
+            flex-shrink: 0;
+            scroll-snap-align: start;
+        }
         .tab-btn { padding: 10px 24px; border: none; background: #e9ecef; border-radius: 30px; cursor: pointer; font-weight: 600; font-size: 15px; }
         .tab-btn.active { background: #1a3c5e; color: #fff; }
         .tab-content { display: none; animation: fade 0.3s; }
@@ -124,23 +141,295 @@
         .service-details .section-title { font-weight: 600; color: #1a3c5e; margin: 8px 0 5px; }
         .footer-toolbar { margin-top: 30px; border-top: 1px solid #dee2e6; padding-top: 20px; display: flex; gap: 15px; flex-wrap: wrap; justify-content: space-between; }
         #unpaidSummary { margin: 5px 0 10px; font-weight: 600; color: #dc3545; background: #f8f9fa; padding: 6px 12px; border-radius: 6px; display: inline-block; }
-        @media (max-width: 768px) {
-            .order-header { flex-wrap: wrap; }
-            .modal .form-row { grid-template-columns: 1fr; }
-            .tab-btn { padding: 6px 14px; font-size: 13px; }
-            .calendar-grid .day-cell { min-height: 40px; }
-            .modal { padding: 15px; }
-            .manual-item-row { flex-direction: column; align-items: stretch; }
-            input, select, textarea { font-size: 16px !important; }
+        /* ========== TOUCH-OPTIMIZATIONS ========== */
+        * {
+            -webkit-tap-highlight-color: transparent;
         }
+        button, .btn, .tab-btn, input, select, textarea {
+            touch-action: manipulation;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 12px;
+                border-radius: 8px;
+            }
+            h1 {
+                font-size: 22px;
+            }
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+            .toolbar h1 {
+                text-align: center;
+                margin-bottom: 0;
+            }
+            #authSection {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 8px 0;
+            }
+            .order-header {
+                flex-wrap: wrap;
+                padding: 8px 10px;
+            }
+            .modal .form-row {
+                grid-template-columns: 1fr;
+            }
+            .tab-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+            .calendar-grid .day-cell {
+                min-height: 44px;
+                padding: 6px 2px;
+            }
+            .calendar-grid .day-cell .day-number {
+                font-size: 14px;
+            }
+            .modal {
+                padding: 15px;
+                max-height: 85vh;
+                margin: 10px;
+            }
+            .modal h3 {
+                font-size: 18px;
+            }
+            .manual-item-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+            /* Filters wrap better */
+            .filter-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            /* Inline flex items stack better */
+            .inline-flex {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .inline-flex > * {
+                width: 100%;
+            }
+            .inline-flex > div {
+                width: 100%;
+            }
+            .inline-flex > div > * {
+                width: 100%;
+            }
+            /* Summary block single column */
+            .summary-block {
+                grid-template-columns: 1fr;
+            }
+            /* Budget selects full width */
+            #budgetOrderSelect {
+                min-width: 100%;
+            }
+            /* Calendar nav wraps better */
+            .calendar-nav {
+                flex-direction: column;
+                gap: 8px;
+            }
+            /* Footer toolbar stacks */
+            .footer-toolbar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            .footer-toolbar > div {
+                width: 100%;
+            }
+            .footer-toolbar button {
+                width: 100%;
+            }
+            /* Helper admin filter */
+            .admin-filter-select {
+                width: 100%;
+            }
+            /* Improved table scrolling */
+            .scroll-wrap {
+                -webkit-overflow-scrolling: touch;
+                border: 1px solid #dee2e6;
+                border-radius: 6px;
+            }
+            table {
+                font-size: 13px;
+            }
+            th, td {
+                padding: 8px 4px;
+            }
+            /* Notification modal mobile */
+            .notification-content {
+                max-width: 95%;
+                max-height: 85vh;
+                margin: 10px;
+            }
+            /* Budget cards stack */
+            .budget-card {
+                margin-bottom: 10px;
+            }
+            /* Inline budget row */
+            .budget-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .budget-row select, .budget-row button {
+                width: 100%;
+            }
+        }
+        /* ========== FULLSCREEN MODAL ON SMALL SCREENS ========== */
+        @media (max-width: 600px) {
+            .modal {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: 100% !important;
+                max-height: 100% !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            .modal-overlay.active .modal {
+                display: flex !important;
+            }
+            .modal h3 {
+                flex-shrink: 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #dee2e6;
+                margin-top: 10px;
+            }
+            .modal > * {
+                overflow-y: auto;
+                flex: 1;
+            }
+            .modal .form-actions {
+                flex-shrink: 0;
+                padding: 10px 0;
+                margin-top: 10px;
+                border-top: 1px solid #dee2e6;
+                position: sticky;
+                bottom: 0;
+                background: #fff;
+            }
+        }
+
         @media (max-width: 480px) {
-            .toolbar .btn, .btn-add, .btn-extra, .btn-del, .btn-sm { padding: 10px 16px; font-size: 16px; min-height: 44px; }
-            .tab-btn { flex: 1 0 auto; text-align: center; font-size: 16px; padding: 10px 15px; }
-            .order-header { flex-direction: column; align-items: flex-start; }
-            .modal { padding: 15px; max-width: 100%; border-radius: 10px; }
-            .calendar-grid .day-cell { min-height: 44px; padding: 6px 2px; }
-            .schedule-slot { padding: 12px; font-size: 16px; }
-            input, select, textarea { font-size: 16px !important; min-height: 44px; }
+            /* Touch targets minimum 44x44 */
+            .toolbar .btn, .btn-add, .btn-extra, .btn-del, .btn-sm, .tab-btn {
+                padding: 10px 16px;
+                font-size: 14px;
+                min-height: 44px;
+            }
+            .tab-btn {
+                flex: 0 0 auto;
+                text-align: center;
+                font-size: 13px;
+                padding: 8px 14px;
+            }
+            .order-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .order-header .order-number,
+            .order-header .order-date,
+            .order-header .order-deadline,
+            .order-header .order-client,
+            .order-header .order-phone,
+            .order-header .order-service,
+            .order-header .order-sum,
+            .order-header .order-paid {
+                min-width: auto;
+                width: 100%;
+            }
+            .modal {
+                padding: 15px;
+                max-width: 100%;
+                border-radius: 10px;
+                max-height: 90vh;
+            }
+            .calendar-grid .day-cell {
+                min-height: 36px;
+                padding: 4px 1px;
+            }
+            .calendar-grid .day-cell .day-number {
+                font-size: 12px;
+            }
+            .calendar-grid .day-cell .task-badge {
+                font-size: 8px;
+                padding: 1px 3px;
+            }
+            .schedule-slot {
+                padding: 12px;
+                font-size: 14px;
+            }
+            input, select, textarea {
+                font-size: 16px !important;
+                min-height: 44px;
+            }
+            /* Service filter buttons wrap */
+            .service-filter-btn {
+                font-size: 12px;
+                padding: 5px 10px;
+            }
+            /* Calendar title smaller */
+            .calendar-grid h2, #calendarTitle {
+                font-size: 16px;
+            }
+            /* Button groups full width */
+            .color-select .color-btn {
+                width: 36px;
+                height: 36px;
+            }
+            /* Extra items stack */
+            .extra-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .extra-item input, .extra-item select {
+                width: 100%;
+            }
+            /* Plan breakdown stack */
+            .plan-summary, .plan-breakdown, .plan-settings, .plan-goals {
+                padding: 10px;
+            }
+            /* Helper stat grid single column on very small */
+            .helper-stat-grid {
+                grid-template-columns: 1fr;
+            }
+            /* Very small screens */
+            body {
+                padding: 5px;
+            }
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .summary-header {
+                padding: 12px;
+            }
+            .summary-header h2 {
+                font-size: 18px;
+            }
+            .summary-title {
+                font-size: 16px;
+            }
         }
         .purchase-item { display: flex; align-items: center; gap: 10px; padding: 8px; }
         .purchase-item input[type="checkbox"] { width: auto; flex-shrink: 0; }
