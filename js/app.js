@@ -3658,6 +3658,9 @@ function deleteOrder(orderId) {
     function closeModal() { document.getElementById('bookingModal').classList.remove('active'); }
 
     // ========== КАЛЕНДАРЬ ==========
+    let currentServiceFilter = 'all';
+    let calendarViewMode = 'month'; // 'month' или 'week'
+    
     function getRegularPaymentsForDate(dateStr) {
         const day = parseInt(dateStr.slice(8, 10), 10);
         return regularExpenses
@@ -3871,9 +3874,6 @@ function deleteOrder(orderId) {
     }
     
     // ========== ФИЛЬТР ПО УСЛУГАМ ==========
-    let currentServiceFilter = 'all';
-    let calendarViewMode = 'month'; // 'month' или 'week'
-    
     function getServiceFilterButtons() {
         const services = [...new Set(rates.map(r => r.service))];
         let html = '<span style="font-size:14px; color:#6c757d;">Услуги:</span>';
