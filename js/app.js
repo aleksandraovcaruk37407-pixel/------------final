@@ -721,6 +721,18 @@ if (!films.length) {
             percent: Math.min(100, (goal.saved / goal.target) * 100)
         }));
         
+        // Считаем расходы по заказам
+        let totalMaterialCost = 0;
+        let totalHelperPay = 0;
+        ordersData.forEach(order => {
+            if (order.date >= startDate && order.date <= endDate) {
+                totalMaterialCost += parseFloat(order.materialCost) || 0;
+                totalHelperPay += parseFloat(order.helperPay) || 0;
+            }
+        });
+        
+        const grossProfit = actualIncome - totalMaterialCost - totalHelperPay;
+        
         return {
             mandatoryTotal,
             minIncome,
@@ -734,7 +746,10 @@ if (!films.length) {
             investmentAmount,
             progressPercent,
             goalsProgress,
-            personalPercent: budgetData.incomePlan?.personalPercent || 10
+            personalPercent: budgetData.incomePlan?.personalPercent || 10,
+            totalMaterialCost,
+            totalHelperPay,
+            grossProfit
         };
     }
 
