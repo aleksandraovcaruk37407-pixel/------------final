@@ -37,6 +37,8 @@
                 { id: 'alimony', name: 'Алименты', total: 340000, monthly: 10000, paid: 0, icon: '👶' }
             ],
             distributionHistory: [],
+            // Выплаты помощникам
+            helperPayments: {},
             // Планирование дохода
             incomePlan: {
                 personalPercent: 10, // % на личные расходы
@@ -72,6 +74,7 @@
     if (!budgetData.mandatoryPayments) budgetData.mandatoryPayments = getDefaultBudgetData().mandatoryPayments;
     if (!budgetData.debts) budgetData.debts = getDefaultBudgetData().debts;
     if (!budgetData.distributionHistory) budgetData.distributionHistory = [];
+    if (!budgetData.helperPayments) budgetData.helperPayments = {};
 
     rates.forEach(r => { if (!r.items) r.items = []; });
     const accidentService = rates.find(r => r.service === 'Восстановление после ДТП');
@@ -610,6 +613,50 @@ if (!films.length) {
         `).join('');
     }
 
+    // ========== ЧИСТАЯ ЗАРПЛАТА АДМИНИСТРАТОРА ==========
+    function calculateAdminSalary(startDate, endDate) {
+        // Общий доход
+        let totalIncome = 0;
+        ordersData.forEach(order => {
+            if (order.date >= startDate && order.date <= endDate) {
+                totalIncome += parseFloat(order.clientPrice) || 0;
+            }
+        });
+        
+        // Расходы
+        let totalMaterialCost = 0;
+        let totalHelperPay = 0;
+        ordersData.forEach(order => {
+            if (order.date >= startDate && order.date <= endDate) {
+                totalMaterialCost += getOrderCost(order);
+                totalHelperPay += parseFloat(order.helperPay) || 0;
+            }
+        });
+        
+        const grossProfit = totalIncome - totalMaterialCost - totalHelperPay;
+        
+        // Распределение по бюджету
+        const tax = grossProfit * 0.04;
+        const personal = grossProfit * ((budgetData.incomePlan?.personalPercent || 10) / 100);
+        const business = grossProfit * 0.05;
+        const investments = grossProfit * 0.05;
+        
+        // Чистая зарплата администратора (личные расходы)
+        const netSalary = personal;
+        
+        return {
+            totalIncome,
+            totalMaterialCost,
+            totalHelperPay,
+            grossProfit,
+            tax,
+            personal,
+            business,
+            investments,
+            netSalary
+        };
+    }
+
     // ========== ПЛАНИРОВАНИЕ ДОХОДА ==========
     function calculateIncomePlan(startDate, endDate) {
         if (!budgetData || !budgetData.mandatoryPayments) return null;
@@ -682,6 +729,7 @@ if (!films.length) {
         if (!container) return;
         
         const plan = calculateIncomePlan(startDate, endDate);
+        const salary = calculateAdminSalary(startDate, endDate);
         
         container.innerHTML = `
             <!-- Сводка плана -->
@@ -760,6 +808,34 @@ if (!films.length) {
                         </div>
                     </div>
                 `).join('')}
+            </div>
+            
+            <!-- Чистая зарплата администратора -->
+            <div style="background:#d4edda;padding:20px;border-radius:8px;margin-top:20px;border-left:4px solid #28a745;">
+                <h4 style="margin:0 0 15px 0;">💼 Чистая зарплата администратора</h4>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Общий доход</div>
+                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${plan.actualIncome.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">📦 Расходы</div>
+                        <div style="font-size:20px;font-weight:700;color:#e74c3c;">-${(plan.totalMaterialCost + plan.totalHelperPay).toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">✨ Валовая прибыль</div>
+                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${plan.grossProfit.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#e3f2fd;padding:15px;border-radius:6px;text-align:center;border:2px solid #2196f3;">
+                        <div style="font-size:12px;color:#666;margin-bottom:5px;">👤 Личные расходы</div>
+                        <div style="font-size:20px;font-weight:700;color:#2196f3;">${plan.personalAmount.toLocaleString()} ₽</div>
+                        <div style="font-size:11px;color:#888;margin-top:4px;">(${plan.personalPercent}% от дохода)</div>
+                    </div>
+                </div>
+                <div style="margin-top:15px;padding-top:15px;border-top:1px solid #dee2e6;font-size:13px;color:#666;">
+                    💡 <b>Чистая зарплата администратора</b> = Доход - Расходы - Налог - Личные - Бизнес - Инвестиции<br>
+                    💡 Деньги на личные расходы распределяются автоматически при оплате заказов
+                </div>
             </div>
         `;
     }
@@ -914,6 +990,11 @@ if (!films.length) {
         
         const netEarned = totalEarned - totalPenalties;
         
+        // Считаем выплачено
+        const payments = budgetData.helperPayments[helperEmail] || [];
+        const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const totalUnpaid = Math.max(0, netEarned - totalPaid);
+        
         container.innerHTML = `
             <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
                 <h3 style="margin:0 0 15px 0;">📊 Отчёт по зарплате</h3>
@@ -945,12 +1026,27 @@ if (!films.length) {
                 </div>
             </div>
             
+            <div style="background:#e3f2fd;padding:20px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
+                <h4 style="margin:0 0 15px 0;">💳 Статус выплат</h4>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
+                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выплачено</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalPaid.toLocaleString()} ₽</div>
+                    </div>
+                    <div style="background:#fff3cd;padding:15px;border-radius:6px;text-align:center;border:2px solid #ffc107;">
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⏳ Не выплачено</div>
+                        <div style="font-size:24px;font-weight:700;color:#e67e22;">${totalUnpaid.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+            </div>
+            
             <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
                 <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
                 <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
                     <li>За каждую выполненную задачу начисляется <b>указанная сумма</b> ₽</li>
                     <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
                     <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
+                    <li>Выплаты отмечаются администратором во вкладке "👥 Задачи помощников"</li>
                 </ul>
             </div>
         `;
@@ -1297,8 +1393,31 @@ if (!films.length) {
         const pendingTasks = allTasks.filter(t => t.status === 'pending').length;
         const completedTasks = allTasks.filter(t => t.status === 'completed').length;
         const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
-        const totalPay = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
+        const totalEarned = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
         const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0);
+        const netEarned = totalEarned - totalPenalties;
+        
+        // Считаем выплаты для всех помощников
+        const helpersStats = {};
+        const allHelperEmails = new Set(allTasks.map(t => t.assignedTo));
+        allHelperEmails.forEach(email => {
+            const payments = budgetData.helperPayments[email] || [];
+            const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+            
+            let earned = 0, penalties = 0;
+            allTasks.filter(t => t.assignedTo === email).forEach(task => {
+                if (task.status === 'completed') earned += parseFloat(task.helperPay) || 0;
+                if (task.status === 'overdue') penalties += parseFloat(task.penalty) || 0;
+            });
+            
+            helpersStats[email] = {
+                earned,
+                penalties,
+                net: earned - penalties,
+                paid: totalPaid,
+                unpaid: Math.max(0, earned - penalties - totalPaid)
+            };
+        });
         
         if (allTasks.length === 0) {
             container.innerHTML = `
@@ -1331,9 +1450,42 @@ if (!films.length) {
                     <div class="helper-stat-value" style="color:#e74c3c;">${overdueTasks}</div>
                 </div>
                 <div class="helper-stat-item highlight">
-                    <div class="helper-stat-label">💰 Выплачено</div>
-                    <div class="helper-stat-value" style="color:#27ae60;">${totalPay.toLocaleString()} ₽</div>
+                    <div class="helper-stat-label">💰 Заработано</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
                 </div>
+                <div class="helper-stat-item warning">
+                    <div class="helper-stat-label">⚠️ Штрафы</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
+                </div>
+            </div>
+            
+            <!-- Статистика по помощникам -->
+            ${Object.keys(helpersStats).length > 0 ? `
+                <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid #2196f3;">
+                    <h4 style="margin:0 0 15px 0;">💳 Статус выплат по помощникам</h4>
+                    ${Object.entries(helpersStats).map(([email, stats]) => `
+                        <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:10px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                                <div>
+                                    <div style="font-weight:700;font-size:16px;">${email}</div>
+                                    <div style="font-size:13px;color:#666;margin-top:4px;">
+                                        Заработано: <b style="color:#27ae60;">${stats.earned.toLocaleString()} ₽</b> | 
+                                        Штрафы: <b style="color:#e74c3c;">-${stats.penalties.toLocaleString()} ₽</b> | 
+                                        Итого: <b style="color:#1a3c5e;">${stats.net.toLocaleString()} ₽</b>
+                                    </div>
+                                    <div style="font-size:13px;color:#666;margin-top:2px;">
+                                        Выплачено: <b style="color:#27ae60;">${stats.paid.toLocaleString()} ₽</b> | 
+                                        Должно быть: <b style="color:#e67e22;">${stats.unpaid.toLocaleString()} ₽</b>
+                                    </div>
+                                </div>
+                                <button class="btn-add" onclick="payHelper('${email}')" style="padding:8px 16px;font-size:13px;white-space:nowrap;">
+                                    💳 Выплатить ${stats.unpaid > 0 ? '(' + stats.unpaid.toLocaleString() + ' ₽)' : '(0 ₽)'}
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
                 <div class="helper-stat-item warning">
                     <div class="helper-stat-label">⚠️ Штрафы</div>
                     <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
@@ -1389,6 +1541,58 @@ if (!films.length) {
     // Делаем функции глобально доступными
     window.renderAdminHelperTasks = renderAdminHelperTasks;
     window.populateAdminHelperFilterFallback = populateAdminHelperFilterFallback;
+
+    // ========== ВЫПЛАТЫ ПОМОЩНИКАМ ==========
+    window.payHelper = function(helperEmail) {
+        if (!budgetData.helperPayments[helperEmail]) {
+            budgetData.helperPayments[helperEmail] = [];
+        }
+        
+        // Считаем сколько нужно выплатить
+        let totalEarned = 0;
+        let totalPenalties = 0;
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo === helperEmail) {
+                        if (task.status === 'completed') {
+                            totalEarned += parseFloat(task.helperPay) || 0;
+                        } else if (task.status === 'overdue') {
+                            totalPenalties += parseFloat(task.penalty) || 0;
+                        }
+                    }
+                });
+            });
+        });
+        
+        const netEarned = totalEarned - totalPenalties;
+        const payments = budgetData.helperPayments[helperEmail] || [];
+        const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        const unpaid = Math.max(0, netEarned - totalPaid);
+        
+        if (unpaid <= 0) {
+            alert('❌ Помощнику не положена выплата (все средства уже выплачены)');
+            return;
+        }
+        
+        const amount = prompt(`Введите сумму выплаты для ${helperEmail}:\n\nДолжно быть выплачено: ${unpaid.toLocaleString()} ₽`, unpaid.toString());
+        if (!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
+        
+        const paymentAmount = parseFloat(amount);
+        if (paymentAmount > unpaid) {
+            if (!confirm(`Вы платите ${paymentAmount.toLocaleString()} ₽, но должно быть только ${unpaid.toLocaleString()} ₽. Переплата будет учтена в будущем.`)) return;
+        }
+        
+        budgetData.helperPayments[helperEmail].push({
+            amount: paymentAmount,
+            date: new Date().toISOString(),
+            paidBy: window.currentUserData ? window.currentUserData.email : 'admin'
+        });
+        
+        saveBudgetData();
+        renderAdminHelperTasks();
+        alert(`✅ Выплата ${paymentAmount.toLocaleString()} ₽ для ${helperEmail} отмечена!`);
+    };
 
     function openHelperTaskModalFromAdmin() {
         openHelperTaskModal(null);
