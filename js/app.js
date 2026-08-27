@@ -1678,12 +1678,18 @@ if (!films.length) {
 
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function getOrderColorObj(order) {
-        if (order.done) return 'done';
-        if (order.manualColor && order.manualColor !== 'auto') return order.manualColor;
+        // Преобразуем строковые значения в boolean
+        const isDone = order.done === true || order.done === 'true' || order.done === 1;
+        if (isDone) return 'done';
+        
+        const manualColor = order.manualColor;
+        if (manualColor && manualColor !== 'auto') return manualColor;
+        
         const start = new Date(order.date);
         const now = new Date();
         const durDays = parseInt(order.durationDays) || 0;
         if (!order.date || durDays === 0) return 'new';
+        
         const ratio = (now - start) / (1000*60*60*24) / durDays;
         if (ratio < 0.6) return 'new';
         if (ratio < 0.8) return 'middle';
@@ -3681,12 +3687,20 @@ function deleteOrder(orderId) {
         list.innerHTML = '';
         ordersData.forEach(order => {
             const color = getOrderColorObj(order);
-            console.log('Order color:', order.orderNumber, color);
             const show = filterCheck(order, currentFilter);
             if (!show) return;
+            
             const div = document.createElement('div');
-            div.className = `order-item status-${color}`;
-            console.log('Order div className:', div.className);
+            div.className = 'order-item';
+            
+            // Цвета срочности через inline style для гарантии
+            const colorStyles = {
+                'new': 'background:#d4edda;border-color:#28a745;',
+                'middle': 'background:#fff3cd;border-color:#ffc107;',
+                'critical': 'background:#f8d7da;border-color:#dc3545;',
+                'done': 'background:#e9ecef;border-color:#6c757d;'
+            };
+            div.style.cssText = colorStyles[color] || '';
             
             // Считаем количество задач
             let taskCount = 0;
