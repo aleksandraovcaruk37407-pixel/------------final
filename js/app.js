@@ -3,6 +3,8 @@
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
     let budgetData = null;
     let currentFilter = 'all';
+    let calendarViewMode = 'month';
+    let currentServiceFilter = 'all';
     let currentDate = new Date();
     let selectedDate = new Date();
     let orderEditId = null;
@@ -1062,11 +1064,6 @@ if (!films.length) {
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
 
-    // Инициализация кнопок периода
-    window.setHelperReportPeriod('all');
-    window.setAdminHelperReportPeriod('all');
-    window.setPaymentHistoryPeriod('all');
-
     // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
     window.openAddHelperModal = function() {
         const modal = document.getElementById('addHelperModal');
@@ -1722,6 +1719,11 @@ if (!films.length) {
         }
         renderPaymentHistory();
     };
+
+    // Инициализация кнопок периода
+    window.setHelperReportPeriod('all');
+    window.setAdminHelperReportPeriod('all');
+    window.setPaymentHistoryPeriod('all');
 
     function getPaymentHistoryForPeriod(period) {
         if (!budgetData.paymentHistory || budgetData.paymentHistory.length === 0) return [];
@@ -3655,13 +3657,11 @@ function deleteOrder(orderId) {
         renderAll();
    
    }
-    function closeModal() { document.getElementById('bookingModal').classList.remove('active'); }
+     function closeModal() { document.getElementById('bookingModal').classList.remove('active'); }
 
-    // ========== КАЛЕНДАРЬ ==========
-    let currentServiceFilter = 'all';
-    let calendarViewMode = 'month'; // 'month' или 'week'
-    
-    function getRegularPaymentsForDate(dateStr) {
+     // ========== КАЛЕНДАРЬ ==========
+     
+     function getRegularPaymentsForDate(dateStr) {
         const day = parseInt(dateStr.slice(8, 10), 10);
         return regularExpenses
             .filter(exp => parseInt(exp.day, 10) === day)
