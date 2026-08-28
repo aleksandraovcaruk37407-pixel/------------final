@@ -17,6 +17,10 @@
     let currentReportPeriodType = 'month';
     let currentHelperReportPeriod = 'all';
     let currentAdminHelperReportPeriod = 'all';
+    let currentOrderDateFrom = '';
+    let currentOrderDateTo = '';
+    let currentHelperDateFrom = '';
+    let currentHelperDateTo = '';
 
     function getDefaultBudgetData() {
         return {
@@ -1021,29 +1025,26 @@ if (!films.length) {
                 <div style="font-size:13px;color:#666;">Период отчёта: ${periodNames[currentHelperReportPeriod]}</div>
             </div>
             <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено задач</div>
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выполнено</div>
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено задач</div>
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено</div>
                         <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
+                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ Штрафы: -${totalPenalties.toLocaleString()} ₽</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">⚠️ Штрафы</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalPenalties.toLocaleString()} ₽</div>
                     </div>
                     <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
                         <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
                     </div>
                     <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано (просрочка)</div>
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано</div>
                         <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
                     </div>
                 </div>
@@ -1272,8 +1273,6 @@ if (!films.length) {
     window.renderHelperReport = renderHelperReport;
 
     function markOverdue(orderNumber, taskId) {
-        if (!confirm('Отметить задачу как просроченную?')) return;
-        
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         if (!order) return;
         
@@ -1394,6 +1393,9 @@ if (!films.length) {
         // Собираем все задачи
         let allTasks = [];
         filteredOrders.forEach(order => {
+            // Фильтр по датам заказов
+            if (currentHelperDateFrom && order.date < currentHelperDateFrom) return;
+            if (currentHelperDateTo && order.date > currentHelperDateTo) return;
             (order.services || []).forEach((service, svcIdx) => {
                 (service.tasks || []).forEach(task => {
                     if (filterEmail !== 'all' && task.assignedTo !== filterEmail) return;
@@ -2022,7 +2024,6 @@ if (!films.length) {
 
     function deleteTaskFromEditModal() {
         if (!currentEditingTask) return;
-        if (!confirm('Удалить эту задачу?')) return;
         deleteTask(currentEditingTask.orderNumber, currentEditingTask.id, currentEditingTask.serviceIndex);
         closeEditTaskModal();
     }
@@ -2053,8 +2054,6 @@ if (!films.length) {
         else if (newStatus === 'overdue') statusText = 'просрочена';
         else statusText = 'изменена';
         
-        if (!confirm(`Отметить задачу как ${statusText}?`)) return;
-        
         order.services.forEach(service => {
             (service.tasks || []).forEach(task => {
                 if (String(task.id) === String(taskId)) {
@@ -2068,6 +2067,9 @@ if (!films.length) {
         
         saveAll();
         renderAll();
+        // Всегда обновляем задачи помощника (даже если смотрит админ)
+        renderHelperTasks();
+        renderHelperReport();
     }
 
     // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
@@ -2602,12 +2604,18 @@ if (!films.length) {
     }
 
     // Автоматическое определение единицы измерения по названию артикула
-    function getUnitFromArticleName(articleName) {
+    function getUnitFromArticleName(articleName, articleCode) {
+        const code = (articleCode || '').toLowerCase();
         const name = (articleName || '').toLowerCase();
-        if (name.includes('лист')) return 'лист';
-        if (name.includes('упак') || name.includes('уп.')) return 'уп';
+        // Сначала проверяем код артикула
+        if (code.includes('пачка')) return 'пачка';
+        if (code.includes('м2') || code.includes('м²')) return 'м²';
+        if (code.includes('лист')) return 'лист';
+        // Затем проверяем название
+        if (name.includes('пачка')) return 'пачка';
         if (name.includes('м2') || name.includes('м²')) return 'м²';
-        return 'м²'; // по умолчанию
+        if (name.includes('лист')) return 'лист';
+        return 'лист'; // по умолчанию
     }
 
     function renderMaterialTypes() {
@@ -3082,10 +3090,20 @@ if (!films.length) {
     function findReferenceMatch(value, references) {
         const query = String(value || '').trim().toLowerCase();
         if (!query) return null;
-        return references.find(reference => String(reference.code || '').toLowerCase() === query || String(reference.name || '').toLowerCase() === query)
-            || references.find(reference => String(reference.code || '').toLowerCase().startsWith(query) || String(reference.name || '').toLowerCase().startsWith(query))
-            || references.find(reference => String(reference.name || '').toLowerCase().includes(query))
-            || null;
+        // 1: точное совпадение кода
+        const exactCode = references.find(r => String(r.code || '').toLowerCase() === query);
+        if (exactCode) return exactCode;
+        // 2: точное совпадение названия
+        const exactName = references.find(r => String(r.name || '').toLowerCase() === query);
+        if (exactName) return exactName;
+        // 3: начинается с
+        const startsWith = references.find(r => 
+            String(r.code || '').toLowerCase().startsWith(query) || 
+            String(r.name || '').toLowerCase().startsWith(query));
+        if (startsWith) return startsWith;
+        // 4: содержит
+        const includes = references.find(r => String(r.name || '').toLowerCase().includes(query));
+        return includes || null;
     }
 
     function buildServiceDetails(container, index) {
@@ -3201,8 +3219,8 @@ if (!films.length) {
                 const div = document.createElement('div');
                 const markerData = inst[mt.name] || {};
                 const icon = markerIcons[mt.name] || '📦';
-                // Определяем единицу измерения по названию типа
-                const unitLabel = getUnitFromArticleName(mt.name);
+                // Определяем единицу измерения по коду и названию артикула
+                const unitLabel = getUnitFromArticleName(mt.name, null);
                 div.innerHTML = `<div class="section-title">${icon} ${mt.name}</div>
                     <label>Артикул или поиск по названию</label><input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Введите код или название для поиска">
                     <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
@@ -3225,8 +3243,8 @@ if (!films.length) {
                     }
                     if (art) { 
                         codeInput.value = art.code;
-                        // Автоматически определяем единицу измерения по названию артикула
-                        const detectedUnit = getUnitFromArticleName(art.name);
+                        // Автоматически определяем единицу измерения по коду и названию артикула
+                        const detectedUnit = getUnitFromArticleName(art.name, art.code);
                         priceInput.value = parseFloat(art.price)||0;
                         // Обновляем лейблы если единица изменилась
                         const priceLabel = priceInput.parentElement;
@@ -3238,7 +3256,7 @@ if (!films.length) {
                         code: codeInput.value, 
                         price: art ? (parseFloat(art.price)||0) : (parseFloat(priceInput.value)||0), 
                         qty: parseFloat(qtyInput.value) || 0,
-                        unit: art ? getUnitFromArticleName(art.name) : unitLabel
+                        unit: art ? getUnitFromArticleName(art.name, art.code) : unitLabel
                     };
                     costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].qty)||0)).toFixed(2);
                     updateModalTotals();
@@ -3255,6 +3273,10 @@ if (!films.length) {
             if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
             if (item.name === 'Ткань' && svc.usesFabric) return;
             if (materialTypes.some(mt => mt.name === item.name)) return;
+            // Скрываем Клей и Растворитель из отображения (но они считаются в стоимости)
+            if (item.name === 'Клей' || item.name === 'Растворитель') return;
+            // Скрываем Грунт для пластика из услуги "Восстановление после ДТП"
+            if (item.name === 'Грунт для пластика' && inst.serviceName === 'Восстановление после ДТП') return;
             const div = document.createElement('div');
             const automaticQty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
             div.innerHTML = item.manual
@@ -3456,6 +3478,8 @@ function deleteOrder(orderId) {
         const container = document.getElementById('purchaseOrdersList');
         container.innerHTML = '';
         ordersData.forEach(order => {
+            // Пропускаем выполненные заказы
+            if (order.done) return;
             const div = document.createElement('div');
             div.className = 'order-item purchase-item';
             div.innerHTML = `
@@ -3676,20 +3700,13 @@ function deleteOrder(orderId) {
 
      // ========== КАЛЕНДАРЬ ==========
      
-     function getRegularPaymentsForDate(dateStr) {
-        const day = parseInt(dateStr.slice(8, 10), 10);
-        return regularExpenses
-            .filter(exp => parseInt(exp.day, 10) === day)
-            .filter(exp => !cashOps.some(op => op.date === dateStr && op.desc === exp.desc))
-            .map(exp => ({ date: dateStr, desc: exp.desc, expense: exp.amount, regular: true }));
+    // Календарь: только заказы и расходы, без распределения бюджета
+    function getRegularPaymentsForDate(dateStr) {
+        return []; // Убрано: регулярные платежи не показываются в календаре
     }
 
     function getRegularIncomesForDate(dateStr) {
-        const day = parseInt(dateStr.slice(8, 10), 10);
-        return regularIncomes
-            .filter(income => parseInt(income.day, 10) === day)
-            .filter(income => !cashOps.some(op => op.date === dateStr && op.desc === income.desc))
-            .map(income => ({ date: dateStr, desc: income.desc, income: income.amount, regular: true }));
+        return []; // Убрано: регулярные доходы не показываются в календаре
     }
 
     function renderCalendar() {
@@ -3744,29 +3761,22 @@ function deleteOrder(orderId) {
             }
             
             const criticalOrder = dayOrders.some(o => getOrderColorObj(o)==='critical');
-            const regularPayments = getRegularPaymentsForDate(dateStr);
-            const regularIncomes = getRegularIncomesForDate(dateStr);
             const dayNotes = notes.filter(n => n.date === dateStr);
             const cashPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0);
-            const cashIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0);
             
             // Определяем цвет дня по приоритету
             let classes = `day-cell${isSelected?' selected':''}`;
-            let dayBadge = { orders: 0, notes: 0, expenses: 0, incomes: 0 };
+            let dayBadge = { orders: 0, notes: 0, expenses: 0 };
             
             // Считаем количество записей
             dayBadge.orders = dayOrders.length;
             dayBadge.notes = dayNotes.length;
-            dayBadge.expenses = cashPayments.length + regularPayments.length;
-            dayBadge.incomes = cashIncomes.length + regularIncomes.length;
+            dayBadge.expenses = cashPayments.length;
             
-            // Определяем цвет дня (приоритет: красный > синий > жёлтый > зелёный)
+            // Определяем цвет дня (приоритет: красный > жёлтый > зелёный > синий)
             if (criticalOrder) {
                 // Очень срочный заказ - красный (переопределяет всё)
                 classes += ' color-critical';
-            } else if (regularPayments.length > 0 || regularIncomes.length > 0) {
-                // Регулярный платёж - синий
-                classes += ' color-payment';
             } else if (dayOrders.length > 0) {
                 const colors = dayOrders.map(o => getOrderColorObj(o));
                 if (colors.includes('critical')) classes += ' color-critical';
@@ -3790,7 +3800,6 @@ function deleteOrder(orderId) {
             if (dayBadge.orders > 0) badgeText.push(`📋${dayBadge.orders}`);
             if (dayBadge.notes > 0) badgeText.push(`📝${dayBadge.notes}`);
             if (dayBadge.expenses > 0) badgeText.push(`💰${dayBadge.expenses}`);
-            if (dayBadge.incomes > 0) badgeText.push(`💵${dayBadge.incomes}`);
             
             if (badgeText.length > 0) {
                 const badge = document.createElement('span');
@@ -3800,7 +3809,7 @@ function deleteOrder(orderId) {
                 div.appendChild(badge);
             }
             
-            div.title = `${dateStr}\nЗаказов: ${dayBadge.orders}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}\nДоходов: ${dayBadge.incomes}`;
+            div.title = `${dateStr}\nЗаказов: ${dayBadge.orders}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}`;
             div.addEventListener('click', () => { selectedDate = dateObj; renderCalendar(); renderSchedule(); });
             grid.appendChild(div);
         }
@@ -3826,13 +3835,11 @@ function deleteOrder(orderId) {
         const dayOrders = ordersData.filter(o => o.date === dateStr);
         const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0);
         const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0);
-        const regularPayments = getRegularPaymentsForDate(dateStr);
-        const regularIncomes = getRegularIncomesForDate(dateStr);
         const dayNotes = notes.filter(n => n.date === dateStr);
-        [...dayPayments, ...regularPayments].forEach(p => {
+        dayPayments.forEach(p => {
             const div = document.createElement('div');
             div.className = 'schedule-slot payment-slot';
-            div.innerHTML = `<div>💰 ${p.desc}${p.regular ? ' (регулярный)' : ''} – ${(parseFloat(p.expense)||0).toFixed(2)}₽</div>`;
+            div.innerHTML = `<div>💰 ${p.desc} – ${(parseFloat(p.expense)||0).toFixed(2)}₽</div>`;
             grid.appendChild(div);
         });
         dayIncomes.forEach(income => {
@@ -3841,14 +3848,6 @@ function deleteOrder(orderId) {
             div.style.background = '#d4edda';
             div.style.borderColor = '#28a745';
             div.innerHTML = `<div>💵 ${income.desc} – ${(parseFloat(income.income)||0).toFixed(2)}₽</div>`;
-            grid.appendChild(div);
-        });
-        [...regularIncomes].forEach(income => {
-            const div = document.createElement('div');
-            div.className = 'schedule-slot';
-            div.style.background = '#d4edda';
-            div.style.borderColor = '#28a745';
-            div.innerHTML = `<div>💵 ${income.desc} (регулярный) – ${(parseFloat(income.income)||0).toFixed(2)}₽</div>`;
             grid.appendChild(div);
         });
         dayNotes.forEach(n => {
@@ -3865,7 +3864,7 @@ function deleteOrder(orderId) {
             div.addEventListener('click', () => openOrderModal(order.id));
             grid.appendChild(div);
         });
-        if (dayOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && regularPayments.length === 0 && regularIncomes.length === 0 && dayNotes.length === 0) {
+        if (dayOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0) {
             grid.innerHTML = '<div>Нет записей</div>';
         }
     }
@@ -4223,6 +4222,10 @@ function deleteOrder(orderId) {
             const show = filterCheck(order, currentFilter);
             if (!show) return;
             
+            // Фильтр по датам
+            if (currentOrderDateFrom && order.date < currentOrderDateFrom) return;
+            if (currentOrderDateTo && order.date > currentOrderDateTo) return;
+            
             const div = document.createElement('div');
             div.className = 'order-item';
             
@@ -4287,13 +4290,15 @@ function deleteOrder(orderId) {
         names.forEach(name => {
             const item = stock.find(s => s.name === name) || {name, unit:'шт', price:0, income:0, used:0, remain:0};
             const tr = document.createElement('tr');
+            const totalSum = (parseFloat(item.price)||0) * (parseFloat(item.income)||0);
             tr.innerHTML = `
                 <td>${name}</td>
                 <td>${item.unit}</td>
                 <td>${parseFloat(item.price)||0}</td>
                 <td><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${name}"></td>
                 <td><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${name}"></td>
-                <td>${((parseFloat(item.income)||0) - (parseFloat(item.used)||0)).toFixed(2)}</td>`;
+                <td>${((parseFloat(item.income)||0) - (parseFloat(item.used)||0)).toFixed(2)}</td>
+                <td style="font-weight:600;color:#27ae60;">${totalSum.toFixed(2)} ₽</td>`;
             tbody.appendChild(tr);
         });
         // Используем делегирование событий для избежания дублирования слушателей

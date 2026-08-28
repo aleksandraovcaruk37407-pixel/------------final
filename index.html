@@ -10,7 +10,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Учет авто-ателье</title>
+    <title>AutoAtelier Pro — Управление авто-ателье</title>
     <base href="./">
     <link rel="stylesheet" href="css/styles.css">
 
@@ -18,7 +18,7 @@
 </head>
 <body>
 <!-- Сначала загружаем app.js ДО Firebase -->
-<script src="js/app.js?v=6"></script>
+<script src="js/app.js?v=7"></script>
 
 <!-- Глобальные функции для модальных окон -->
 <script>
@@ -95,7 +95,7 @@
     <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:80vh;">
         <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
             <h1 style="font-size:48px;margin-bottom:20px;">🚗</h1>
-            <h2 style="color:#1a3c5e;margin-bottom:30px;">Учет авто-ателье</h2>
+            <h2 style="color:#1a3c5e;margin-bottom:30px;">AutoAtelier Pro</h2>
             
             <!-- Выбор роли -->
             <div style="display:flex;gap:10px;margin-bottom:20px;">
@@ -111,7 +111,7 @@
     <!-- Основное приложение (скрыто до входа) -->
     <div id="appContent" style="display:none;">
         <div class="toolbar">
-            <h1>🚗 Учет авто-ателье</h1>
+            <h1>🚗 AutoAtelier Pro</h1>
             <div style="flex:1;"></div>
             <div id="authSection">
                 <span style="font-size:13px;color:#666;" id="userDisplayName"></span>
@@ -121,13 +121,13 @@
 
     <div class="tabs" id="adminTabs" style="display:none;">
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
-        <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
-        <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
-        <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
-        <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
-        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
         <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
+        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
+        <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
+        <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
+        <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
+        <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -147,6 +147,12 @@
                 <button class="btn btn-sm btn-secondary filter-btn" data-filter="done">✅ Выполненные</button>
                 <button class="btn btn-sm btn-danger filter-btn" data-filter="unpaid">💳 Не оплачено</button>
             </div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <label style="font-size:13px;">📅 С:</label>
+                <input type="date" id="orderDateFrom" onchange="renderOrders()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;font-size:13px;">
+                <label style="font-size:13px;">По:</label>
+                <input type="date" id="orderDateTo" onchange="renderOrders()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;font-size:13px;">
+            </div>
             <div style="display:flex; gap:8px; align-items:center;">
                 <button class="btn-add" onclick="openOrderModal()">+ Добавить заказ</button>
                 <span style="font-size:14px; color:#6c757d; margin-left:10px;">Всего: <b id="orderCount">0</b></span>
@@ -162,7 +168,7 @@
     <div id="tab-stock" class="tab-content">
         <div class="scroll-wrap">
             <table class="stock-table">
-                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th></tr></thead>
+                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th><th>Сумма для оплаты</th></tr></thead>
                 <tbody id="stockBody"></tbody>
             </table>
         </div>
@@ -445,6 +451,12 @@
             <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
                 <option value="all">Все помощники</option>
             </select>
+        </div>
+        <div style="margin-bottom:15px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label style="font-size:13px;font-weight:600;">📅 Заказы с:</label>
+            <input type="date" id="helperOrderDateFrom" onchange="renderAdminHelperTasks()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;font-size:13px;">
+            <label style="font-size:13px;font-weight:600;">По:</label>
+            <input type="date" id="helperOrderDateTo" onchange="renderAdminHelperTasks()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;font-size:13px;">
         </div>
         <div id="adminHelperTasksContainer"></div>
     </div>
