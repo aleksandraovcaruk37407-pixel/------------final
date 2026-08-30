@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -18,7 +18,7 @@
 </head>
 <body>
 <!-- Сначала загружаем app.js ДО Firebase -->
-<script src="js/app.js?v=7"></script>
+<script src="js/app.js?v=8"></script>
 
 <!-- Глобальные функции для модальных окон -->
 <script>
@@ -462,8 +462,8 @@
     </div>
 
     <!-- Модалка добавления помощника -->
-    <div class="modal-overlay" id="addHelperModal">
-        <div class="modal" style="max-width:500px;">
+    <div class="modal-overlay" id="addHelperModal" onclick="handleOverlayClick(event, 'addHelperModal')">
+        <div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">
             <h3>➕ Регистрация нового помощника</h3>
             <div style="background:#e3f2fd;padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px;border-left:4px solid #2196f3;">
                 📌 После регистрации помощник сможет войти в систему по email и паролю. Пароль будет виден только один раз!
@@ -495,8 +495,8 @@
     </div>
 
     <!-- Модалка заказа -->
-    <div class="modal-overlay" id="orderModal">
-        <div class="modal">
+    <div class="modal-overlay" id="orderModal" onclick="handleOverlayClick(event, 'orderModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3 id="orderModalTitle">Новый заказ</h3>
             <div class="form-row">
                 <div class="form-group"><label>Дата создания</label><input type="date" id="orderDate"></div>
@@ -546,8 +546,8 @@
     </div>
 
     <!-- Модалка календарной записи -->
-    <div class="modal-overlay" id="bookingModal">
-        <div class="modal">
+    <div class="modal-overlay" id="bookingModal" onclick="handleOverlayClick(event, 'bookingModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Новая запись в календаре</h3>
             <div class="form-group"><label>Дата</label><input type="date" id="modalDate"></div>
             <div class="form-group"><label>Имя клиента</label><input type="text" id="modalName"></div>
@@ -562,8 +562,8 @@
     </div>
 
     <!-- Модалка доп. расходников -->
-    <div class="modal-overlay" id="extraModal">
-        <div class="modal">
+    <div class="modal-overlay" id="extraModal" onclick="handleOverlayClick(event, 'extraModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Дополнительные расходники</h3>
             <div id="extraMaterialsContainer"></div>
             <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -582,8 +582,8 @@
     </div>
 
     <!-- Модалка расходников услуги -->
-    <div class="modal-overlay" id="serviceItemsModal">
-        <div class="modal">
+    <div class="modal-overlay" id="serviceItemsModal" onclick="handleOverlayClick(event, 'serviceItemsModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3 id="serviceItemsModalTitle">Расходники услуги</h3>
             <div id="serviceItemsContainer"></div>
             <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -599,8 +599,8 @@
     </div>
 
     <!-- Модалка заметки -->
-    <div class="modal-overlay" id="noteModal">
-        <div class="modal">
+    <div class="modal-overlay" id="noteModal" onclick="handleOverlayClick(event, 'noteModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3 id="noteModalTitle">Новая заметка</h3>
             <div class="form-group"><label>Дата</label><input type="date" id="noteDate"></div>
             <div class="form-group"><label>Время (необязательно)</label><input type="time" id="noteTime"></div>
@@ -613,8 +613,8 @@
     </div>
 
     <!-- Модалка добавления артикула ткани -->
-    <div class="modal-overlay" id="addColorModal">
-        <div class="modal">
+    <div class="modal-overlay" id="addColorModal" onclick="handleOverlayClick(event, 'addColorModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Добавить артикул ткани</h3>
             <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newColorCategory" placeholder="Например: Велюр"></div>
             <div class="form-group"><label>Артикул</label><input type="text" id="newColorCode" placeholder="Например: A1011"></div>
@@ -628,8 +628,8 @@
     </div>
 
     <!-- Модалка добавления краски -->
-    <div class="modal-overlay" id="addPaintModal">
-        <div class="modal">
+    <div class="modal-overlay" id="addPaintModal" onclick="handleOverlayClick(event, 'addPaintModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Добавить краску</h3>
             <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newPaintCategory" placeholder="Например: Акрил"></div>
             <div class="form-group"><label>Артикул</label><input type="text" id="newPaintCode" placeholder="Например: P001"></div>
@@ -643,8 +643,8 @@
     </div>
 
     <!-- Модалка добавления пленки -->
-    <div class="modal-overlay" id="addFilmModal">
-        <div class="modal">
+    <div class="modal-overlay" id="addFilmModal" onclick="handleOverlayClick(event, 'addFilmModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Добавить артикул пленки</h3>
             <div class="form-group"><label>Категория (на русском)</label><input type="text" id="newFilmCategory" placeholder="Например: Глянцевая"></div>
             <div class="form-group"><label>Артикул</label><input type="text" id="newFilmCode" placeholder="Например: FG-01"></div>
@@ -658,8 +658,8 @@
     </div>
 
     <!-- Модалка добавления расходника -->
-    <div class="modal-overlay" id="addExtraRefModal">
-        <div class="modal">
+    <div class="modal-overlay" id="addExtraRefModal" onclick="handleOverlayClick(event, 'addExtraRefModal')">
+        <div class="modal" onclick="event.stopPropagation()">
             <h3>Добавить расходник</h3>
             <div class="form-group"><label>Название</label><input type="text" id="newExtraRefName" placeholder="Например: Клей"></div>
             <div class="form-group"><label>Ед. измерения</label><input type="text" id="newExtraRefUnit" placeholder="Например: мл"></div>
@@ -672,8 +672,8 @@
     </div>
 
     <!-- Модалка создания задачи для помощника -->
-    <div class="modal-overlay" id="helperTaskModal">
-        <div class="modal" style="max-width:600px;">
+    <div class="modal-overlay" id="helperTaskModal" onclick="handleOverlayClick(event, 'helperTaskModal')">
+        <div class="modal" style="max-width:600px;" onclick="event.stopPropagation()">
             <h3>📝 Создать задачу для помощника</h3>
             <div class="form-group">
                 <label>📋 Заказ</label>
@@ -713,8 +713,8 @@
     </div>
 
     <!-- Модалка редактирования задачи -->
-    <div class="modal-overlay" id="editTaskModal">
-        <div class="modal" style="max-width:600px;">
+    <div class="modal-overlay" id="editTaskModal" onclick="handleOverlayClick(event, 'editTaskModal')">
+        <div class="modal" style="max-width:600px;" onclick="event.stopPropagation()">
             <h3>✏️ Редактировать задачу</h3>
             <div id="editTaskOrderInfo" style="background:#f8f9fa;padding:10px;border-radius:6px;margin-bottom:15px;font-size:14px;"></div>
             <div class="form-group">

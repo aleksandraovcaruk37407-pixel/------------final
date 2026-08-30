@@ -2996,6 +2996,9 @@ if (!films.length) {
         updateDeadline();
         document.getElementById('orderClient').value = order?.client || '';
         document.getElementById('orderPhone').value = order?.phone || '';
+        // Показать модалку и заблокировать скролл
+        document.getElementById('orderModal').classList.add('active');
+        document.body.classList.add('modal-open');
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
         document.getElementById('orderHelperPay').value = parseFloat(order?.helperPay) || 0;
@@ -3026,6 +3029,25 @@ if (!films.length) {
         document.getElementById('orderModal').classList.remove('active');
         orderEditId = null;
         currentServices = [];
+        // Разблокировать скролл body
+        document.body.classList.remove('modal-open');
+    }
+    
+    // Универсальные функции для управления модалками
+    function openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('active');
+            document.body.classList.add('modal-open');
+        }
+    }
+    
+    function closeModalById(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
     }
 
     function addServiceRow(inst) {
@@ -4804,6 +4826,69 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// ========== МОБИЛЬНЫЕ УЛУЧШЕНИЯ ==========
+// Закрытие модалки по клику на overlay
+function handleOverlayClick(event, modalId) {
+    if (event.target.id === modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
+    }
+}
+
+// Свайп вниз для закрытия модалки (iOS)
+let touchStartY = 0;
+let touchCurrentY = 0;
+let isSwiping = false;
+
+document.addEventListener('touchstart', (e) => {
+    const modal = document.querySelector('.modal-overlay.active .modal');
+    if (!modal) return;
+    
+    touchStartY = e.touches[0].clientY;
+    touchCurrentY = touchStartY;
+    isSwiping = false;
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    if (!document.querySelector('.modal-overlay.active')) return;
+    
+    touchCurrentY = e.touches[0].clientY;
+    const diff = touchCurrentY - touchStartY;
+    
+    // Свайп вниз более 100px — закрываем модалку
+    if (diff > 100 && !isSwiping) {
+        isSwiping = true;
+        const modalOverlay = document.querySelector('.modal-overlay.active');
+        if (modalOverlay) {
+            modalOverlay.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            modalOverlay.style.transform = 'translateY(100%)';
+            modalOverlay.style.opacity = '0';
+        }
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+    if (isSwiping) {
+        const modalOverlay = document.querySelector('.modal-overlay.active');
+        if (modalOverlay) {
+            const modalId = modalOverlay.id;
+            modalOverlay.classList.remove('active');
+            document.body.classList.remove('modal-open');
+            
+            // Сброс стилей для следующей модалки
+            setTimeout(() => {
+                modalOverlay.style.transition = '';
+                modalOverlay.style.transform = '';
+                modalOverlay.style.opacity = '';
+            }, 300);
+        }
+        isSwiping = false;
+    }
+}, { passive: true });
 
 // Закрытие модального уведомления по клику вне него
 document.getElementById('notificationModal')?.addEventListener('click', (e) => {
