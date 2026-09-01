@@ -962,14 +962,21 @@
           role: userData.role || 'user'
         };
       } else {
-        // Если данных нет в базе — используем данные из Firebase Auth
-        console.log('>>> Данные не найдены в базе, использую данные из Auth');
+        // Если данных нет в базе — запрашиваем роль с экрана входа
+        console.log('>>> Данные не найдены в базе, запрашиваем роль с экрана входа');
         window.currentUserData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-          role: 'admin' // По умолчанию админ
+          role: window.selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
         };
+        // Сохраняем роль в базу
+        set(ref(window.db), 'users/' + user.uid, {
+          email: user.email,
+          displayName: window.currentUserData.displayName,
+          role: window.currentUserData.role,
+          createdAt: new Date().toISOString()
+        });
       }
       
       console.log('>>> window.currentUserData установлен:', window.currentUserData);
@@ -1003,12 +1010,12 @@
       }
     }).catch(err => {
       console.error('Ошибка чтения пользователя:', err);
-      // Даже если ошибка — используем данные из Auth
+      // Даже если ошибка — используем роль с экрана входа
       window.currentUserData = {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-        role: 'admin'
+        role: selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
       };
       window.updateAuthUI();
       window.updateRoleTabs();
@@ -1119,7 +1126,7 @@
           return set(ref(window.db), 'users/' + user.uid, {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-            role: 'admin',
+            role: selectedLoginRole || 'helper',
             createdAt: new Date().toISOString()
           }).then(() => {
             console.log('Запись пользователя создана успешно');

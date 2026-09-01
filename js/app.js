@@ -906,10 +906,10 @@ if (!films.length) {
 
 
     // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
-    let selectedLoginRole = 'admin';
+    window.selectedLoginRole = 'admin';
 
     window.setLoginRole = function(role) {
-        selectedLoginRole = role;
+        window.selectedLoginRole = role;
         const btnAdmin = document.getElementById('btnRoleAdmin');
         const btnHelper = document.getElementById('btnRoleHelper');
         if (btnAdmin && btnHelper) {
