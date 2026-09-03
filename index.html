@@ -446,6 +446,12 @@
             <button class="btn btn-sm btn-secondary" onclick="setHelperReportPeriod('all')" id="btnHelperAll">⏳ Всё время</button>
         </div>
         <div id="helperReportContainer"></div>
+        
+        <!-- Секция штрафов -->
+        <div style="margin-top:30px;">
+            <h3 style="color:#dc3545; margin-bottom:15px;">⚠️ Мои штрафы</h3>
+            <div id="helperPenaltiesContainer"></div>
+        </div>
     </div>
 
     <!-- Вкладка Задачи помощников (для админа) -->
@@ -454,6 +460,7 @@
         <div style="margin-bottom:15px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;background:#17a2b8;">➕ Добавить помощника</button>
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">📋 Создать задачу</button>
+            <button class="btn-add" onclick="openPenaltyModal()" style="padding:10px 20px;font-size:14px;background:#dc3545;">⚠️ Выписать штраф</button>
         </div>
         <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-sm btn-primary" onclick="setAdminHelperReportPeriod('day')" id="btnAdminDay">📅 День</button>
@@ -506,6 +513,40 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeAddHelperModal()">Отмена</button>
                 <button class="btn-save" onclick="createHelper()">Создать помощника</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка штрафа для помощника -->
+    <div class="modal-overlay" id="penaltyModal" onclick="handleOverlayClick(event, 'penaltyModal')">
+        <div class="modal" style="max-width:600px;" onclick="event.stopPropagation()">
+            <h3>⚠️ Выписать штраф помощнику</h3>
+            <div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px;border-left:4px solid #ffc107;">
+                📌 Штраф уменьшается из заработка помощника. Причина указывается свободным текстом.
+            </div>
+            <div class="form-group">
+                <label>👷 Помощник</label>
+                <select id="penaltyHelper" style="width:100%;">
+                    <option value="">-- Выбери помощника --</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>💰 Сумма штрафа (₽)</label>
+                <input type="number" id="penaltyAmount" placeholder="0" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label>📝 Причина штрафа</label>
+                <textarea id="penaltyReason" rows="4" placeholder="Опишите причину штрафа...&#10;&#10;Например: Просрочка выполнения заказа #5 на 2 дня. Повторное появление брака."></textarea>
+            </div>
+            <div class="form-group">
+                <label>🔗 Связанный заказ (необязательно)</label>
+                <select id="penaltyOrder" style="width:100%;">
+                    <option value="">-- Без заказа --</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closePenaltyModal()">Отмена</button>
+                <button class="btn-save" style="background:#dc3545;" onclick="savePenalty()">Выписать штраф</button>
             </div>
         </div>
     </div>
@@ -978,14 +1019,21 @@
           role: userData.role || 'user'
         };
       } else {
-        // Если данных нет в базе — используем данные из Firebase Auth
-        console.log('>>> Данные не найдены в базе, использую данные из Auth');
+        // Если данных нет в базе — запрашиваем роль с экрана входа
+        console.log('>>> Данные не найдены в базе, запрашиваем роль с экрана входа');
         window.currentUserData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-          role: 'admin' // По умолчанию админ
+          role: window.selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
         };
+        // Сохраняем роль в базу
+        set(ref(window.db), 'users/' + user.uid, {
+          email: user.email,
+          displayName: window.currentUserData.displayName,
+          role: window.currentUserData.role,
+          createdAt: new Date().toISOString()
+        });
       }
       
       console.log('>>> window.currentUserData установлен:', window.currentUserData);
@@ -1019,12 +1067,12 @@
       }
     }).catch(err => {
       console.error('Ошибка чтения пользователя:', err);
-      // Даже если ошибка — используем данные из Auth
+      // Даже если ошибка — используем роль с экрана входа
       window.currentUserData = {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-        role: 'admin'
+        role: selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
       };
       window.updateAuthUI();
       window.updateRoleTabs();
@@ -1135,7 +1183,7 @@
           return set(ref(window.db), 'users/' + user.uid, {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-            role: 'admin',
+            role: selectedLoginRole || 'helper',
             createdAt: new Date().toISOString()
           }).then(() => {
             console.log('Запись пользователя создана успешно');

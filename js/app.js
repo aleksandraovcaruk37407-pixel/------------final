@@ -60,6 +60,8 @@
             helperPayments: {},
             // История всех выплат (плоский массив)
             paymentHistory: [],
+            // Штрафы помощников
+            helperPenalties: [],
             // Планирование дохода
             incomePlan: {
                 personalPercent: 10, // % на личные расходы
@@ -97,6 +99,7 @@
     if (!budgetData.distributionHistory) budgetData.distributionHistory = [];
     if (!budgetData.helperPayments) budgetData.helperPayments = {};
     if (!budgetData.paymentHistory) budgetData.paymentHistory = [];
+    if (!budgetData.helperPenalties) budgetData.helperPenalties = [];
 
     rates.forEach(r => { if (!r.items) r.items = []; });
     const accidentService = rates.find(r => r.service === 'Восстановление после ДТП');
@@ -128,7 +131,7 @@
 
     if (!colors.length) {
     colors = [
-        // ========== СЕТКА (Потолочная ткань на поролоне) ==========
+        // ПОТОЛОЧНАЯ ТКАНЬ (СЕТКА)
         {category:'Сетка', code:'L1041', name:'Потолочная ткань на поролоне', price:1400},
         {category:'Сетка', code:'L1054', name:'Потолочная ткань на поролоне', price:1400},
         {category:'Сетка', code:'L1055', name:'Потолочная ткань на поролоне', price:1400},
@@ -144,18 +147,18 @@
         {category:'Сетка', code:'R1069', name:'Потолочная ткань на поролоне', price:1400},
         {category:'Сетка', code:'R1070', name:'Потолочная ткань на поролоне', price:1400},
         {category:'Сетка', code:'R1075', name:'Потолочная ткань на поролоне', price:1400},
-        // ========== ВЕЛЮР (Потолочная ткань на поролоне с трикотажем) ==========
-        {category:'Велюр', code:'A1011', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1014', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1015', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1016', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1019', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1020', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1022', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1023', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1026', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1028', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
-        {category:'Велюр', code:'A1029', name:'Потолочная ткань на поролоне с трикотажем', price:1400}
+        // ПОТОЛОЧНАЯ ТКАНЬ (ВЕЛЮР)
+        {category:'Велюр', code:'А1011', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1014', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1015', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1016', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1019', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1020', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1022', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1023', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1026', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1028', name:'Потолочная ткань на поролоне с трикотажем', price:1400},
+        {category:'Велюр', code:'А1029', name:'Потолочная ткань на поролоне с трикотаже', price:1400}
     ];
 }
 if (!paints.length) {
@@ -933,10 +936,10 @@ if (!films.length) {
 
 
     // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
-    let selectedLoginRole = 'admin';
+    window.selectedLoginRole = 'admin';
 
     window.setLoginRole = function(role) {
-        selectedLoginRole = role;
+        window.selectedLoginRole = role;
         const btnAdmin = document.getElementById('btnRoleAdmin');
         const btnHelper = document.getElementById('btnRoleHelper');
         if (btnAdmin && btnHelper) {
@@ -1125,12 +1128,13 @@ if (!films.length) {
                 </ul>
             </div>
         `;
+        
+        // Отрисовать штрафы
+        renderHelperPenalties();
     }
-
-    // Делаем функции глобально доступными
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
-
+    
     // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
     window.openAddHelperModal = function() {
         const modal = document.getElementById('addHelperModal');
@@ -1389,6 +1393,46 @@ if (!films.length) {
     // Делаем функции глобально доступными
     window.updateHelperFilter = updateHelperFilter;
 
+    function renderAdminPenalties(filterEmail, period) {
+        const penalties = budgetData.helperPenalties || [];
+        const filtered = getPenaltiesForPeriod(penalties, period || 'all')
+            .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        if (filtered.length === 0) {
+            return `<div style="text-align:center;padding:15px;color:#856404;font-size:14px;">Штрафов за выбранный период нет ✅</div>`;
+        }
+        
+        const totalPenalties = filtered.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        
+        return `
+            <div style="background:#fff3cd;padding:10px;border-radius:6px;margin-bottom:15px;">
+                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:16px;">${totalPenalties.toLocaleString()} ₽</span></div>
+            </div>
+            ${filtered.map(p => {
+                const helperName = p.helperEmail;
+                return `
+                    <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:8px;border-left:3px solid #dc3545;">
+                        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">
+                            <div>
+                                <div style="font-weight:600;color:#dc3545;">-${p.amount.toLocaleString()} ₽</div>
+                                <div style="font-size:12px;color:#888;">
+                                    ${new Date(p.createdAt).toLocaleDateString('ru-RU')} в ${new Date(p.createdAt).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:13px;font-weight:600;">${helperName}</div>
+                                ${p.orderNumber ? `<div style="font-size:12px;color:#666;">Заказ #${p.orderNumber}</div>` : ''}
+                            </div>
+                        </div>
+                        <div style="font-size:14px;color:#333;margin-bottom:6px;">${p.reason}</div>
+                        <div style="font-size:12px;color:#666;">Назначил: ${p.createdBy}</div>
+                    </div>
+                `;
+            }).join('')}
+        `;
+    }
+    
     function renderAdminHelperTasks() {
         const container = document.getElementById('adminHelperTasksContainer');
         if (!container) return;
@@ -1534,10 +1578,11 @@ if (!films.length) {
                     `).join('')}
                 </div>
             ` : ''}
-                <div class="helper-stat-item warning">
-                    <div class="helper-stat-label">⚠️ Штрафы</div>
-                    <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
-                </div>
+            
+            <!-- Штрафы помощников -->
+            <div style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid #ffc107;">
+                <h4 style="margin:0 0 15px 0;color:#856404;">⚠️ Штрафы помощников</h4>
+                ${renderAdminPenalties(filterEmail, currentAdminHelperReportPeriod)}
             </div>
             
             <!-- Список задач -->
@@ -1588,6 +1633,7 @@ if (!films.length) {
     
     // Делаем функции глобально доступными
     window.renderAdminHelperTasks = renderAdminHelperTasks;
+    window.renderAdminPenalties = renderAdminPenalties;
     window.populateAdminHelperFilterFallback = populateAdminHelperFilterFallback;
 
     // ========== ВЫПЛАТЫ ПОМОЩНИКАМ ==========
@@ -1937,6 +1983,176 @@ if (!films.length) {
     }
 
     window.renderPaymentHistory = renderPaymentHistory;
+
+    // ========== СИСТЕМА ШТРАФОВ ПОМОЩНИКОВ ==========
+    function openPenaltyModal() {
+        // Заполнить список помощников
+        const helperSelect = document.getElementById('penaltyHelper');
+        helperSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
+        
+        if (window.db) {
+            get(child(ref(window.db), 'users')).then((snapshot) => {
+                if (!snapshot.exists()) return;
+                const users = snapshot.val();
+                for (const uid in users) {
+                    if (users[uid].role === 'helper') {
+                        const option = document.createElement('option');
+                        option.value = users[uid].email;
+                        option.textContent = `${users[uid].displayName || 'Без имени'} (${users[uid].email})`;
+                        helperSelect.appendChild(option);
+                    }
+                }
+            }).catch(err => console.error('Ошибка загрузки помощников:', err));
+        }
+        
+        // Заполнить список заказов
+        const orderSelect = document.getElementById('penaltyOrder');
+        orderSelect.innerHTML = '<option value="">-- Без заказа --</option>';
+        ordersData.forEach(order => {
+            const option = document.createElement('option');
+            option.value = order.orderNumber;
+            option.textContent = `Заказ #${order.orderNumber} — ${order.client || 'Без клиента'}`;
+            orderSelect.appendChild(option);
+        });
+        
+        // Очистить форму
+        document.getElementById('penaltyAmount').value = '';
+        document.getElementById('penaltyReason').value = '';
+        document.getElementById('penaltyOrder').value = '';
+        
+        document.getElementById('penaltyModal').classList.add('active');
+    }
+    
+    function closePenaltyModal() {
+        document.getElementById('penaltyModal').classList.remove('active');
+    }
+    
+    function savePenalty() {
+        const helperEmail = document.getElementById('penaltyHelper').value;
+        const amount = parseFloat(document.getElementById('penaltyAmount').value) || 0;
+        const reason = document.getElementById('penaltyReason').value.trim();
+        const orderNumber = document.getElementById('penaltyOrder').value;
+        
+        if (!helperEmail) {
+            alert('Выбери помощника!');
+            return;
+        }
+        if (amount <= 0) {
+            alert('Введи корректную сумму штрафа!');
+            return;
+        }
+        if (!reason) {
+            alert('Опиши причину штрафа!');
+            return;
+        }
+        
+        const penalty = {
+            id: 'pen_' + Date.now(),
+            helperEmail: helperEmail,
+            amount: amount,
+            reason: reason,
+            orderNumber: orderNumber || null,
+            createdBy: window.currentUserData?.email || 'admin',
+            createdAt: new Date().toISOString(),
+            acknowledged: false
+        };
+        
+        if (!budgetData.helperPenalties) budgetData.helperPenalties = [];
+        budgetData.helperPenalties.push(penalty);
+        saveBudgetData();
+        
+        // Обновить отображение
+        renderAdminHelperTasks();
+        renderHelperReport();
+        renderHelperPenalties();
+        
+        closePenaltyModal();
+        alert(`✅ Штраф ${amount.toLocaleString()} ₽ для ${helperEmail} выписан!`);
+    }
+    
+    function renderHelperPenalties() {
+        if (!window.currentUserData || window.currentUserData.role !== 'helper') return;
+        
+        const container = document.getElementById('helperPenaltiesContainer');
+        if (!container) return;
+        
+        const helperEmail = window.currentUserData.email;
+        const periodFilter = currentHelperReportPeriod || 'all';
+        const filteredPenalties = getPenaltiesForPeriod(budgetData.helperPenalties || [], periodFilter)
+            .filter(p => p.helperEmail === helperEmail)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        if (filteredPenalties.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center;padding:20px;color:#888;background:#f8f9fa;border-radius:8px;">
+                    <div style="font-size:32px;margin-bottom:8px;">✅</div>
+                    <div>Штрафов нет</div>
+                    <div style="font-size:13px;margin-top:5px;">За выбранный период штрафов не было</div>
+                </div>
+            `;
+            return;
+        }
+        
+        const totalPenalties = filteredPenalties.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        
+        container.innerHTML = `
+            <div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:18px;">${totalPenalties.toLocaleString()} ₽</span></div>
+            </div>
+            ${filteredPenalties.map(p => `
+                <div style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid #dc3543;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+                        <div>
+                            <div style="font-weight:600;color:#dc3545;font-size:16px;">-${p.amount.toLocaleString()} ₽</div>
+                            <div style="font-size:12px;color:#888;margin-top:4px;">
+                                ${new Date(p.createdAt).toLocaleDateString('ru-RU')} в ${new Date(p.createdAt).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
+                            </div>
+                        </div>
+                        ${p.orderNumber ? `<span style="background:#e3f2fd;padding:4px 8px;border-radius:4px;font-size:12px;">Заказ #${p.orderNumber}</span>` : ''}
+                    </div>
+                    <div style="font-size:14px;color:#333;margin-bottom:8px;">${p.reason}</div>
+                    <div style="font-size:12px;color:#666;">Назначил: ${p.createdBy}</div>
+                </div>
+            `).join('')}
+        `;
+    }
+    
+    function getPenaltiesForPeriod(penalties, period) {
+        if (!penalties || penalties.length === 0) return [];
+        
+        const now = new Date();
+        let startDate = '';
+        
+        switch(period) {
+            case 'day':
+                startDate = formatDate(now);
+                break;
+            case 'week':
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                startDate = formatDate(weekAgo);
+                break;
+            case 'month':
+                const monthAgo = new Date(now);
+                monthAgo.setMonth(monthAgo.getMonth() - 1);
+                startDate = formatDate(monthAgo);
+                break;
+            case 'year':
+                const yearAgo = new Date(now);
+                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+                startDate = formatDate(yearAgo);
+                break;
+            default:
+                startDate = '2000-01-01';
+        }
+        
+        return penalties.filter(p => p.createdAt >= startDate);
+    }
+    
+    window.openPenaltyModal = openPenaltyModal;
+    window.closePenaltyModal = closePenaltyModal;
+    window.savePenalty = savePenalty;
+    window.renderHelperPenalties = renderHelperPenalties;
 
     function openHelperTaskModalFromAdmin() {
         openHelperTaskModal(null);
