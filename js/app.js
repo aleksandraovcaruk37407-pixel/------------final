@@ -1,4 +1,15 @@
 
+    // ========== XSS ЗАЩИТА ==========
+    function escapeHTML(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
     // ========== ГЛОБАЛЬНЫЕ ДАННЫЕ ==========
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
     let budgetData = null;
@@ -351,15 +362,31 @@ if (!films.length) {
     localStorage.setItem('notes_data', JSON.stringify(notes));
     localStorage.setItem('budget_data', JSON.stringify(budgetData));
 
-    if (window.db && window.fbSet && window.fbRef) {
-        const syncPayload = {
-            colors, paints, films, extraRef, rates, ordersData, 
-            cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes
-        };
-        window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
-            .catch(() => {}); // Игнорируем ошибки Firebase — работаем с localStorage
+    // Debounce для Firebase — не чаще 1 раза в 2 секунды
+    if (window.debouncedSyncFirebase) {
+        window.debouncedSyncFirebase();
     }
 }
+
+// Debounced Firebase sync (1 раз в 2 сек)
+(function() {
+    let syncTimer = null;
+    window.debouncedSyncFirebase = function() {
+        if (syncTimer) clearTimeout(syncTimer);
+        syncTimer = setTimeout(function() {
+            if (window.db && window.fbSet && window.fbRef) {
+                var syncPayload = {
+                    colors: colors, paints: paints, films: films, extraRef: extraRef, 
+                    rates: rates, ordersData: ordersData, cashOps: cashOps, 
+                    bookings: bookings, materialTypes: materialTypes, 
+                    regularExpenses: regularExpenses, regularIncomes: regularIncomes, notes: notes
+                };
+                window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
+                    .catch(function() {});
+            }
+        }, 2000);
+    };
+})();
 
     // ========== БЮДЖЕТ: РАСПРЕДЕЛЕНИЕ ОТ ЗАКАЗА К ЗАКАЗУ ==========
     function saveBudgetData() {
@@ -1233,46 +1260,6 @@ if (!films.length) {
             saveBtn.disabled = false;
         }
     };
-
-    // Обновление фильтра помощников в админ-панели
-    function updateHelperFilter() {
-        const filter = document.getElementById('adminHelperFilter');
-        if (!filter) return;
-        
-        // Получаем всех пользователей с ролью helper
-        const ref = window.fbRef(window.db);
-        window.get(window.child(ref, 'users')).then((snapshot) => {
-            if (!snapshot.exists()) return;
-            
-            const users = snapshot.val();
-            const helpers = [];
-            
-            for (const uid in users) {
-                if (users[uid].role === 'helper') {
-                    helpers.push({
-                        uid: uid,
-                        email: users[uid].email,
-                        displayName: users[uid].displayName || users[uid].email
-                    });
-                }
-            }
-            
-            // Сохраняем текущее значение
-            const currentValue = filter.value;
-            
-            // Перестраиваем опции
-            filter.innerHTML = '<option value="all">Все помощники</option>';
-            helpers.forEach(helper => {
-                const option = document.createElement('option');
-                option.value = helper.email;
-                option.textContent = `${helper.displayName} (${helper.email})`;
-                filter.appendChild(option);
-            });
-            
-            // Восстанавливаем значение
-            if (currentValue) filter.value = currentValue;
-        }).catch(err => console.error('Ошибка обновления фильтра:', err));
-    }
 
     function completeTask(orderNumber, taskId) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);

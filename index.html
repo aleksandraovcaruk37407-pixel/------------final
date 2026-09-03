@@ -11,14 +11,30 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>AutoAtelier Pro — Управление авто-ателье</title>
-    <base href="./">
+    <script>
+        // Автоматическое определение base href для GitHub Pages
+        (function() {
+            var path = window.location.pathname;
+            // Если путь содержит '/aleksandraovcaruk37407-pixel.github.io/' — это project page
+            if (path.indexOf('/aleksandraovcaruk37407-pixel.github.io/') !== -1) {
+                var match = path.match(/\/aleksandraovcaruk37407-pixel\.github\.io(\/[^\/]*)?/);
+                if (match && match[1]) {
+                    document.write('<base href="' + match[1] + '/">');
+                } else {
+                    document.write('<base href="/">');
+                }
+            } else {
+                document.write('<base href="./">');
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="css/styles.css">
 
 
 </head>
 <body>
-<!-- Сначала загружаем app.js ДО Firebase -->
-<script src="js/app.js?v=9"></script>
+<!-- app.js -->
+<script src="js/app.js?v=10"></script>
 
 <!-- Глобальные функции для модальных окон -->
 <script>
