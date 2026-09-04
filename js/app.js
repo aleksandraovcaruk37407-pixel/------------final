@@ -1993,7 +1993,7 @@ if (!films.length) {
         helperSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
         
         if (window.db) {
-            get(child(ref(window.db), 'users')).then((snapshot) => {
+            window.get(window.child(window.fbRef(window.db), 'users')).then((snapshot) => {
                 if (!snapshot.exists()) return;
                 const users = snapshot.val();
                 for (const uid in users) {

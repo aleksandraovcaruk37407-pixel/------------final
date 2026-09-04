@@ -21,6 +21,8 @@
   window.auth = getAuth(app);
   window.fbRef = ref;
   window.fbSet = set;
+  window.get = get;
+  window.child = child;
 
   signInAnonymously(window.auth)
     .then(() => {
