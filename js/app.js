@@ -5427,9 +5427,8 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
             var target = e.target;
             // Работаем только с контентом модалки
             if (target === orderModalInner || orderModalInner.contains(target)) {
-                // Проверяем, что модалка прокручена в начало
-                var scrollable = orderModalInner.querySelector('.modal-content') || orderModalInner;
-                if (scrollable.scrollTop <= 0) {
+                // orderModalInner — это сам .modal, он скроллируемый
+                if (orderModalInner.scrollTop <= 0) {
                     touchStartY = e.touches[0].clientY;
                     isSwipingOrderModal = true;
                     orderModalInner.style.transition = 'none';
