@@ -379,6 +379,10 @@
             .modal-overlay.active {
                 align-items: flex-end !important;
             }
+            /* Order modal — bottom-sheet управляется через JS класс */
+            #orderModal .modal {
+                border-radius: 20px 20px 0 0 !important;
+            }
             .modal {
                 width: 100% !important;
                 max-width: 100% !important;
@@ -1122,6 +1126,11 @@
         }
         .modal.order-modal-bottom-sheet.active {
             transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+        /* Order modal overlay — разрешаем touch события */
+        #orderModal.modal-overlay.active {
+            touch-action: auto !important;
         }
         .modal-handle {
             width: 40px;
