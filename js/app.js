@@ -2075,7 +2075,7 @@ if (!films.length) {
     }
     
     function renderHelperPenalties() {
-        if (!window.currentUserData || window.currentUserData.role !== 'helper') return;
+        if (!window.currentUserData || window.currentUserData.role === 'admin') return;
         
         const container = document.getElementById('helperPenaltiesContainer');
         if (!container) return;
@@ -5364,35 +5364,37 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
                 document.getElementById('bottomNavMore').style.display = '';
             } else {
                 bottomNav.style.display = 'flex';
-                // Для помощника — другие вкладки
+                // Для помощника — скрываем админские вкладки
                 document.getElementById('bottomNavOrders').style.display = 'none';
                 document.getElementById('bottomNavCalendar').style.display = 'none';
                 document.getElementById('bottomNavTasks').style.display = '';
                 document.getElementById('bottomNavPurchase').style.display = 'none';
-                document.getElementById('bottomNavMore').style.display = 'none';
                 
-                // Заменить содержимое bottom nav для помощника
-                var bottomNavEl = document.getElementById('bottomNav');
-                if (bottomNavEl) {
-                    // Обновить кнопки для помощника
-                    var tasksBtn = document.getElementById('bottomNavTasks');
-                    if (tasksBtn) {
-                        tasksBtn.setAttribute('data-tab', 'helper-tasks');
-                        tasksBtn.querySelector('.nav-icon').textContent = '📋';
-                        tasksBtn.querySelector('span:last-child').textContent = 'Задачи';
-                    }
-                    // Добавить кнопку отчёта
-                    var moreMenu = document.getElementById('bottomNavMoreMenu');
-                    if (moreMenu) {
-                        moreMenu.innerHTML = '';
-                        var reportBtn = document.createElement('button');
-                        reportBtn.className = 'bottom-nav-more-item';
-                        reportBtn.setAttribute('data-tab', 'helper-report');
-                        reportBtn.onclick = function() { switchBottomNavTab('helper-report'); };
-                        reportBtn.innerHTML = '<span class="nav-icon">📊</span><span>Отчёт</span>';
-                        moreMenu.appendChild(reportBtn);
-                    }
+                // Обновить кнопки для помощника
+                var tasksBtn = document.getElementById('bottomNavTasks');
+                if (tasksBtn) {
+                    tasksBtn.setAttribute('data-tab', 'helper-tasks');
+                    tasksBtn.querySelector('.nav-icon').textContent = '📋';
+                    tasksBtn.querySelector('span:last-child').textContent = 'Задачи';
                 }
+                
+                // Показать "Ещё" с отчётом
+                var moreBtn = document.getElementById('bottomNavMoreBtn');
+                var moreMenu = document.getElementById('bottomNavMoreMenu');
+                if (moreBtn) moreBtn.style.display = '';
+                if (moreMenu) {
+                    moreMenu.innerHTML = '';
+                    var reportBtn = document.createElement('button');
+                    reportBtn.className = 'bottom-nav-more-item';
+                    reportBtn.setAttribute('data-tab', 'helper-report');
+                    reportBtn.onclick = function() { switchBottomNavTab('helper-report'); };
+                    reportBtn.innerHTML = '<span class="nav-icon">📊</span><span>Отчёт</span>';
+                    moreMenu.appendChild(reportBtn);
+                }
+                
+                // Активировать "Задачи" по умолчанию
+                document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(b) { b.classList.remove('active'); });
+                if (tasksBtn) tasksBtn.classList.add('active');
             }
         }
     };

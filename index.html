@@ -1068,7 +1068,7 @@
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || userData.displayName || 'Пользователь',
-          role: userData.role || 'user'
+          role: userData.role || window.selectedLoginRole || 'helper'
         };
       } else {
         // Если данных нет в базе — запрашиваем роль с экрана входа
