@@ -843,50 +843,60 @@
     </div>
 </div>
 
-<!-- ========== НИЖНЯЯ НАВИГАЦИЯ (МОБИЛЬНАЯ) ========== -->
-<div class="bottom-nav" id="bottomNav">
-    <!-- Основные вкладки (админ) -->
-    <button class="bottom-nav-item active" data-tab="tab-orders" id="bottomNavOrders">
+<!-- ========== НИЖНЯЯ НАВИГАЦИЯ АДМИНА (МОБИЛЬНАЯ) ========== -->
+<div class="bottom-nav bottom-nav-admin" id="bottomNavAdmin">
+    <button class="bottom-nav-item active" data-tab="tab-orders">
         <span class="nav-icon">📋</span>
         <span>Заказы</span>
     </button>
-    <button class="bottom-nav-item" data-tab="tab-calendar" id="bottomNavCalendar">
+    <button class="bottom-nav-item" data-tab="tab-calendar">
         <span class="nav-icon">📅</span>
         <span>Календарь</span>
     </button>
-    <button class="bottom-nav-item" data-tab="tab-helper-admin" id="bottomNavTasks">
+    <button class="bottom-nav-item" data-tab="tab-helper-admin">
         <span class="nav-icon">👥</span>
         <span>Задачи</span>
     </button>
-    <button class="bottom-nav-item" data-tab="tab-purchase" id="bottomNavPurchase">
+    <button class="bottom-nav-item" data-tab="tab-purchase">
         <span class="nav-icon">📄</span>
         <span>Закупка</span>
     </button>
-    <!-- Кнопка "Ещё" -->
-    <div class="bottom-nav-more" id="bottomNavMore">
+    <div class="bottom-nav-more">
         <button class="bottom-nav-item" id="bottomNavMoreBtn" onclick="toggleBottomNavMoreMenu(event)">
             <span class="nav-icon">⋯</span>
             <span>Ещё</span>
         </button>
         <div class="bottom-nav-more-menu" id="bottomNavMoreMenu">
-            <button class="bottom-nav-more-item" data-tab="tab-summary" onclick="switchBottomNavTab('tab-summary')">
+            <button class="bottom-nav-more-item" data-tab="tab-summary">
                 <span class="nav-icon">📊</span>
                 <span>Итоги</span>
             </button>
-            <button class="bottom-nav-more-item" data-tab="tab-cash" onclick="switchBottomNavTab('tab-cash')">
+            <button class="bottom-nav-more-item" data-tab="tab-cash">
                 <span class="nav-icon">💰</span>
                 <span>Деньги</span>
             </button>
-            <button class="bottom-nav-more-item" data-tab="tab-stock" onclick="switchBottomNavTab('tab-stock')">
+            <button class="bottom-nav-more-item" data-tab="tab-stock">
                 <span class="nav-icon">📦</span>
                 <span>Склад</span>
             </button>
-            <button class="bottom-nav-more-item" data-tab="tab-ref" onclick="switchBottomNavTab('tab-ref')">
+            <button class="bottom-nav-more-item" data-tab="tab-ref">
                 <span class="nav-icon">📚</span>
                 <span>Справочники</span>
             </button>
         </div>
     </div>
+</div>
+
+<!-- ========== НИЖНЯЯ НАВИГАЦИЯ ПОМОЩНИКА (МОБИЛЬНАЯ) ========== -->
+<div class="bottom-nav bottom-nav-helper" id="bottomNavHelper" style="display:none;">
+    <button class="bottom-nav-item active" data-tab="helper-tasks">
+        <span class="nav-icon">📋</span>
+        <span>Задачи</span>
+    </button>
+    <button class="bottom-nav-item" data-tab="helper-report">
+        <span class="nav-icon">📊</span>
+        <span>Отчёт</span>
+    </button>
 </div>
 
 

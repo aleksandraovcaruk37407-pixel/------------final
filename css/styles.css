@@ -1133,7 +1133,7 @@
 
         /* ========== BOTTOM NAVIGATION BAR (MOBILE) ========== */
         .bottom-nav {
-            display: none;
+            display: none !important;
             position: fixed;
             bottom: 0;
             left: 0;
@@ -1220,10 +1220,7 @@
 
         /* ========== MOBILE RESPONSIVE (≤768px) ========== */
         @media (max-width: 768px) {
-            /* Show bottom navigation */
-            .bottom-nav {
-                display: flex;
-            }
+            /* Нижняя навигация управляется через JS (показывать/скрывать в зависимости от роли) */
             
             /* Hide top tabs on mobile */
             .tabs#adminTabs,

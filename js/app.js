@@ -5260,13 +5260,14 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
             target.classList.add('active');
         }
         
-        // Обновить active кнопки bottom nav
-        document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
-            btn.classList.remove('active');
-        });
-        var activeBtn = document.querySelector('.bottom-nav-item[data-tab="' + tabId + '"]');
-        if (activeBtn) {
-            activeBtn.classList.add('active');
+        // Обновить active кнопки ТОЛЬКО в видимой навигации
+        var visibleNav = document.querySelector('.bottom-nav[style*="flex"], .bottom-nav:not([style*="none"])');
+        if (visibleNav) {
+            visibleNav.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+                btn.classList.remove('active');
+            });
+            var activeBtn = visibleNav.querySelector('.bottom-nav-item[data-tab="' + tabId + '"]');
+            if (activeBtn) activeBtn.classList.add('active');
         }
         
         // Синхронизировать top tabs
@@ -5289,7 +5290,7 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
     };
     
-    // Привязка кликов к bottom nav кнопкам — после загрузки DOM
+    // Привязка кликов к bottom nav кнопкам
     function bindBottomNavClicks() {
         document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
             if (!btn.onclick) {
@@ -5299,14 +5300,6 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
                 };
             }
         });
-        
-        // Закрыть меню при клике вне его
-        document.addEventListener('click', function(e) {
-            var moreContainer = document.getElementById('bottomNavMore');
-            if (moreContainer && !moreContainer.contains(e.target)) {
-                closeBottomNavMoreMenu();
-            }
-        }, { once: true });
     }
     
     // Меню "ещё"
@@ -5320,188 +5313,45 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     
     function closeBottomNavMoreMenu() {
         var menu = document.getElementById('bottomNavMoreMenu');
-        if (menu) {
-            menu.classList.remove('active');
-        }
+        if (menu) menu.classList.remove('active');
     }
     
-    // Синхронизация top tabs с bottom nav — после загрузки DOM
-    function bindTopTabs() {
-        document.querySelectorAll('#adminTabs .tab-btn, #helperTabs .tab-btn').forEach(function(btn) {
-            var tabId = btn.getAttribute('data-tab');
-            if (!tabId) return;
-            // Сохраняем оригинальный onclick
-            var origOnClick = btn.onclick;
-            btn.onclick = function(e) {
-                if (origOnClick) origOnClick.call(this, e);
-                switchBottomNavTab(tabId);
-            };
-        });
-    }
+    // Закрыть меню при клике вне его
+    document.addEventListener('click', function(e) {
+        var moreMenu = document.getElementById('bottomNavMoreMenu');
+        var moreBtn = document.getElementById('bottomNavMoreBtn');
+        if (moreMenu && moreBtn && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) {
+            closeBottomNavMoreMenu();
+        }
+    });
     
     // Привяжем обработчики после загрузки DOM
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            bindBottomNavClicks();
-            bindTopTabs();
-        });
+        document.addEventListener('DOMContentLoaded', bindBottomNavClicks);
     } else {
         bindBottomNavClicks();
-        bindTopTabs();
     }
     setTimeout(bindBottomNavClicks, 100);
     setTimeout(bindBottomNavClicks, 500);
-    setTimeout(bindTopTabs, 100);
-    setTimeout(bindTopTabs, 500);
     
     // Обновление видимости bottom nav при смене роли
     var origUpdateRoleTabs = window.updateRoleTabs;
     window.updateRoleTabs = function() {
         if (origUpdateRoleTabs) origUpdateRoleTabs();
         
-        var isAdmin = window.currentUserData && window.currentUserData.role === 'admin';
-        var bottomNav = document.getElementById('bottomNav');
-        if (bottomNav) {
+        var isAdmin = window.currentUserData && window.currentUserData.role !== 'helper' && window.currentUserData.role !== 'user';
+        var navAdmin = document.getElementById('bottomNavAdmin');
+        var navHelper = document.getElementById('bottomNavHelper');
+        
+        if (navAdmin && navHelper) {
             if (isAdmin) {
-                bottomNav.style.display = 'flex';
-                // Показать вкладки админа в bottom nav
-                document.getElementById('bottomNavOrders').style.display = '';
-                document.getElementById('bottomNavCalendar').style.display = '';
-                document.getElementById('bottomNavTasks').style.display = '';
-                document.getElementById('bottomNavPurchase').style.display = '';
-                document.getElementById('bottomNavMore').style.display = '';
+                navAdmin.style.display = 'flex';
+                navHelper.style.display = 'none';
             } else {
-                bottomNav.style.display = 'flex';
-                // Для помощника — скрываем админские вкладки
-                document.getElementById('bottomNavOrders').style.display = 'none';
-                document.getElementById('bottomNavCalendar').style.display = 'none';
-                document.getElementById('bottomNavTasks').style.display = '';
-                document.getElementById('bottomNavPurchase').style.display = 'none';
-                
-                // Обновить кнопки для помощника
-                var tasksBtn = document.getElementById('bottomNavTasks');
-                if (tasksBtn) {
-                    tasksBtn.setAttribute('data-tab', 'helper-tasks');
-                    tasksBtn.querySelector('.nav-icon').textContent = '📋';
-                    tasksBtn.querySelector('span:last-child').textContent = 'Задачи';
-                }
-                
-                // Показать "Ещё" с отчётом
-                var moreBtn = document.getElementById('bottomNavMoreBtn');
-                var moreMenu = document.getElementById('bottomNavMoreMenu');
-                if (moreBtn) moreBtn.style.display = '';
-                if (moreMenu) {
-                    moreMenu.innerHTML = '';
-                    var reportBtn = document.createElement('button');
-                    reportBtn.className = 'bottom-nav-more-item';
-                    reportBtn.setAttribute('data-tab', 'helper-report');
-                    reportBtn.onclick = function() { switchBottomNavTab('helper-report'); };
-                    reportBtn.innerHTML = '<span class="nav-icon">📊</span><span>Отчёт</span>';
-                    moreMenu.appendChild(reportBtn);
-                }
-                
-                // Активировать "Задачи" по умолчанию
-                document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(b) { b.classList.remove('active'); });
-                if (tasksBtn) tasksBtn.classList.add('active');
+                navAdmin.style.display = 'none';
+                navHelper.style.display = 'flex';
             }
         }
     };
-    
-    // ========== BOTTOM-SHEET АНИМАЦИЯ ДЛЯ МОДАЛКИ ЗАКАЗА ==========
-    // Ждём загрузки DOM (скрипт в <head>, DOM ещё не готов)
-    (function() {
-        var tries = 0;
-        function init() {
-            var orderModal = document.getElementById('orderModal');
-            if (!orderModal) {
-                if (tries++ < 20) { setTimeout(init, 100); return; }
-                return;
-            }
-            var orderModalInner = orderModal.querySelector('.modal');
-            
-            // Переопределяем openOrderModal для bottom-sheet анимации
-            var origOpenOrderModal = window.openOrderModal;
-            
-            window.openOrderModal = function(order) {
-                // Вызываем оригинальную функцию
-                if (origOpenOrderModal) {
-                    origOpenOrderModal(order);
-                }
-                
-                // Добавляем bottom-sheet класс на мобильных
-                var isMobile = window.innerWidth <= 768;
-                if (isMobile && orderModalInner) {
-                    orderModalInner.classList.add('order-modal-bottom-sheet');
-                    // Анимация slide-up
-                    setTimeout(function() {
-                        orderModalInner.classList.add('active');
-                    }, 10);
-                }
-                
-                document.body.classList.add('modal-open');
-            };
-            
-            // Переопределяем closeOrderModal
-            var origCloseOrderModal = window.closeOrderModal;
-            window.closeOrderModal = function() {
-                var isMobile = window.innerWidth <= 768;
-                if (isMobile && orderModalInner) {
-                    orderModalInner.classList.remove('active');
-                    setTimeout(function() {
-                        orderModalInner.classList.remove('order-modal-bottom-sheet');
-                        orderModalInner.style.transition = '';
-                        orderModalInner.style.transform = '';
-                        orderModal.style.display = 'none';
-                    }, 300);
-                }
-                
-                if (origCloseOrderModal) {
-                    origCloseOrderModal();
-                }
-            };
-            
-            // Свайп для закрытия bottom-sheet
-            var touchStartY = 0;
-            var touchCurrentY = 0;
-            var isSwipingOrderModal = false;
-            
-            orderModal.addEventListener('touchstart', function(e) {
-                var target = e.target;
-                // orderModalInner — это сам .modal, он скроллируемый
-                if (orderModalInner.scrollTop <= 0) {
-                    touchStartY = e.touches[0].clientY;
-                    isSwipingOrderModal = true;
-                    orderModalInner.style.transition = 'none';
-                }
-            }, { passive: true });
-            
-            orderModal.addEventListener('touchmove', function(e) {
-                if (!isSwipingOrderModal) return;
-                touchCurrentY = e.touches[0].clientY;
-                var diff = touchCurrentY - touchStartY;
-                
-                // Только свайп вниз
-                if (diff > 0) {
-                    orderModalInner.style.transform = 'translateY(' + diff + 'px)';
-                    orderModalInner.style.opacity = Math.max(0, 1 - diff / 300);
-                    e.preventDefault();
-                }
-            }, { passive: false });
-            
-            orderModal.addEventListener('touchend', function() {
-                if (!isSwipingOrderModal) return;
-                isSwipingOrderModal = false;
-                
-                var diff = touchCurrentY - touchStartY;
-                if (diff > 150) {
-                    window.closeOrderModal();
-                } else {
-                    orderModalInner.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-                    orderModalInner.style.transform = '';
-                    orderModalInner.style.opacity = '';
-                }
-            }, { passive: true });
-        }
-        setTimeout(init, 100);
-    })();
+})();
 
