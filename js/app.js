@@ -5258,7 +5258,9 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         // Обновить active кнопки ТОЛЬКО в видимой навигации
         var navAdmin = document.getElementById('bottomNavAdmin');
         var navHelper = document.getElementById('bottomNavHelper');
-        var visibleNav = (navAdmin && navAdmin.style.display !== 'none') ? navAdmin : navHelper;
+        var isAdminVisible = navAdmin && (navAdmin.style.display === 'flex' || navAdmin.style.display === 'flex !important');
+        var visibleNav = (isAdminVisible) ? navAdmin : navHelper;
+        console.log('switchBottomNavTab: role=', window.currentUserData?.role, 'adminVisible=', isAdminVisible);
         if (visibleNav) {
             visibleNav.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
                 btn.classList.remove('active');
@@ -5330,5 +5332,8 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     }
     setTimeout(bindBottomNavClicks, 100);
     setTimeout(bindBottomNavClicks, 500);
+    
+    // Лог роли при загрузке
+    console.log('app.js loaded: currentUserData=', window.currentUserData, 'selectedLoginRole=', window.selectedLoginRole);
 })();
 

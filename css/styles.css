@@ -1133,7 +1133,7 @@
 
         /* ========== BOTTOM NAVIGATION BAR (MOBILE) ========== */
         .bottom-nav {
-            display: none !important;
+            display: none;
             position: fixed;
             bottom: 0;
             left: 0;

@@ -34,7 +34,7 @@
 </head>
 <body>
 <!-- app.js -->
-<script src="js/app.js?v=10"></script>
+<script src="js/app.js?v=11"></script>
 
 <!-- Глобальные функции для модальных окон -->
 <script>
@@ -1143,6 +1143,7 @@
         displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
         role: window.selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
       };
+      console.log('>>> catch: window.currentUserData установлен:', window.currentUserData);
       window.updateAuthUI();
       window.updateRoleTabs();
     });
@@ -1203,8 +1204,8 @@
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs admin: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
-      if (navAdmin) navAdmin.style.display = 'flex';
-      if (navHelper) navHelper.style.display = 'none';
+      if (navAdmin) navAdmin.style.display = 'flex !important';
+      if (navHelper) navHelper.style.display = 'none !important';
     } else {
       adminTabs.style.display = 'none';
       helperTabs.style.display = 'flex';
@@ -1234,8 +1235,8 @@
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs helper: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
-      if (navAdmin) navAdmin.style.display = 'none';
-      if (navHelper) navHelper.style.display = 'flex';
+      if (navAdmin) navAdmin.style.display = 'none !important';
+      if (navHelper) navHelper.style.display = 'flex !important';
     }
   }
   
@@ -1320,20 +1321,32 @@
     setTimeout(bindBottomNav, 2000);
     
     // Принудительно показать навигацию если пользователь уже авторизован
-    setTimeout(function() {
+    function forceShowNav() {
+        console.log('forceShowNav: currentUserData=', window.currentUserData);
         if (window.currentUserData) {
             console.log('force show nav: role=', window.currentUserData.role);
             var navAdmin = document.getElementById('bottomNavAdmin');
             var navHelper = document.getElementById('bottomNavHelper');
             if (window.currentUserData.role === 'admin') {
-                if (navAdmin) navAdmin.style.display = 'flex';
-                if (navHelper) navHelper.style.display = 'none';
+                if (navAdmin) navAdmin.style.display = 'flex !important';
+                if (navHelper) navHelper.style.display = 'none !important';
+                console.log('✅ Admin nav shown');
             } else {
-                if (navAdmin) navAdmin.style.display = 'none';
-                if (navHelper) navHelper.style.display = 'flex';
+                if (navAdmin) navAdmin.style.display = 'none !important';
+                if (navHelper) navHelper.style.display = 'flex !important';
+                console.log('✅ Helper nav shown');
             }
+        } else {
+            console.log('⚠️ currentUserData not set yet, will retry...');
         }
-    }, 1000);
+    }
+    
+    // Первая попытка через 500мс
+    setTimeout(forceShowNav, 500);
+    // Повторная проверка через 3 сек (на случай медленного Firebase)
+    setTimeout(forceShowNav, 3000);
+    // Ещё раз через 6 сек (на всякий случай)
+    setTimeout(forceShowNav, 6000);
 })();
 </script>
 </body>
