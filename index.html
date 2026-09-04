@@ -1198,6 +1198,12 @@
       
       // Обновить список помощников
       if (typeof updateHelperFilter === 'function') updateHelperFilter();
+      
+      // Показать навигацию админа, скрыть помощника
+      var navAdmin = document.getElementById('bottomNavAdmin');
+      var navHelper = document.getElementById('bottomNavHelper');
+      if (navAdmin) navAdmin.style.display = 'flex';
+      if (navHelper) navHelper.style.display = 'none';
     } else {
       adminTabs.style.display = 'none';
       helperTabs.style.display = 'flex';
@@ -1222,6 +1228,12 @@
       // Рендер задач и отчёта помощника
       if (typeof renderHelperTasks === 'function') renderHelperTasks();
       if (typeof renderHelperReport === 'function') renderHelperReport();
+      
+      // Показать навигацию помощника, скрыть админа
+      var navAdmin = document.getElementById('bottomNavAdmin');
+      var navHelper = document.getElementById('bottomNavHelper');
+      if (navAdmin) navAdmin.style.display = 'none';
+      if (navHelper) navHelper.style.display = 'flex';
     }
   }
   

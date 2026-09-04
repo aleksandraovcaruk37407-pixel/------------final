@@ -1289,10 +1289,6 @@ if (!films.length) {
         renderHelperReport();
     }
 
-    // Делаем функции глобально доступными
-    window.renderHelperTasks = renderHelperTasks;
-    window.renderHelperReport = renderHelperReport;
-
     function markOverdue(orderNumber, taskId) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         if (!order) return;
@@ -3757,7 +3753,6 @@ function deleteOrder(orderId) {
         saveAll();
         openExtraModalFromOrder();
     }
-    function closeExtraModal() { document.getElementById('extraModal').classList.remove('active'); }
 
     // ========== ЗАКУПКА ==========
     function renderPurchaseOrdersList() {
@@ -4471,7 +4466,7 @@ function deleteOrder(orderId) {
         console.log('renderAll вызван, ordersData.length:', ordersData.length);
         // Если appContent скрыт — ничего не рендерим
         const appContent = document.getElementById('appContent');
-        if (appContent && (appContent.style.display === 'none' || !appContent.style.display)) {
+        if (appContent && appContent.style.display === 'none') {
             return;
         }
         
@@ -4960,7 +4955,7 @@ function deleteOrder(orderId) {
                 if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
                 if (btn.dataset.tab === 'helper-report') renderHelperReport();
                 if (btn.dataset.tab === 'tab-helper-admin') {
-                    populateAdminHelperFilter();
+                    if (typeof updateHelperFilter === 'function') updateHelperFilter();
                     renderAdminHelperTasks();
                 }
             });
@@ -5261,7 +5256,9 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         }
         
         // Обновить active кнопки ТОЛЬКО в видимой навигации
-        var visibleNav = document.querySelector('.bottom-nav[style*="flex"], .bottom-nav:not([style*="none"])');
+        var navAdmin = document.getElementById('bottomNavAdmin');
+        var navHelper = document.getElementById('bottomNavHelper');
+        var visibleNav = (navAdmin && navAdmin.style.display !== 'none') ? navAdmin : navHelper;
         if (visibleNav) {
             visibleNav.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
                 btn.classList.remove('active');
@@ -5333,25 +5330,5 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     }
     setTimeout(bindBottomNavClicks, 100);
     setTimeout(bindBottomNavClicks, 500);
-    
-    // Обновление видимости bottom nav при смене роли
-    var origUpdateRoleTabs = window.updateRoleTabs;
-    window.updateRoleTabs = function() {
-        if (origUpdateRoleTabs) origUpdateRoleTabs();
-        
-        var isAdmin = window.currentUserData && window.currentUserData.role !== 'helper' && window.currentUserData.role !== 'user';
-        var navAdmin = document.getElementById('bottomNavAdmin');
-        var navHelper = document.getElementById('bottomNavHelper');
-        
-        if (navAdmin && navHelper) {
-            if (isAdmin) {
-                navAdmin.style.display = 'flex';
-                navHelper.style.display = 'none';
-            } else {
-                navAdmin.style.display = 'none';
-                navHelper.style.display = 'flex';
-            }
-        }
-    };
 })();
 
