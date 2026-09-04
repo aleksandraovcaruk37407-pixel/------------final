@@ -2303,6 +2303,24 @@ if (!films.length) {
         renderHelperReport();
     }
 
+    // Fallback: помощники из существующих задач (если Firebase недоступен)
+    function loadFallbackHelpersForTask(selectEl) {
+        const emails = new Set();
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo) emails.add(task.assignedTo);
+                });
+            });
+        });
+        emails.forEach(email => {
+            const option = document.createElement('option');
+            option.value = email;
+            option.textContent = email;
+            selectEl.appendChild(option);
+        });
+    }
+
     // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
     function openHelperTaskModal(orderNumber) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
@@ -2319,13 +2337,37 @@ if (!films.length) {
             orderSelect.appendChild(opt);
         });
         
-        // Заполняем список помощников (используем email как идентификатор)
+        // Заполняем список помощников из Firebase
         const assigneeSelect = document.getElementById('helperTaskAssignee');
         assigneeSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
-        const opt1 = document.createElement('option');
-        opt1.value = 'helper@auto-atelier.ru';
-        opt1.textContent = 'helper@auto-atelier.ru';
-        assigneeSelect.appendChild(opt1);
+        
+        if (typeof window.get === 'function' && typeof window.child === 'function' && window.db) {
+            window.get(window.child(window.fbRef(window.db), 'users')).then((snapshot) => {
+                if (!snapshot.exists()) return;
+                const users = snapshot.val();
+                const helpers = [];
+                for (const uid in users) {
+                    if (users[uid].role === 'helper') {
+                        helpers.push({
+                            email: users[uid].email,
+                            displayName: users[uid].displayName || users[uid].email
+                        });
+                    }
+                }
+                helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+                helpers.forEach(helper => {
+                    const option = document.createElement('option');
+                    option.value = helper.email;
+                    option.textContent = `${helper.displayName} (${helper.email})`;
+                    assigneeSelect.appendChild(option);
+                });
+            }).catch(err => {
+                console.error('Ошибка загрузки помощников для задачи:', err);
+                loadFallbackHelpersForTask(assigneeSelect);
+            });
+        } else {
+            loadFallbackHelpersForTask(assigneeSelect);
+        }
         
         // Устанавливаем дату по умолчанию - завтра
         const tomorrow = new Date();
