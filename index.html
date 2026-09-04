@@ -843,6 +843,52 @@
     </div>
 </div>
 
+<!-- ========== НИЖНЯЯ НАВИГАЦИЯ (МОБИЛЬНАЯ) ========== -->
+<div class="bottom-nav" id="bottomNav">
+    <!-- Основные вкладки (админ) -->
+    <button class="bottom-nav-item active" data-tab="tab-orders" id="bottomNavOrders">
+        <span class="nav-icon">📋</span>
+        <span>Заказы</span>
+    </button>
+    <button class="bottom-nav-item" data-tab="tab-calendar" id="bottomNavCalendar">
+        <span class="nav-icon">📅</span>
+        <span>Календарь</span>
+    </button>
+    <button class="bottom-nav-item" data-tab="tab-helper-admin" id="bottomNavTasks">
+        <span class="nav-icon">👥</span>
+        <span>Задачи</span>
+    </button>
+    <button class="bottom-nav-item" data-tab="tab-purchase" id="bottomNavPurchase">
+        <span class="nav-icon">📄</span>
+        <span>Закупка</span>
+    </button>
+    <!-- Кнопка "Ещё" -->
+    <div class="bottom-nav-more" id="bottomNavMore">
+        <button class="bottom-nav-item" id="bottomNavMoreBtn" onclick="toggleBottomNavMoreMenu(event)">
+            <span class="nav-icon">⋯</span>
+            <span>Ещё</span>
+        </button>
+        <div class="bottom-nav-more-menu" id="bottomNavMoreMenu">
+            <button class="bottom-nav-more-item" data-tab="tab-summary" onclick="switchBottomNavTab('tab-summary')">
+                <span class="nav-icon">📊</span>
+                <span>Итоги</span>
+            </button>
+            <button class="bottom-nav-more-item" data-tab="tab-cash" onclick="switchBottomNavTab('tab-cash')">
+                <span class="nav-icon">💰</span>
+                <span>Деньги</span>
+            </button>
+            <button class="bottom-nav-more-item" data-tab="tab-stock" onclick="switchBottomNavTab('tab-stock')">
+                <span class="nav-icon">📦</span>
+                <span>Склад</span>
+            </button>
+            <button class="bottom-nav-more-item" data-tab="tab-ref" onclick="switchBottomNavTab('tab-ref')">
+                <span class="nav-icon">📚</span>
+                <span>Справочники</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";

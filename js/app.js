@@ -5234,3 +5234,237 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     }
 });
 
+// ========== НИЖНЯЯ НАВИГАЦИЯ (МОБИЛЬНАЯ) ==========
+(function() {
+    // Переключение вкладки через bottom nav
+    window.switchBottomNavTab = function(tabId) {
+        // Закрыть меню "ещё"
+        closeBottomNavMoreMenu();
+        
+        // Скрыть все вкладки
+        document.querySelectorAll('.tab-content').forEach(function(tc) {
+            tc.classList.remove('active');
+        });
+        
+        // Показать нужную вкладку
+        var target = document.getElementById(tabId);
+        if (target) {
+            target.classList.add('active');
+        }
+        
+        // Обновить active кнопки bottom nav
+        document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        var activeBtn = document.querySelector('.bottom-nav-item[data-tab="' + tabId + '"]');
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+        
+        // Синхронизировать top tabs
+        document.querySelectorAll('#adminTabs .tab-btn, #helperTabs .tab-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+            if (btn.getAttribute('data-tab') === tabId) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // Перерендерить контент вкладки
+        if (tabId === 'tab-orders' && typeof renderOrders === 'function') renderOrders();
+        if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') renderCalendar();
+        if (tabId === 'tab-helper-admin' && typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
+        if (tabId === 'tab-stock' && typeof renderStock === 'function') renderStock();
+        if (tabId === 'tab-cash' && typeof renderCash === 'function') renderCash();
+        if (tabId === 'tab-summary' && typeof renderSummary === 'function') renderSummary();
+        if (tabId === 'tab-ref' && typeof renderServicesTable === 'function') renderServicesTable();
+        if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
+        if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
+    };
+    
+    // Привязка кликов к bottom nav кнопкам
+    document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var tabId = this.getAttribute('data-tab');
+            switchBottomNavTab(tabId);
+        });
+    });
+    
+    // Меню "ещё"
+    window.toggleBottomNavMoreMenu = function(e) {
+        e.stopPropagation();
+        var menu = document.getElementById('bottomNavMoreMenu');
+        if (menu) {
+            menu.classList.toggle('active');
+        }
+    };
+    
+    function closeBottomNavMoreMenu() {
+        var menu = document.getElementById('bottomNavMoreMenu');
+        if (menu) {
+            menu.classList.remove('active');
+        }
+    }
+    
+    // Закрыть меню при клике вне его
+    document.addEventListener('click', function(e) {
+        var moreContainer = document.getElementById('bottomNavMore');
+        if (moreContainer && !moreContainer.contains(e.target)) {
+            closeBottomNavMoreMenu();
+        }
+    });
+    
+    // Синхронизация top tabs с bottom nav
+    document.querySelectorAll('#adminTabs .tab-btn, #helperTabs .tab-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var tabId = this.getAttribute('data-tab');
+            switchBottomNavTab(tabId);
+        });
+    });
+    
+    // Обновление видимости bottom nav при смене роли
+    var origUpdateRoleTabs = window.updateRoleTabs;
+    window.updateRoleTabs = function() {
+        if (origUpdateRoleTabs) origUpdateRoleTabs();
+        
+        var isAdmin = window.currentUserData && window.currentUserData.role === 'admin';
+        var bottomNav = document.getElementById('bottomNav');
+        if (bottomNav) {
+            if (isAdmin) {
+                bottomNav.style.display = 'flex';
+                // Показать вкладки админа в bottom nav
+                document.getElementById('bottomNavOrders').style.display = '';
+                document.getElementById('bottomNavCalendar').style.display = '';
+                document.getElementById('bottomNavTasks').style.display = '';
+                document.getElementById('bottomNavPurchase').style.display = '';
+                document.getElementById('bottomNavMore').style.display = '';
+            } else {
+                bottomNav.style.display = 'flex';
+                // Для помощника — другие вкладки
+                document.getElementById('bottomNavOrders').style.display = 'none';
+                document.getElementById('bottomNavCalendar').style.display = 'none';
+                document.getElementById('bottomNavTasks').style.display = '';
+                document.getElementById('bottomNavPurchase').style.display = 'none';
+                document.getElementById('bottomNavMore').style.display = 'none';
+                
+                // Заменить содержимое bottom nav для помощника
+                var bottomNavEl = document.getElementById('bottomNav');
+                if (bottomNavEl) {
+                    // Обновить кнопки для помощника
+                    var tasksBtn = document.getElementById('bottomNavTasks');
+                    if (tasksBtn) {
+                        tasksBtn.setAttribute('data-tab', 'helper-tasks');
+                        tasksBtn.querySelector('.nav-icon').textContent = '📋';
+                        tasksBtn.querySelector('span:last-child').textContent = 'Задачи';
+                    }
+                    // Добавить кнопку отчёта
+                    var moreMenu = document.getElementById('bottomNavMoreMenu');
+                    if (moreMenu) {
+                        moreMenu.innerHTML = '';
+                        var reportBtn = document.createElement('button');
+                        reportBtn.className = 'bottom-nav-more-item';
+                        reportBtn.setAttribute('data-tab', 'helper-report');
+                        reportBtn.onclick = function() { switchBottomNavTab('helper-report'); };
+                        reportBtn.innerHTML = '<span class="nav-icon">📊</span><span>Отчёт</span>';
+                        moreMenu.appendChild(reportBtn);
+                    }
+                }
+            }
+        }
+    };
+    
+    // ========== BOTTOM-SHEET АНИМАЦИЯ ДЛЯ МОДАЛКИ ЗАКАЗА ==========
+    var orderModal = document.getElementById('orderModal');
+    if (orderModal) {
+        var orderModalInner = orderModal.querySelector('.modal');
+        
+        // Переопределяем openOrderModal для bottom-sheet анимации
+        var origOpenOrderModal = window.openOrderModal;
+        
+        window.openOrderModal = function(order) {
+            // Вызываем оригинальную функцию
+            if (origOpenOrderModal) {
+                origOpenOrderModal(order);
+            }
+            
+            // Добавляем bottom-sheet класс на мобильных
+            var isMobile = window.innerWidth <= 768;
+            if (isMobile && orderModalInner) {
+                orderModalInner.classList.add('order-modal-bottom-sheet');
+                // Анимация slide-up
+                setTimeout(function() {
+                    orderModalInner.classList.add('active');
+                }, 10);
+            }
+            
+            document.body.classList.add('modal-open');
+        };
+        
+        // Переопределяем closeOrderModal
+        var origCloseOrderModal = window.closeOrderModal;
+        window.closeOrderModal = function() {
+            var isMobile = window.innerWidth <= 768;
+            if (isMobile && orderModalInner) {
+                orderModalInner.classList.remove('active');
+                setTimeout(function() {
+                    orderModalInner.classList.remove('order-modal-bottom-sheet');
+                    orderModalInner.style.transition = '';
+                    orderModalInner.style.transform = '';
+                    orderModal.style.display = 'none';
+                }, 300);
+            }
+            
+            if (origCloseOrderModal) {
+                origCloseOrderModal();
+            }
+        };
+        
+        // Свайп для закрытия bottom-sheet
+        var touchStartY = 0;
+        var touchCurrentY = 0;
+        var isSwipingOrderModal = false;
+        
+        orderModal.addEventListener('touchstart', function(e) {
+            var target = e.target;
+            // Работаем только с контентом модалки
+            if (target === orderModalInner || orderModalInner.contains(target)) {
+                // Проверяем, что модалка прокручена в начало
+                var scrollable = orderModalInner.querySelector('.modal-content') || orderModalInner;
+                if (scrollable.scrollTop <= 0) {
+                    touchStartY = e.touches[0].clientY;
+                    isSwipingOrderModal = true;
+                    orderModalInner.style.transition = 'none';
+                }
+            }
+        }, { passive: true });
+        
+        orderModal.addEventListener('touchmove', function(e) {
+            if (!isSwipingOrderModal) return;
+            touchCurrentY = e.touches[0].clientY;
+            var diff = touchCurrentY - touchStartY;
+            
+            // Только свайп вниз
+            if (diff > 0) {
+                orderModalInner.style.transform = 'translateY(' + diff + 'px)';
+                orderModalInner.style.opacity = Math.max(0, 1 - diff / 300);
+                e.preventDefault();
+            }
+        }, { passive: false });
+        
+        orderModal.addEventListener('touchend', function() {
+            if (!isSwipingOrderModal) return;
+            isSwipingOrderModal = false;
+            
+            var diff = touchCurrentY - touchStartY;
+            if (diff > 150) {
+                // Закрываем
+                window.closeOrderModal();
+            } else {
+                // Возвращаем
+                orderModalInner.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                orderModalInner.style.transform = '';
+                orderModalInner.style.opacity = '';
+            }
+        }, { passive: true });
+    }
+})();
+
