@@ -1314,10 +1314,11 @@ if (!films.length) {
         const filterSelect = document.getElementById('adminHelperFilter');
         if (!filterSelect) return;
         
+        // Сначала показываем помощников из существующих задач (синхронно)
+        populateAdminHelperFilterFallback();
+        
         // Проверяем, доступны ли Firebase функции
         if (typeof window.get !== 'function' || typeof window.child !== 'function') {
-            // Fallback: показываем помощников из задач
-            populateAdminHelperFilterFallback();
             return;
         }
         
@@ -1356,12 +1357,9 @@ if (!films.length) {
             }
         }).catch(err => {
             console.error('Ошибка обновления списка помощников:', err);
-            // Fallback: показываем помощников из задач
-            populateAdminHelperFilterFallback();
         });
         } catch (e) {
             console.error('Ошибка в updateHelperFilter:', e);
-            populateAdminHelperFilterFallback();
         }
     }
     
@@ -1992,12 +1990,34 @@ if (!films.length) {
         const helperSelect = document.getElementById('penaltyHelper');
         helperSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
         
-        if (window.db) {
+        // Сначала показываем помощников из существующих задач (синхронно)
+        const fallbackHelpers = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo && !fallbackHelpers.find(h => h.email === task.assignedTo)) {
+                        fallbackHelpers.push({ email: task.assignedTo, displayName: task.assignedTo });
+                    }
+                });
+            });
+        });
+        fallbackHelpers.forEach(h => {
+            const option = document.createElement('option');
+            option.value = h.email;
+            option.textContent = h.displayName;
+            helperSelect.appendChild(option);
+        });
+        
+        // Потом обновляем из Firebase (асинхронно)
+        if (window.db && typeof window.get === 'function' && typeof window.child === 'function') {
             window.get(window.child(window.fbRef(window.db), 'users')).then((snapshot) => {
                 if (!snapshot.exists()) return;
                 const users = snapshot.val();
+                const existingEmails = new Set();
+                helperSelect.querySelectorAll('option').forEach(opt => existingEmails.add(opt.value));
+                
                 for (const uid in users) {
-                    if (users[uid].role === 'helper') {
+                    if (users[uid].role === 'helper' && !existingEmails.has(users[uid].email)) {
                         const option = document.createElement('option');
                         option.value = users[uid].email;
                         option.textContent = `${users[uid].displayName || 'Без имени'} (${users[uid].email})`;
@@ -2323,8 +2343,6 @@ if (!films.length) {
 
     // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
     function openHelperTaskModal(orderNumber) {
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) return;
         
         // Заполняем список заказов
         const orderSelect = document.getElementById('helperTaskOrder');
@@ -2337,17 +2355,39 @@ if (!films.length) {
             orderSelect.appendChild(opt);
         });
         
-        // Заполняем список помощников из Firebase
+        // Заполняем список помощников — сначала из заказов (синхронно), потом из Firebase
         const assigneeSelect = document.getElementById('helperTaskAssignee');
         assigneeSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
         
+        // Синхронно показываем помощников из существующих задач
+        const syncHelpers = [];
+        ordersData.forEach(order => {
+            (order.services || []).forEach(service => {
+                (service.tasks || []).forEach(task => {
+                    if (task.assignedTo && !syncHelpers.find(h => h.email === task.assignedTo)) {
+                        syncHelpers.push({ email: task.assignedTo, displayName: task.assignedTo });
+                    }
+                });
+            });
+        });
+        syncHelpers.forEach(h => {
+            const option = document.createElement('option');
+            option.value = h.email;
+            option.textContent = h.displayName;
+            assigneeSelect.appendChild(option);
+        });
+        
+        // Асинхронно обновляем из Firebase
         if (typeof window.get === 'function' && typeof window.child === 'function' && window.db) {
             window.get(window.child(window.fbRef(window.db), 'users')).then((snapshot) => {
                 if (!snapshot.exists()) return;
                 const users = snapshot.val();
+                const existingEmails = new Set();
+                assigneeSelect.querySelectorAll('option').forEach(opt => existingEmails.add(opt.value));
+                
                 const helpers = [];
                 for (const uid in users) {
-                    if (users[uid].role === 'helper') {
+                    if (users[uid].role === 'helper' && !existingEmails.has(users[uid].email)) {
                         helpers.push({
                             email: users[uid].email,
                             displayName: users[uid].displayName || users[uid].email
@@ -2363,10 +2403,7 @@ if (!films.length) {
                 });
             }).catch(err => {
                 console.error('Ошибка загрузки помощников для задачи:', err);
-                loadFallbackHelpersForTask(assigneeSelect);
             });
-        } else {
-            loadFallbackHelpersForTask(assigneeSelect);
         }
         
         // Устанавливаем дату по умолчанию - завтра
