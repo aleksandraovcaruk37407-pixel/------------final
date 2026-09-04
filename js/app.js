@@ -1,5 +1,110 @@
 
-    // ========== XSS ЗАЩИТА ==========
+    /* ==========================================================================
+    AUTOATELIER PRO — СИСТЕМА УПРАВЛЕНИЯ АВТО-АТЕЛЬЕ
+    Версия: 2.1 | Исправление для iOS/Android (defer скрипты)
+    
+    Структура модулей:
+    1. XSS ЗАЩИТА и утилиты
+    2. ГЛОБАЛЬНЫЕ ДАННЫЕ и хранилище
+    3. БЮДЖЕТ и финансы
+    4. АВТОРИЗАЦИЯ и пользователи
+    5. СИСТЕМА ПОМОЩНИКОВ (задачи, штрафы, выплаты)
+    6. УПРАВЛЕНИЕ ЗАКАЗАМИ (CRUD, услуги, расходники)
+    7. СПРАВОЧНИКИ (ткани, краски, плёнки, расходники)
+    8. СКЛАД и материалы
+    9. ДЕНЬГИ и операции
+    10. КАЛЕНДАРЬ и заметки
+    11. ИТОГИ и отчёты
+    12. ЗАКУПКА материалов
+    13. ЭКСПОРТ/ИМПОРТ
+    14. UI и МОДАЛЬНЫЕ ОКНА
+    15. МОБИЛЬНАЯ НАВИГАЦИЯ
+    16. ИНИЦИАЛИЗАЦИЯ и обработчики
+    ========================================================================== */
+
+    // ========== iOS/Android FIX: Инициализация независимо от DOMContentLoaded ==========
+    // defer скрипты выполняются ПОСЛЕ DOMContentLoaded, поэтому проверяем readyState
+    function initAppIfReady() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initAppIfReady);
+        } else {
+            // DOM уже загружен — выполняем инициализацию сразу
+            console.log('initAppIfReady: DOM ready, initializing...');
+            loadData();
+            createSampleOrders();
+            addRegularPaymentsToCash();
+            initNotifications();
+            currentDate = new Date();
+            selectedDate = new Date();
+            recalculateStockFromAllOrders();
+            renderAll();
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.getElementById(btn.dataset.tab).classList.add('active');
+                    btn.classList.add('active');
+                    if (btn.dataset.tab === 'tab-calendar') renderCalendar();
+                    if (btn.dataset.tab === 'tab-ref') renderRefs();
+                    if (btn.dataset.tab === 'tab-purchase') renderPurchaseOrdersList();
+                    if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
+                    if (btn.dataset.tab === 'helper-report') renderHelperReport();
+                    if (btn.dataset.tab === 'tab-helper-admin') {
+                        if (typeof updateHelperFilter === 'function') updateHelperFilter();
+                        renderAdminHelperTasks();
+                        renderAdminNotifications();
+                    }
+                    if (btn.dataset.tab === 'helper-report') {
+                        if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
+                    }
+                });
+            });
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilter = btn.dataset.filter;
+                    renderOrders();
+                });
+            });
+
+            document.getElementById('orderModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeOrderModal(); });
+            document.getElementById('authModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAuthModal(); });
+            document.getElementById('addHelperModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddHelperModal(); });
+            document.getElementById('penaltyModal').addEventListener('click', e => { if (e.target === e.currentTarget) closePenaltyModal(); });
+            document.getElementById('bookingModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+            document.getElementById('extraModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeExtraModal(); });
+            document.getElementById('serviceItemsModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeServiceItemsModal(); });
+            document.getElementById('noteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeNoteModal(); });
+            document.getElementById('addColorModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddColorModal(); });
+            document.getElementById('addPaintModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddPaintModal(); });
+            document.getElementById('addFilmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddFilmModal(); });
+            document.getElementById('addExtraRefModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
+            document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
+            document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
+            
+            // Input обработчики
+            var orderDate = document.getElementById('orderDate');
+            var orderDurationDays = document.getElementById('orderDurationDays');
+            var orderClientPrice = document.getElementById('orderClientPrice');
+            var orderHelperPay = document.getElementById('orderHelperPay');
+            if (orderDate) orderDate.addEventListener('input', updateDeadline);
+            if (orderDurationDays) orderDurationDays.addEventListener('input', updateDeadline);
+            if (orderClientPrice) orderClientPrice.addEventListener('input', updateModalTotals);
+            if (orderHelperPay) orderHelperPay.addEventListener('input', updateModalTotals);
+            
+            populateSummarySelects();
+            renderSummary();
+            configureDefaultServiceMarkers();
+            saveAll();
+            
+            console.log('✅ App initialized (defer mode)');
+        }
+    }
+    
+    // ========== МОДУЛЬ 1: XSS ЗАЩИТА И УТИЛИТЫ ==========
     function escapeHTML(str) {
         if (str === null || str === undefined) return '';
         return String(str)
@@ -391,7 +496,7 @@ if (!films.length) {
     };
 })();
 
-    // ========== БЮДЖЕТ: РАСПРЕДЕЛЕНИЕ ОТ ЗАКАЗА К ЗАКАЗУ ==========
+    // ========== МОДУЛЬ 3: БЮДЖЕТ И ФИНАНСЫ ==========
     function saveBudgetData() {
         localStorage.setItem('budget_data', JSON.stringify(budgetData));
     }
@@ -935,7 +1040,7 @@ if (!films.length) {
     }
 
 
-    // ========== АВТОРИЗАЦИЯ: ВЫБОР РОЛИ ==========
+    // ========== МОДУЛЬ 4: АВТОРИЗАЦИЯ И ПОЛЬЗОВАТЕЛИ ==========
     window.selectedLoginRole = 'admin';
 
     window.setLoginRole = function(role) {
@@ -960,7 +1065,7 @@ if (!films.length) {
     // Инициализация роли по умолчанию
     setLoginRole('admin');
 
-    // ========== СИСТЕМА ДЛЯ ПОМОЩНИКА ==========
+    // ========== МОДУЛЬ 5: СИСТЕМА ПОМОЩНИКОВ (задачи, штрафы, выплаты) ==========
     function renderHelperTasks() {
         const container = document.getElementById('helperTasksContainer');
         if (!container || !window.currentUserData) return;
@@ -1137,7 +1242,7 @@ if (!films.length) {
     window.renderHelperTasks = renderHelperTasks;
     window.renderHelperReport = renderHelperReport;
     
-    // ========== УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
+    // ========== МОДУЛЬ 5.1: УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
     window.openAddHelperModal = function() {
         const modal = document.getElementById('addHelperModal');
         if (!modal) return;
@@ -1275,14 +1380,21 @@ if (!films.length) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         if (!order) return;
         
+        let taskDescription = '';
         order.services.forEach(service => {
             (service.tasks || []).forEach(task => {
                 if (String(task.id) === String(taskId)) {
                     task.status = 'completed';
                     task.completedAt = new Date().toISOString();
+                    taskDescription = task.description;
                 }
             });
         });
+        
+        // Уведомляем админа о завершении задачи
+        if (window.currentUserData) {
+            notifyAdminAboutTaskCompletion(orderNumber, window.currentUserData.email, taskDescription);
+        }
         
         saveAll();
         renderHelperTasks();
@@ -1306,7 +1418,7 @@ if (!films.length) {
         renderHelperReport();
     }
 
-    // ========== УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
+    // ========== МОДУЛЬ 5.2: УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
     let currentEditingTask = null;
 
     // Обновление списка помощников из Firebase (все зарегистрированные)
@@ -1636,7 +1748,7 @@ if (!films.length) {
     window.renderAdminPenalties = renderAdminPenalties;
     window.populateAdminHelperFilterFallback = populateAdminHelperFilterFallback;
 
-    // ========== ВЫПЛАТЫ ПОМОЩНИКАМ ==========
+    // ========== МОДУЛЬ 5.3: ВЫПЛАТЫ ПОМОЩНИКАМ ==========
     window.setHelperReportPeriod = function(period) {
         currentHelperReportPeriod = period;
         // Обновляем кнопки
@@ -1770,10 +1882,14 @@ if (!films.length) {
         saveBudgetData();
         renderAdminHelperTasks();
         renderPaymentHistory();
-        alert(`✅ Выплата ${paymentAmount.toLocaleString()} ₽ для ${helperEmail} отмечена!`);
+        
+        // Уведомляем помощника о выплате
+        notifyHelperAboutPayment(helperEmail, paymentAmount);
+        
+        alert(`✅ Выплата ${paymentAmount.toLocaleString()} ₽ для ${helperEmail} отмечена!\n📬 Помощник получит уведомление!`);
     };
 
-    // ========== ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
+    // ========== МОДУЛЬ 5.4: ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
     let currentPaymentHistoryPeriod = 'all';
 
     window.setPaymentHistoryPeriod = function(period) {
@@ -1984,8 +2100,226 @@ if (!films.length) {
 
     window.renderPaymentHistory = renderPaymentHistory;
 
-    // ========== СИСТЕМА ШТРАФОВ ПОМОЩНИКОВ ==========
+    // ========== МОДУЛЬ 5.5: СИСТЕМА ШТРАФОВ ПОМОЩНИКОВ ==========
+    
+    // ========== МОДУЛЬ 5.6: УВЕДОМЛЕНИЯ МЕЖДУ АДМИНОМ И ПОМОЩНИКОМ ==========
+    
+    // Уведомления администратора о действиях помощника
+    window.adminNotifications = [];
+    
+    // Добавить уведомление админу когда помощник завершает задачу
+    function addAdminNotification(type, message, orderNumber) {
+        const notif = {
+            id: 'notif_' + Date.now(),
+            type: type, // 'task_completed', 'task_overdue', 'report_submitted'
+            message: message,
+            orderNumber: orderNumber || null,
+            read: false,
+            createdAt: new Date().toISOString()
+        };
+        window.adminNotifications.push(notif);
+        // Не более 50 уведомлений
+        if (window.adminNotifications.length > 50) {
+            window.adminNotifications = window.adminNotifications.slice(-50);
+        }
+        saveAdminNotifications();
+    }
+    
+    function saveAdminNotifications() {
+        localStorage.setItem('admin_notifications', JSON.stringify(window.adminNotifications));
+    }
+    
+    function loadAdminNotifications() {
+        window.adminNotifications = JSON.parse(localStorage.getItem('admin_notifications') || '[]');
+    }
+    
+    function markNotificationRead(notifId) {
+        const notif = window.adminNotifications.find(n => n.id === notifId);
+        if (notif) {
+            notif.read = true;
+            saveAdminNotifications();
+        }
+    }
+    
+    function clearOldNotifications(days) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        window.adminNotifications = window.adminNotifications.filter(n => new Date(n.createdAt) > cutoff);
+        saveAdminNotifications();
+    }
+    
+    // Уведомления помощника о новых задачах
+    window.helperNotifications = [];
+    
+    function addHelperNotification(helperEmail, type, message, orderNumber) {
+        const notif = {
+            id: 'hnotif_' + Date.now(),
+            helperEmail: helperEmail,
+            type: type, // 'new_task', 'task_updated', 'penalty_issued', 'payment_made'
+            message: message,
+            orderNumber: orderNumber || null,
+            read: false,
+            createdAt: new Date().toISOString()
+        };
+        if (!window.helperNotifications) window.helperNotifications = [];
+        window.helperNotifications.push(notif);
+        // Не более 100 уведомлений
+        if (window.helperNotifications.length > 100) {
+            window.helperNotifications = window.helperNotifications.slice(-100);
+        }
+        saveHelperNotifications();
+    }
+    
+    function saveHelperNotifications() {
+        localStorage.setItem('helper_notifications', JSON.stringify(window.helperNotifications));
+    }
+    
+    function loadHelperNotifications() {
+        window.helperNotifications = JSON.parse(localStorage.getItem('helper_notifications') || '[]');
+    }
+    
+    function getHelperNotifications(helperEmail) {
+        return (window.helperNotifications || [])
+            .filter(n => n.helperEmail === helperEmail)
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    
+    function markHelperNotificationRead(helperEmail, notifId) {
+        const notif = (window.helperNotifications || []).find(n => n.id === notifId && n.helperEmail === helperEmail);
+        if (notif) {
+            notif.read = true;
+            saveHelperNotifications();
+        }
+    }
+    
+    function getUnreadHelperCount(helperEmail) {
+        return (window.helperNotifications || [])
+            .filter(n => n.helperEmail === helperEmail && !n.read)
+            .length;
+    }
+    
+    // Автоматические уведомления при создании задачи
+    function notifyHelperAboutTask(helperEmail, orderNumber, taskDescription) {
+        const order = ordersData.find(o => o.orderNumber == orderNumber);
+        const clientName = order ? order.client : 'Заказ #' + orderNumber;
+        addHelperNotification(helperEmail, 'new_task', `📋 Новая задача: ${taskDescription} (Заказ #${orderNumber}, ${clientName})`, orderNumber);
+    }
+    
+    // Автоматическое уведомление при завершении задачи помощником
+    function notifyAdminAboutTaskCompletion(orderNumber, helperEmail, taskDescription) {
+        addAdminNotification('task_completed', `✅ Помощник ${helperEmail} завершил задачу: ${taskDescription} (Заказ #${orderNumber})`, orderNumber);
+    }
+    
+    // Уведомление о штрафе
+    function notifyHelperAboutPenalty(helperEmail, amount, reason) {
+        addHelperNotification(helperEmail, 'penalty_issued', `⚠️ Штраф: ${amount.toLocaleString()} ₽. Причина: ${reason}`, null);
+    }
+    
+    // Уведомление о выплате
+    function notifyHelperAboutPayment(helperEmail, amount) {
+        addHelperNotification(helperEmail, 'payment_made', `💳 Выплата: ${amount.toLocaleString()} ₽ зачислена!`, null);
+    }
+    
+    // ========== МОДУЛЬ 5.7: ОБНОВЛЁННОЕ УПРАВЛЕНИЕ ЗАДАЧАМИ С УВЕДОМЛЕНИЯМИ ==========
+    
+    // ========== МОДУЛЬ 5.8: ОТОБРАЖЕНИЕ УВЕДОМЛЕНИЙ В UI ==========
+    
+    // Получить unread notifications count для админа
+    function getAdminUnreadCount() {
+        return window.adminNotifications ? window.adminNotifications.filter(n => !n.read).length : 0;
+    }
+    
+    // Получить unread notifications count для помощника
+    function getHelperUnreadCount() {
+        if (!window.currentUserData) return 0;
+        return getUnreadHelperCount(window.currentUserData.email);
+    }
+    
+    // Рендер уведомлений админа
+    function renderAdminNotifications() {
+        const container = document.getElementById('adminNotificationsList');
+        if (!container) return;
+        
+        const notifs = (window.adminNotifications || [])
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 20); // Последние 20
+        
+        if (notifs.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Уведомлений нет ✅</div>';
+            return;
+        }
+        
+        container.innerHTML = notifs.map(n => {
+            const icon = n.type === 'task_completed' ? '✅' : '📋';
+            const date = new Date(n.createdAt).toLocaleString('ru-RU');
+            return `
+                <div style="padding:10px;margin:5px 0;border-radius:6px;background:${n.read ? '#f8f9fa' : '#e3f2fd'};border-left:3px solid ${n.read ? '#6c757d' : '#2196f3'};">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span>${icon} ${n.message}</span>
+                        <span style="font-size:11px;color:#888;">${date}</span>
+                    </div>
+                    ${n.orderNumber ? `<div style="font-size:12px;color:#666;margin-top:4px;">Заказ #${n.orderNumber}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Рендер уведомлений помощника
+    function renderHelperNotifications() {
+        if (!window.currentUserData) return;
+        const container = document.getElementById('helperNotificationsList');
+        if (!container) return;
+        
+        const notifs = getHelperNotifications(window.currentUserData.email);
+        
+        if (notifs.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Уведомлений нет ✅</div>';
+            return;
+        }
+        
+        container.innerHTML = notifs.map(n => {
+            const icon = n.type === 'new_task' ? '📋' : n.type === 'penalty_issued' ? '⚠️' : n.type === 'payment_made' ? '💳' : '📢';
+            const date = new Date(n.createdAt).toLocaleString('ru-RU');
+            return `
+                <div style="padding:10px;margin:5px 0;border-radius:6px;background:${n.read ? '#f8f9fa' : '#fff3cd'};border-left:3px solid ${n.read ? '#6c757d' : '#ffc107'};cursor:pointer;" onclick="markHelperNotificationRead('${window.currentUserData.email}', '${n.id}'); renderHelperNotifications();">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span>${icon} ${n.message}</span>
+                        <span style="font-size:11px;color:#888;">${date}</span>
+                    </div>
+                    ${n.orderNumber ? `<div style="font-size:12px;color:#666;margin-top:4px;">Заказ #${n.orderNumber}</div>` : ''}
+                </div>
+            `;
+        }).join('');
+    }
+    
+    // Показать счётчик уведомлений в заголовке
+    function updateNotificationBadges() {
+        // Для админа
+        const adminBadge = document.getElementById('adminNotifBadge');
+        if (adminBadge) {
+            const count = getAdminUnreadCount();
+            adminBadge.textContent = count > 0 ? ` (${count})` : '';
+            adminBadge.style.display = count > 0 ? 'inline' : 'none';
+        }
+        
+        // Для помощника
+        const helperBadge = document.getElementById('helperNotifBadge');
+        if (helperBadge) {
+            const count = getHelperUnreadCount();
+            helperBadge.textContent = count > 0 ? ` (${count})` : '';
+            helperBadge.style.display = count > 0 ? 'inline' : 'none';
+        }
+    }
+    
+    // Загрузить уведомления при старте
+    function initNotifications() {
+        loadAdminNotifications();
+        loadHelperNotifications();
+        updateNotificationBadges();
+    }
     function openPenaltyModal() {
+        console.warn('🚨 >>> openPenaltyModal called!');
+        console.warn('🚨 window.db=', !!window.db, 'window.get=', typeof window.get, 'window.child=', typeof window.child, 'window.fbRef=', typeof window.fbRef);
         // Заполнить список помощников
         const helperSelect = document.getElementById('penaltyHelper');
         helperSelect.innerHTML = '<option value="">-- Выбери помощника --</option>';
@@ -2007,23 +2341,37 @@ if (!films.length) {
             option.textContent = h.displayName;
             helperSelect.appendChild(option);
         });
+        console.log('Fallback помощники из заказов:', fallbackHelpers.length);
         
         // Потом обновляем из Firebase (асинхронно)
         if (window.db && typeof window.get === 'function' && typeof window.child === 'function') {
             window.get(window.child(window.fbRef(window.db), 'users')).then((snapshot) => {
-                if (!snapshot.exists()) return;
+                console.log('=== Firebase users snapshot ===');
+                if (!snapshot.exists()) {
+                    console.log('Firebase: нет пользователей в базе');
+                    return;
+                }
                 const users = snapshot.val();
+                console.log('Все пользователи из Firebase:', users);
+                
                 const existingEmails = new Set();
                 helperSelect.querySelectorAll('option').forEach(opt => existingEmails.add(opt.value));
                 
+                let helperCount = 0;
                 for (const uid in users) {
-                    if (users[uid].role === 'helper' && !existingEmails.has(users[uid].email)) {
-                        const option = document.createElement('option');
-                        option.value = users[uid].email;
-                        option.textContent = `${users[uid].displayName || 'Без имени'} (${users[uid].email})`;
-                        helperSelect.appendChild(option);
+                    console.log('Пользователь', uid, ':', users[uid]);
+                    if (users[uid].role === 'helper') {
+                        console.log('Найден помощник:', users[uid].email);
+                        if (!existingEmails.has(users[uid].email)) {
+                            const option = document.createElement('option');
+                            option.value = users[uid].email;
+                            option.textContent = `${users[uid].displayName || 'Без имени'} (${users[uid].email})`;
+                            helperSelect.appendChild(option);
+                            helperCount++;
+                        }
                     }
                 }
+                console.log('Добавлено из Firebase:', helperCount);
             }).catch(err => console.error('Ошибка загрузки помощников:', err));
         }
         
@@ -2083,13 +2431,16 @@ if (!films.length) {
         budgetData.helperPenalties.push(penalty);
         saveBudgetData();
         
+        // Уведомляем помощника о штрафе
+        notifyHelperAboutPenalty(helperEmail, amount, reason);
+        
         // Обновить отображение
         renderAdminHelperTasks();
         renderHelperReport();
         renderHelperPenalties();
         
         closePenaltyModal();
-        alert(`✅ Штраф ${amount.toLocaleString()} ₽ для ${helperEmail} выписан!`);
+        alert(`✅ Штраф ${amount.toLocaleString()} ₽ для ${helperEmail} выписан!\n📬 Помощник получит уведомление!`);
     }
     
     function renderHelperPenalties() {
@@ -2376,6 +2727,7 @@ if (!films.length) {
             option.textContent = h.displayName;
             assigneeSelect.appendChild(option);
         });
+        console.log('Задачи: помощники из заказов:', syncHelpers.length);
         
         // Асинхронно обновляем из Firebase
         if (typeof window.get === 'function' && typeof window.child === 'function' && window.db) {
@@ -2426,6 +2778,7 @@ if (!films.length) {
     // Делаем функции глобально доступными
     window.openHelperTaskModal = openHelperTaskModal;
     window.closeHelperTaskModal = closeHelperTaskModal;
+    window.saveHelperTask = saveHelperTask;
 
     function saveHelperTask() {
         const orderNumber = document.getElementById('helperTaskOrder').value;
@@ -2466,10 +2819,13 @@ if (!films.length) {
             createdAt: new Date().toISOString()
         });
         
+        // Уведомляем помощника о новой задаче
+        notifyHelperAboutTask(assignedTo, orderNumber, description);
+        
         saveAll();
         closeHelperTaskModal();
         renderAll();
-        alert('✅ Задача создана для ' + assignedTo);
+        alert('✅ Задача создана для ' + assignedTo + '\n📬 Помощник получит уведомление!');
     }
 
     function openTaskModal(orderNumber) {
@@ -2525,7 +2881,7 @@ if (!films.length) {
     }
 
 
-    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+    // ========== МОДУЛЬ 6: УПРАВЛЕНИЕ ЗАКАЗАМИ (CRUD, услуги, расходники) ==========
     function getOrderColorObj(order) {
         // Преобразуем строковые значения в boolean
         const isDone = order.done === true || order.done === 'true' || order.done === 1;
@@ -2579,7 +2935,7 @@ if (!films.length) {
         return fabricMeters || filmMeters;
     }
 
-    // ========== РАСЧЕТ СЕБЕСТОИМОСТИ ==========
+    // ========== МОДУЛЬ 6.1: РАСЧЕТ СЕБЕСТОИМОСТИ ==========
     function recalcOrder(order) {
         let totalCost = 0;
         order.services.forEach(inst => {
@@ -2633,7 +2989,7 @@ if (!films.length) {
         return order;
     }
 
-    // ========== СКЛАД ==========
+    // ========== МОДУЛЬ 8: СКЛАД И МАТЕРИАЛЫ ==========
     function loadStock() {
         return JSON.parse(localStorage.getItem('stock_data') || '[]');
     }
@@ -2718,7 +3074,7 @@ if (!films.length) {
         saveStock(stock);
     }
 
-    // ========== ДЕНЬГИ ==========
+    // ========== МОДУЛЬ 9: ДЕНЬГИ И ОПЕРАЦИИ ==========
     function renderCash() {
         const tbody = document.getElementById('cashBody');
         tbody.innerHTML = '';
@@ -3878,7 +4234,7 @@ function deleteOrder(orderId) {
     renderAll();
 }
 
-    // ========== ДОП. РАСХОДНИКИ ==========
+    // ========== МОДУЛЬ 6.2: ДОПОЛНИТЕЛЬНЫЕ РАСХОДНИКИ ==========
     function openExtraModalFromOrder() {
         const container = document.getElementById('extraMaterialsContainer');
         container.innerHTML = '';
@@ -3915,7 +4271,7 @@ function deleteOrder(orderId) {
         openExtraModalFromOrder();
     }
 
-    // ========== ЗАКУПКА ==========
+    // ========== МОДУЛЬ 12: ЗАКУПКА МАТЕРИАЛОВ ==========
     function renderPurchaseOrdersList() {
         const container = document.getElementById('purchaseOrdersList');
         container.innerHTML = '';
@@ -4032,7 +4388,7 @@ function deleteOrder(orderId) {
         printWindow.print();
     }
 
-    // ========== ЭКСПОРТ/ИМПОРТ ==========
+    // ========== МОДУЛЬ 13: ЭКСПОРТ/ИМПОРТ ДАННЫХ ==========
     function exportData() {
         const data = {colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, lastOrderNumber: localStorage.getItem('lastOrderNumber'), stock: loadStock()};
         const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
@@ -4085,7 +4441,7 @@ function deleteOrder(orderId) {
         event.target.value = '';
     }
 
-    // ========== ПРОЧЕЕ ==========
+    // ========== МОДУЛЬ 14.1: ПРОЧИЕ ФУНКЦИИ ==========
     function clearAllOrders() {
         if (confirm('Удалить все заказы?')) {
             ordersData = [];
@@ -4146,7 +4502,7 @@ function deleteOrder(orderId) {
           }
       }
 
-     // ========== КАЛЕНДАРЬ ==========
+     // ========== МОДУЛЬ 10: КАЛЕНДАРЬ И ЗАМЕТКИ ==========
      
     // Календарь: только заказы и расходы, без распределения бюджета
     function getRegularPaymentsForDate(dateStr) {
@@ -4622,7 +4978,7 @@ function deleteOrder(orderId) {
         renderAll();
     }
 
-    // ========== РЕНДЕР ==========
+    // ========== МОДУЛЬ 14: UI И РЕНДЕРИНГ ==========
     function renderAll() {
         console.log('renderAll вызван, ordersData.length:', ordersData.length);
         // Если appContent скрыт — ничего не рендерим
@@ -4640,22 +4996,25 @@ function deleteOrder(orderId) {
         renderRefs();
         renderPurchaseOrdersList();
         updateUnpaidSummary();
+        updateNotificationBadges();
         
         // Рендеринг для помощника (любой не-админ)
         if (window.currentUserData && window.currentUserData.role !== 'admin') {
             renderHelperTasks();
             renderHelperReport();
+            renderHelperNotifications();
         }
     }
     
     // Делаем renderAll глобально доступной
     window.renderAll = renderAll;
 
-    // ========== СПРАВОЧНИКИ ==========
+    // ========== МОДУЛЬ 7: СПРАВОЧНИКИ (ткани, краски, плёнки, расходники) ==========
     function renderRefs() {
         renderServicesTable();
         renderMarkersTable();
-        renderMaterialTypes();
+        // renderMaterialTypes() — удалён: элемент materialTypesContainer отсутствует в HTML
+        // Материалы отображаются через renderMarkersTable() (вибро/шумоизоляция)
         renderColorTable();
         renderPaintTable();
         renderFilmTable();
@@ -4770,7 +5129,7 @@ function deleteOrder(orderId) {
         });
     }
 
-    // ========== ИТОГИ (ОТЧЁТ) ==========
+    // ========== МОДУЛЬ 11: ИТОГИ И ОТЧЁТЫ ==========
     function calculateSummaryPeriodDates() {
         const yearSel = document.getElementById('summaryYear');
         const monthSel = document.getElementById('summaryMonth');
@@ -4918,7 +5277,7 @@ function deleteOrder(orderId) {
         saveAll();
     }
 
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
+    // ========== МОДУЛЬ 16: ИНИЦИАЛИЗАЦИЯ И ОБРАБОТЧИКИ ==========
     function addRegularPaymentsToCash() {
         const now = new Date();
         const year = now.getFullYear();
@@ -5095,66 +5454,6 @@ function deleteOrder(orderId) {
         monthSel.value = new Date().getMonth() + 1;
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        loadData();
-        createSampleOrders();
-        addRegularPaymentsToCash();
-        currentDate = new Date();
-        selectedDate = new Date();
-        recalculateStockFromAllOrders();
-        renderAll();
-
-        document.querySelectorAll('.tab-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                document.getElementById(btn.dataset.tab).classList.add('active');
-                btn.classList.add('active');
-                if (btn.dataset.tab === 'tab-calendar') renderCalendar();
-                if (btn.dataset.tab === 'tab-ref') renderRefs();
-                if (btn.dataset.tab === 'tab-purchase') renderPurchaseOrdersList();
-                if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
-                if (btn.dataset.tab === 'helper-report') renderHelperReport();
-                if (btn.dataset.tab === 'tab-helper-admin') {
-                    if (typeof updateHelperFilter === 'function') updateHelperFilter();
-                    renderAdminHelperTasks();
-                }
-            });
-        });
-
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFilter = btn.dataset.filter;
-                renderOrders();
-            });
-        });
-
-        document.getElementById('orderModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeOrderModal(); });
-        document.getElementById('extraModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeExtraModal(); });
-        document.getElementById('serviceItemsModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeServiceItemsModal(); });
-        document.getElementById('bookingModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-        document.getElementById('noteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeNoteModal(); });
-        document.getElementById('addColorModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddColorModal(); });
-        document.getElementById('addPaintModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddPaintModal(); });
-        document.getElementById('addFilmModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddFilmModal(); });
-        document.getElementById('addExtraRefModal')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
-        document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
-        document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
-
-        document.getElementById('orderDate').addEventListener('input', updateDeadline);
-        document.getElementById('orderDurationDays').addEventListener('input', updateDeadline);
-        document.getElementById('orderClientPrice').addEventListener('input', updateModalTotals);
-        document.getElementById('orderHelperPay').addEventListener('input', updateModalTotals);
-
-        populateSummarySelects();
-        renderSummary();
-        
-        // Инициализируем маркеры в услугах
-        configureDefaultServiceMarkers();
-        saveAll();
-    });
 window.updateCloudData = function(data) {
     const localRates = JSON.parse(localStorage.getItem('rates_data') || '[]');
     const localMaterialTypes = JSON.parse(localStorage.getItem('materialTypes_data') || '[]');
@@ -5201,7 +5500,9 @@ window.updateCloudData = function(data) {
     }
 };
 
-// ========== ГОРЯЧИЕ КЛАВИШИ ==========
+    // ========== МОДУЛЬ 15: МОБИЛЬНАЯ НАВИГАЦИЯ И UI ==========
+    
+    // ========== МОДУЛЬ 15.1: ГОРЯЧИЕ КЛАВИШИ ==========
 document.addEventListener('keydown', (e) => {
     // Проверяем, что не находимся в поле ввода
     const isInInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
@@ -5263,7 +5564,7 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// ========== МОБИЛЬНЫЕ УЛУЧШЕНИЯ (iOS/Android FIX) ==========
+    // ========== МОДУЛЬ 15.2: МОБИЛЬНЫЕ УЛУЧШЕНИЯ (iOS/Android FIX) ==========
 
 // Закрытие модалки по клику на overlay
 function handleOverlayClick(event, modalId) {
@@ -5404,10 +5705,11 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     }
 });
 
-// ========== НИЖНЯЯ НАВИГАЦИЯ (МОБИЛЬНАЯ) ==========
+    // ========== МОДУЛЬ 15.3: НИЖНЯЯ НАВИГАЦИЯ (МОБИЛЬНАЯ) ==========
 (function() {
     // Переключение вкладки через bottom nav
     window.switchBottomNavTab = function(tabId) {
+        console.log('switchBottomNavTab called with:', tabId);
         // Закрыть меню "ещё"
         closeBottomNavMoreMenu();
         
@@ -5420,12 +5722,15 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         var target = document.getElementById(tabId);
         if (target) {
             target.classList.add('active');
+            console.log('✅ Tab shown:', tabId);
+        } else {
+            console.error('❌ Tab not found:', tabId);
         }
         
         // Обновить active кнопки ТОЛЬКО в видимой навигации
         var navAdmin = document.getElementById('bottomNavAdmin');
         var navHelper = document.getElementById('bottomNavHelper');
-        var isAdminVisible = navAdmin && (navAdmin.style.display === 'flex' || navAdmin.style.display === 'flex !important');
+        var isAdminVisible = navAdmin && navAdmin.classList.contains('visible');
         var visibleNav = (isAdminVisible) ? navAdmin : navHelper;
         console.log('switchBottomNavTab: role=', window.currentUserData?.role, 'adminVisible=', isAdminVisible);
         if (visibleNav) {
@@ -5457,16 +5762,28 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     };
     
     // Привязка кликов к bottom nav кнопкам
-    function bindBottomNavClicks() {
+    window.bindBottomNavClicks = function() {
         document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
             if (!btn.onclick) {
                 btn.onclick = function() {
                     var tabId = this.getAttribute('data-tab');
-                    switchBottomNavTab(tabId);
+                    if (typeof window.switchBottomNavTab === 'function') {
+                        window.switchBottomNavTab(tabId);
+                    }
+                };
+            }
+            // iOS/Android: touch-обработчик для мгновенной реакции
+            if (!btn.ontouchstart) {
+                btn.ontouchstart = function(e) {
+                    e.preventDefault();
+                    var tabId = this.getAttribute('data-tab');
+                    if (typeof window.switchBottomNavTab === 'function') {
+                        window.switchBottomNavTab(tabId);
+                    }
                 };
             }
         });
-    }
+    };
     
     // Меню "ещё"
     window.toggleBottomNavMoreMenu = function(e) {
@@ -5481,6 +5798,7 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         var menu = document.getElementById('bottomNavMoreMenu');
         if (menu) menu.classList.remove('active');
     }
+    window.closeBottomNavMoreMenu = closeBottomNavMoreMenu;
     
     // Закрыть меню при клике вне его
     document.addEventListener('click', function(e) {
@@ -5493,14 +5811,55 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     
     // Привяжем обработчики после загрузки DOM
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', bindBottomNavClicks);
+        document.addEventListener('DOMContentLoaded', window.bindBottomNavClicks);
     } else {
-        bindBottomNavClicks();
+        window.bindBottomNavClicks();
     }
-    setTimeout(bindBottomNavClicks, 100);
-    setTimeout(bindBottomNavClicks, 500);
+    
+    // Привязка кнопок "Ещё"
+    window.bindMoreMenuItems = function() {
+        document.querySelectorAll('.bottom-nav-more-item[data-tab]').forEach(function(btn) {
+            if (!btn.onclick) {
+                btn.onclick = function() {
+                    var tabId = this.getAttribute('data-tab');
+                    closeBottomNavMoreMenu();
+                    if (typeof window.switchBottomNavTab === 'function') {
+                        window.switchBottomNavTab(tabId);
+                    }
+                };
+            }
+            // iOS touch
+            if (!btn.ontouchstart) {
+                btn.ontouchstart = function(e) {
+                    e.preventDefault();
+                    var tabId = this.getAttribute('data-tab');
+                    closeBottomNavMoreMenu();
+                    if (typeof window.switchBottomNavTab === 'function') {
+                        window.switchBottomNavTab(tabId);
+                    }
+                };
+            }
+        });
+    };
+    
+    setTimeout(window.bindBottomNavClicks, 100);
+    setTimeout(window.bindBottomNavClicks, 500);
+    setTimeout(window.bindMoreMenuItems, 100);
+    setTimeout(window.bindMoreMenuItems, 500);
     
     // Лог роли при загрузке
     console.log('app.js loaded: currentUserData=', window.currentUserData, 'selectedLoginRole=', window.selectedLoginRole);
+    
+    // Инициализация ПОСЛЕ всех определений функций
+    console.log('Calling initAppIfReady...');
+    initAppIfReady();
+    
+    // Привяжем обработчики навигации после инициализации
+    setTimeout(function() {
+        console.log('Binding bottom nav clicks...');
+        window.bindBottomNavClicks();
+        window.bindMoreMenuItems();
+        console.log('✅ Bottom nav bound');
+    }, 200);
 })();
 
