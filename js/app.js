@@ -5281,13 +5281,25 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
     };
     
-    // Привязка кликов к bottom nav кнопкам
-    document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var tabId = this.getAttribute('data-tab');
-            switchBottomNavTab(tabId);
+    // Привязка кликов к bottom nav кнопкам — после загрузки DOM
+    function bindBottomNavClicks() {
+        document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+            if (!btn.onclick) {
+                btn.onclick = function() {
+                    var tabId = this.getAttribute('data-tab');
+                    switchBottomNavTab(tabId);
+                };
+            }
         });
-    });
+        
+        // Закрыть меню при клике вне его
+        document.addEventListener('click', function(e) {
+            var moreContainer = document.getElementById('bottomNavMore');
+            if (moreContainer && !moreContainer.contains(e.target)) {
+                closeBottomNavMoreMenu();
+            }
+        }, { once: true });
+    }
     
     // Меню "ещё"
     window.toggleBottomNavMoreMenu = function(e) {
@@ -5305,21 +5317,34 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         }
     }
     
-    // Закрыть меню при клике вне его
-    document.addEventListener('click', function(e) {
-        var moreContainer = document.getElementById('bottomNavMore');
-        if (moreContainer && !moreContainer.contains(e.target)) {
-            closeBottomNavMoreMenu();
-        }
-    });
-    
-    // Синхронизация top tabs с bottom nav
-    document.querySelectorAll('#adminTabs .tab-btn, #helperTabs .tab-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var tabId = this.getAttribute('data-tab');
-            switchBottomNavTab(tabId);
+    // Синхронизация top tabs с bottom nav — после загрузки DOM
+    function bindTopTabs() {
+        document.querySelectorAll('#adminTabs .tab-btn, #helperTabs .tab-btn').forEach(function(btn) {
+            var tabId = btn.getAttribute('data-tab');
+            if (!tabId) return;
+            // Сохраняем оригинальный onclick
+            var origOnClick = btn.onclick;
+            btn.onclick = function(e) {
+                if (origOnClick) origOnClick.call(this, e);
+                switchBottomNavTab(tabId);
+            };
         });
-    });
+    }
+    
+    // Привяжем обработчики после загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            bindBottomNavClicks();
+            bindTopTabs();
+        });
+    } else {
+        bindBottomNavClicks();
+        bindTopTabs();
+    }
+    setTimeout(bindBottomNavClicks, 100);
+    setTimeout(bindBottomNavClicks, 500);
+    setTimeout(bindTopTabs, 100);
+    setTimeout(bindTopTabs, 500);
     
     // Обновление видимости bottom nav при смене роли
     var origUpdateRoleTabs = window.updateRoleTabs;
