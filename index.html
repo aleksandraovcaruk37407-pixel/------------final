@@ -1264,5 +1264,30 @@
   });
 </script>
 </div>
+
+<!-- Fix: привязка обработчиков bottom nav после загрузки DOM -->
+<script>
+(function() {
+    function bindBottomNav() {
+        document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+            if (!btn.onclick) {
+                btn.onclick = function() {
+                    var tabId = this.getAttribute('data-tab');
+                    if (typeof window.switchBottomNavTab === 'function') {
+                        window.switchBottomNavTab(tabId);
+                    }
+                };
+            }
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bindBottomNav);
+    } else {
+        bindBottomNav();
+    }
+    setTimeout(bindBottomNav, 500);
+    setTimeout(bindBottomNav, 2000);
+})();
+</script>
 </body>
 </html>
