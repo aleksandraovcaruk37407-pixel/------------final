@@ -5383,95 +5383,90 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
                 return;
             }
             var orderModalInner = orderModal.querySelector('.modal');
-        
-        // Переопределяем openOrderModal для bottom-sheet анимации
-        var origOpenOrderModal = window.openOrderModal;
-        
-        window.openOrderModal = function(order) {
-            // Вызываем оригинальную функцию
-            if (origOpenOrderModal) {
-                origOpenOrderModal(order);
-            }
             
-            // Добавляем bottom-sheet класс на мобильных
-            var isMobile = window.innerWidth <= 768;
-            if (isMobile && orderModalInner) {
-                orderModalInner.classList.add('order-modal-bottom-sheet');
-                // Анимация slide-up
-                setTimeout(function() {
-                    orderModalInner.classList.add('active');
-                }, 10);
-            }
+            // Переопределяем openOrderModal для bottom-sheet анимации
+            var origOpenOrderModal = window.openOrderModal;
             
-            document.body.classList.add('modal-open');
-        };
-        
-        // Переопределяем closeOrderModal
-        var origCloseOrderModal = window.closeOrderModal;
-        window.closeOrderModal = function() {
-            var isMobile = window.innerWidth <= 768;
-            if (isMobile && orderModalInner) {
-                orderModalInner.classList.remove('active');
-                setTimeout(function() {
-                    orderModalInner.classList.remove('order-modal-bottom-sheet');
-                    orderModalInner.style.transition = '';
-                    orderModalInner.style.transform = '';
-                    orderModal.style.display = 'none';
-                }, 300);
-            }
+            window.openOrderModal = function(order) {
+                // Вызываем оригинальную функцию
+                if (origOpenOrderModal) {
+                    origOpenOrderModal(order);
+                }
+                
+                // Добавляем bottom-sheet класс на мобильных
+                var isMobile = window.innerWidth <= 768;
+                if (isMobile && orderModalInner) {
+                    orderModalInner.classList.add('order-modal-bottom-sheet');
+                    // Анимация slide-up
+                    setTimeout(function() {
+                        orderModalInner.classList.add('active');
+                    }, 10);
+                }
+                
+                document.body.classList.add('modal-open');
+            };
             
-            if (origCloseOrderModal) {
-                origCloseOrderModal();
-            }
-        };
-        
-        // Свайп для закрытия bottom-sheet
-        var touchStartY = 0;
-        var touchCurrentY = 0;
-        var isSwipingOrderModal = false;
-        
-        orderModal.addEventListener('touchstart', function(e) {
-            var target = e.target;
-            // Работаем только с контентом модалки
-            if (target === orderModalInner || orderModalInner.contains(target)) {
+            // Переопределяем closeOrderModal
+            var origCloseOrderModal = window.closeOrderModal;
+            window.closeOrderModal = function() {
+                var isMobile = window.innerWidth <= 768;
+                if (isMobile && orderModalInner) {
+                    orderModalInner.classList.remove('active');
+                    setTimeout(function() {
+                        orderModalInner.classList.remove('order-modal-bottom-sheet');
+                        orderModalInner.style.transition = '';
+                        orderModalInner.style.transform = '';
+                        orderModal.style.display = 'none';
+                    }, 300);
+                }
+                
+                if (origCloseOrderModal) {
+                    origCloseOrderModal();
+                }
+            };
+            
+            // Свайп для закрытия bottom-sheet
+            var touchStartY = 0;
+            var touchCurrentY = 0;
+            var isSwipingOrderModal = false;
+            
+            orderModal.addEventListener('touchstart', function(e) {
+                var target = e.target;
                 // orderModalInner — это сам .modal, он скроллируемый
                 if (orderModalInner.scrollTop <= 0) {
                     touchStartY = e.touches[0].clientY;
                     isSwipingOrderModal = true;
                     orderModalInner.style.transition = 'none';
                 }
-            }
-        }, { passive: true });
-        
-        orderModal.addEventListener('touchmove', function(e) {
-            if (!isSwipingOrderModal) return;
-            touchCurrentY = e.touches[0].clientY;
-            var diff = touchCurrentY - touchStartY;
+            }, { passive: true });
             
-            // Только свайп вниз
-            if (diff > 0) {
-                orderModalInner.style.transform = 'translateY(' + diff + 'px)';
-                orderModalInner.style.opacity = Math.max(0, 1 - diff / 300);
-                e.preventDefault();
-            }
-        }, { passive: false });
-        
-        orderModal.addEventListener('touchend', function() {
-            if (!isSwipingOrderModal) return;
-            isSwipingOrderModal = false;
+            orderModal.addEventListener('touchmove', function(e) {
+                if (!isSwipingOrderModal) return;
+                touchCurrentY = e.touches[0].clientY;
+                var diff = touchCurrentY - touchStartY;
+                
+                // Только свайп вниз
+                if (diff > 0) {
+                    orderModalInner.style.transform = 'translateY(' + diff + 'px)';
+                    orderModalInner.style.opacity = Math.max(0, 1 - diff / 300);
+                    e.preventDefault();
+                }
+            }, { passive: false });
             
-            var diff = touchCurrentY - touchStartY;
-            if (diff > 150) {
-                // Закрываем
-                window.closeOrderModal();
-            } else {
-                // Возвращаем
-                orderModalInner.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-                orderModalInner.style.transform = '';
-                orderModalInner.style.opacity = '';
-            }
-        }, { passive: true });
-    }
-    setTimeout(init, 100);
-})();
+            orderModal.addEventListener('touchend', function() {
+                if (!isSwipingOrderModal) return;
+                isSwipingOrderModal = false;
+                
+                var diff = touchCurrentY - touchStartY;
+                if (diff > 150) {
+                    window.closeOrderModal();
+                } else {
+                    orderModalInner.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                    orderModalInner.style.transform = '';
+                    orderModalInner.style.opacity = '';
+                }
+            }, { passive: true });
+        }
+        setTimeout(init, 100);
+    })();
 
