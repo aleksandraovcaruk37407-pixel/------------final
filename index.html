@@ -40,12 +40,18 @@
 <script>
   window.openAuthModal = () => {
     const modal = document.getElementById('authModal');
-    if (modal) modal.classList.add('active');
+    if (modal) {
+        modal.classList.add('active');
+        document.body.classList.add('modal-open');
+    }
   };
 
   window.closeAuthModal = () => {
     const modal = document.getElementById('authModal');
-    if (modal) modal.classList.remove('active');
+    if (modal) {
+        modal.classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
     const fields = ['authEmail', 'authPassword'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   };

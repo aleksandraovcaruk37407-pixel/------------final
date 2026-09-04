@@ -128,8 +128,28 @@
         .schedule-slot { border: 1px solid #dee2e6; border-radius: 4px; padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .schedule-slot.payment-slot { background: #cce5ff; }
         .schedule-slot.note-slot { background: #e6d9f5; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; height: 100dvh; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-overlay.active { display: flex; }
+        .modal-overlay { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0;
+            width: 100vw;
+            height: 100%;
+            height: 100dvh;
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000; 
+            justify-content: center; 
+            align-items: center;
+            -webkit-overflow-scrolling: auto;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+        .modal-overlay.active { 
+            display: flex;
+            touch-action: none;
+        }
         .modal { 
             background: #fff; 
             border-radius: 12px; 
@@ -141,13 +161,15 @@
             overflow-y: auto; 
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
+            touch-action: pan-y;
         }
         /* iOS: prevent body scroll when modal open */
         body.modal-open {
             position: fixed;
             width: 100%;
+            height: 100%;
             overflow: hidden;
-            height: 100vh;
+            -webkit-overflow-scrolling: auto;
         }
         .modal h3 { margin-bottom: 15px; color: #1a3c5e; }
         .modal .form-group { margin-bottom: 12px; }
@@ -349,35 +371,33 @@
         }
         /* ========== FULLSCREEN MODAL ON SMALL SCREENS ========== */
         @media (max-width: 600px) {
+            .modal-overlay.active {
+                align-items: flex-end !important;
+            }
             .modal {
                 width: 100% !important;
                 max-width: 100% !important;
-                height: 100% !important;
-                height: 100dvh !important;
-                max-height: 100% !important;
+                height: auto !important;
+                max-height: 95dvh !important;
                 margin: 0 !important;
-                border-radius: 0 !important;
-                position: fixed !important;
-                top: 0 !important;
-                left: 0 !important;
-                right: 0 !important;
-                bottom: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                overflow: hidden !important;
-            }
-            .modal-overlay.active .modal {
-                display: flex !important;
+                border-radius: 16px 16px 0 0 !important;
+                position: relative !important;
+                overflow: visible !important;
             }
             /* Fix iOS scroll in modal */
             .modal > * {
                 overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch !important;
                 overscroll-behavior: contain !important;
+            }
+            .modal > *:first-child {
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior: contain !important;
                 flex: 1;
+                min-height: 0;
             }
             .modal h3 {
-                flex-shrink: 0;
                 padding-bottom: 10px;
                 border-bottom: 1px solid #dee2e6;
                 margin-top: 10px;
@@ -393,6 +413,13 @@
                 position: sticky;
                 bottom: 0;
                 z-index: 10;
+            }
+            /* iOS: prevent pull-to-refresh on modal */
+            .modal-overlay.active {
+                touch-action: none;
+            }
+            .modal > *:first-child {
+                touch-action: pan-y;
             }
         }
 

@@ -1148,11 +1148,15 @@ if (!films.length) {
         document.getElementById('helperCredentials').innerHTML = '';
         
         modal.classList.add('active');
+        document.body.classList.add('modal-open');
     };
 
     window.closeAddHelperModal = function() {
         const modal = document.getElementById('addHelperModal');
-        if (modal) modal.classList.remove('active');
+        if (modal) {
+            modal.classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
     };
 
     window.toggleHelperPassword = function() {
@@ -2194,10 +2198,12 @@ if (!films.length) {
         document.getElementById('editTaskStatus').value = task.status || 'pending';
         
         document.getElementById('editTaskModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
 
     function closeEditTaskModal() {
         document.getElementById('editTaskModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
         currentEditingTask = null;
     }
 
@@ -2332,10 +2338,12 @@ if (!films.length) {
         document.getElementById('helperTaskPenalty').value = '';
         
         document.getElementById('helperTaskModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
 
     function closeHelperTaskModal() {
         document.getElementById('helperTaskModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
     }
     
     // Делаем функции глобально доступными
@@ -2931,36 +2939,44 @@ if (!films.length) {
          document.getElementById('newColorCategory').value = '';
          document.getElementById('newColorCode').value = '';
          document.getElementById('newColorName').value = '';
-         document.getElementById('newColorPrice').value = '';
-         document.getElementById('addColorModal').classList.add('active');
-       }
-       function closeAddColorModal() { document.getElementById('addColorModal').classList.remove('active'); }
-       function saveNewColor() {
-         const category = document.getElementById('newColorCategory').value.trim();
-         const code = document.getElementById('newColorCode').value.trim();
-         const name = document.getElementById('newColorName').value.trim();
-         const price = parseFloat(document.getElementById('newColorPrice').value);
-         if (!category || !code || !name || isNaN(price)) { alert('Заполните все поля корректно'); return; }
-         colors.push({category, code, name, price});
-         saveAll(); renderRefs(); closeAddColorModal();
-     }
+          document.getElementById('newColorPrice').value = '';
+          document.getElementById('addColorModal').classList.add('active');
+          document.body.classList.add('modal-open');
+        }
+        function closeAddColorModal() { 
+            document.getElementById('addColorModal').classList.remove('active');
+            document.body.classList.remove('modal-open');
+        }
+        function saveNewColor() {
+          const category = document.getElementById('newColorCategory').value.trim();
+          const code = document.getElementById('newColorCode').value.trim();
+          const name = document.getElementById('newColorName').value.trim();
+          const price = parseFloat(document.getElementById('newColorPrice').value);
+          if (!category || !code || !name || isNaN(price)) { alert('Заполните все поля корректно'); return; }
+          colors.push({category, code, name, price});
+          saveAll(); renderRefs(); closeAddColorModal();
+      }
 
-    function openAddPaintModal() {
-        document.getElementById('newPaintCategory').value = '';
-        document.getElementById('newPaintCode').value = '';
-        document.getElementById('newPaintName').value = '';
-        document.getElementById('newPaintPrice').value = '';
-        document.getElementById('addPaintModal').classList.add('active');
-    }
-    function closeAddPaintModal() { document.getElementById('addPaintModal').classList.remove('active'); }
-    function saveNewPaint() {
-        const category = document.getElementById('newPaintCategory').value.trim();
-        const code = document.getElementById('newPaintCode').value.trim();
-        const name = document.getElementById('newPaintName').value.trim();
-        const price = parseFloat(document.getElementById('newPaintPrice').value);
-        if (!category || !code || !name || isNaN(price)) { alert('Заполните все поля корректно'); return; }
-        paints.push({category, code, name, price});
-        saveAll(); renderRefs(); closeAddPaintModal();
+     function openAddPaintModal() {
+         document.getElementById('newPaintCategory').value = '';
+         document.getElementById('newPaintCode').value = '';
+         document.getElementById('newPaintName').value = '';
+         document.getElementById('newPaintPrice').value = '';
+         document.getElementById('addPaintModal').classList.add('active');
+         document.body.classList.add('modal-open');
+     }
+     function closeAddPaintModal() { 
+         document.getElementById('addPaintModal').classList.remove('active');
+         document.body.classList.remove('modal-open');
+     }
+     function saveNewPaint() {
+         const category = document.getElementById('newPaintCategory').value.trim();
+         const code = document.getElementById('newPaintCode').value.trim();
+         const name = document.getElementById('newPaintName').value.trim();
+         const price = parseFloat(document.getElementById('newPaintPrice').value);
+         if (!category || !code || !name || isNaN(price)) { alert('Заполните все поля корректно'); return; }
+         paints.push({category, code, name, price});
+         saveAll(); renderRefs(); closeAddPaintModal();
     }
 
     function openAddFilmModal() {
@@ -2969,8 +2985,12 @@ if (!films.length) {
         document.getElementById('newFilmName').value = '';
         document.getElementById('newFilmPrice').value = '';
         document.getElementById('addFilmModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
-    function closeAddFilmModal() { document.getElementById('addFilmModal').classList.remove('active'); }
+    function closeAddFilmModal() { 
+        document.getElementById('addFilmModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
     function saveNewFilm() {
         const category = document.getElementById('newFilmCategory').value.trim();
         const code = document.getElementById('newFilmCode').value.trim();
@@ -2985,8 +3005,12 @@ if (!films.length) {
         document.getElementById('newExtraRefUnit').value = '';
         document.getElementById('newExtraRefPrice').value = '';
         document.getElementById('addExtraRefModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
-    function closeAddExtraRefModal() { document.getElementById('addExtraRefModal').classList.remove('active'); }
+    function closeAddExtraRefModal() { 
+        document.getElementById('addExtraRefModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
     function saveNewExtraRef() {
         const name = document.getElementById('newExtraRefName').value.trim();
         const unit = document.getElementById('newExtraRefUnit').value.trim();
@@ -3073,6 +3097,7 @@ if (!films.length) {
         });
         items.forEach(item => addServiceItemRow(item));
         document.getElementById('serviceItemsModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
 
     function addServiceItemRow(item) {
@@ -3193,7 +3218,11 @@ if (!films.length) {
         renderRefs();
     }
 
-    function closeServiceItemsModal() { document.getElementById('serviceItemsModal').classList.remove('active'); editingServiceIndex = null; }
+    function closeServiceItemsModal() { 
+        document.getElementById('serviceItemsModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+        editingServiceIndex = null;
+    }
 
     // ========== МОДАЛКА ЗАКАЗА ==========
     function updateDeadline() {
@@ -3701,6 +3730,11 @@ function deleteOrder(orderId) {
             container.appendChild(div);
         });
         document.getElementById('extraModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+    function closeExtraModal() { 
+        document.getElementById('extraModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
     }
     function saveExtraModal() {
         document.querySelectorAll('.extra-qty').forEach(input => {
@@ -3709,6 +3743,7 @@ function deleteOrder(orderId) {
             else delete currentExtraData[input.dataset.name];
         });
         document.getElementById('extraModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
         updateModalTotals();
     }
     function addNewExtra() {
@@ -3945,7 +3980,13 @@ function deleteOrder(orderId) {
         renderAll();
    
    }
-     function closeModal() { document.getElementById('bookingModal').classList.remove('active'); }
+      function closeModal() { 
+          const modal = document.getElementById('bookingModal');
+          if (modal) {
+              modal.classList.remove('active');
+              document.body.classList.remove('modal-open');
+          }
+      }
 
      // ========== КАЛЕНДАРЬ ==========
      
@@ -4401,8 +4442,12 @@ function deleteOrder(orderId) {
         document.getElementById('noteTime').value = '';
         document.getElementById('noteText').value = '';
         document.getElementById('noteModal').classList.add('active');
+        document.body.classList.add('modal-open');
     }
-    function closeNoteModal() { document.getElementById('noteModal').classList.remove('active'); }
+    function closeNoteModal() { 
+        document.getElementById('noteModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
     function saveNote() {
         const date = document.getElementById('noteDate').value;
         const time = document.getElementById('noteTime').value;
@@ -5054,7 +5099,8 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// ========== МОБИЛЬНЫЕ УЛУЧШЕНИЯ ==========
+// ========== МОБИЛЬНЫЕ УЛУЧШЕНИЯ (iOS/Android FIX) ==========
+
 // Закрытие модалки по клику на overlay
 function handleOverlayClick(event, modalId) {
     if (event.target.id === modalId) {
@@ -5066,56 +5112,120 @@ function handleOverlayClick(event, modalId) {
     }
 }
 
-// Свайп вниз для закрытия модалки (iOS)
-let touchStartY = 0;
-let touchCurrentY = 0;
-let isSwiping = false;
-
-document.addEventListener('touchstart', (e) => {
-    const modal = document.querySelector('.modal-overlay.active .modal');
-    if (!modal) return;
+// ========== iOS/Android: БЛОКИРОВКА СКРОЛЛА И СВАЙП ==========
+(function() {
+    let touchStartY = 0;
+    let touchEndY = 0;
+    let isSwiping = false;
+    let modalScrollAtStart = 0;
     
-    touchStartY = e.touches[0].clientY;
-    touchCurrentY = touchStartY;
-    isSwiping = false;
-}, { passive: true });
-
-document.addEventListener('touchmove', (e) => {
-    if (!document.querySelector('.modal-overlay.active')) return;
-    
-    touchCurrentY = e.touches[0].clientY;
-    const diff = touchCurrentY - touchStartY;
-    
-    // Свайп вниз более 100px — закрываем модалку
-    if (diff > 100 && !isSwiping) {
-        isSwiping = true;
-        const modalOverlay = document.querySelector('.modal-overlay.active');
-        if (modalOverlay) {
-            modalOverlay.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-            modalOverlay.style.transform = 'translateY(100%)';
-            modalOverlay.style.opacity = '0';
+    // Блокировка скролла body когда модалка открыта
+    function blockBodyScroll(e) {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        const modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        // Если свайп не активен — блокируем скролл body
+        if (!isSwiping) {
+            // Разрешаем скролл только внутри модалки
+            const target = e.target;
+            const isInsideModal = modal.contains(target);
+            const isScrollableElement = target.tagName === 'SELECT' || 
+                target.tagName === 'INPUT' || 
+                target.tagName === 'TEXTAREA';
+            
+            // Если элемент внутри модалки и это поле ввода — разрешаем
+            if (isInsideModal && isScrollableElement) return;
+            
+            // Если элемент внутри модалки и это скроллируемый контейнер — проверяем
+            if (isInsideModal && target.scrollHeight > target.clientHeight) {
+                const atTop = target.scrollTop <= 0;
+                const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 2;
+                
+                // Если в начале и тянем вниз — разрешаем
+                if (atTop && e.touches[0].clientY > touchStartY) return;
+                // Если в конце и тянем вверх — разрешаем
+                if (atBottom && e.touches[0].clientY < touchStartY) return;
+            }
+            
+            // Блокируем скролл body
+            e.preventDefault();
         }
     }
-}, { passive: true });
-
-document.addEventListener('touchend', () => {
-    if (isSwiping) {
-        const modalOverlay = document.querySelector('.modal-overlay.active');
-        if (modalOverlay) {
-            const modalId = modalOverlay.id;
-            modalOverlay.classList.remove('active');
+    
+    // Свайп вниз для закрытия модалки
+    function handleSwipeStart(e) {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        const modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        touchStartY = e.touches[0].clientY;
+        touchEndY = touchStartY;
+        modalScrollAtStart = modal.scrollTop || 0;
+        isSwiping = false;
+    }
+    
+    function handleSwipeMove(e) {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        const modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        touchEndY = e.touches[0].clientY;
+        const diff = touchEndY - touchStartY;
+        
+        // Проверяем что модалка прокручена в начало (можно свайпать)
+        const currentScroll = modal.scrollTop || 0;
+        const atTop = currentScroll <= 5;
+        
+        // На мобильных — модалка снизу, свайп вниз для закрытия
+        if (diff > 50 && atTop && !isSwiping) {
+            isSwiping = true;
+            modal.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            modal.style.transform = 'translateY(100%)';
+            modal.style.opacity = '0.5';
+        }
+    }
+    
+    function handleSwipeEnd(e) {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        const modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        if (isSwiping) {
+            modal.classList.remove('active');
             document.body.classList.remove('modal-open');
             
-            // Сброс стилей для следующей модалки
-            setTimeout(() => {
-                modalOverlay.style.transition = '';
-                modalOverlay.style.transform = '';
-                modalOverlay.style.opacity = '';
+            // Сброс стилей
+            setTimeout(function() {
+                modal.style.transition = '';
+                modal.style.transform = '';
+                modal.style.opacity = '';
             }, 300);
         }
         isSwiping = false;
     }
-}, { passive: true });
+    
+    // iOS/Android: Блокировка скролла body
+    document.addEventListener('touchmove', blockBodyScroll, { passive: false });
+    
+    // iOS/Android: Свайп для закрытия
+    document.addEventListener('touchstart', handleSwipeStart, { passive: true });
+    document.addEventListener('touchmove', handleSwipeMove, { passive: true });
+    document.addEventListener('touchend', handleSwipeEnd, { passive: true });
+    
+    // При закрытии модалки — сброс
+    document.addEventListener('touchcancel', function() {
+        isSwiping = false;
+    }, { passive: true });
+})();
 
 // Закрытие модального уведомления по клику вне него
 document.getElementById('notificationModal')?.addEventListener('click', (e) => {
