@@ -5373,9 +5373,16 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     };
     
     // ========== BOTTOM-SHEET АНИМАЦИЯ ДЛЯ МОДАЛКИ ЗАКАЗА ==========
-    var orderModal = document.getElementById('orderModal');
-    if (orderModal) {
-        var orderModalInner = orderModal.querySelector('.modal');
+    // Ждём загрузки DOM (скрипт в <head>, DOM ещё не готов)
+    (function() {
+        var tries = 0;
+        function init() {
+            var orderModal = document.getElementById('orderModal');
+            if (!orderModal) {
+                if (tries++ < 20) { setTimeout(init, 100); return; }
+                return;
+            }
+            var orderModalInner = orderModal.querySelector('.modal');
         
         // Переопределяем openOrderModal для bottom-sheet анимации
         var origOpenOrderModal = window.openOrderModal;
@@ -5465,5 +5472,6 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
             }
         }, { passive: true });
     }
+    setTimeout(init, 100);
 })();
 

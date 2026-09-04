@@ -426,6 +426,14 @@
             .modal > *:first-child {
                 touch-action: pan-y;
             }
+            /* Bottom-sheet: переопределяем position/overflow для модалки заказа */
+            .modal.order-modal-bottom-sheet {
+                position: fixed !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior: contain !important;
+                touch-action: pan-y !important;
+            }
         }
 
         @media (max-width: 480px) {
