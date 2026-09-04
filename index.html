@@ -1202,6 +1202,7 @@
       // Показать навигацию админа, скрыть помощника
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
+      console.log('updateRoleTabs admin: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
       if (navAdmin) navAdmin.style.display = 'flex';
       if (navHelper) navHelper.style.display = 'none';
     } else {
@@ -1232,6 +1233,7 @@
       // Показать навигацию помощника, скрыть админа
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
+      console.log('updateRoleTabs helper: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
       if (navAdmin) navAdmin.style.display = 'none';
       if (navHelper) navHelper.style.display = 'flex';
     }
@@ -1316,6 +1318,22 @@
     }
     setTimeout(bindBottomNav, 500);
     setTimeout(bindBottomNav, 2000);
+    
+    // Принудительно показать навигацию если пользователь уже авторизован
+    setTimeout(function() {
+        if (window.currentUserData) {
+            console.log('force show nav: role=', window.currentUserData.role);
+            var navAdmin = document.getElementById('bottomNavAdmin');
+            var navHelper = document.getElementById('bottomNavHelper');
+            if (window.currentUserData.role === 'admin') {
+                if (navAdmin) navAdmin.style.display = 'flex';
+                if (navHelper) navHelper.style.display = 'none';
+            } else {
+                if (navAdmin) navAdmin.style.display = 'none';
+                if (navHelper) navHelper.style.display = 'flex';
+            }
+        }
+    }, 1000);
 })();
 </script>
 </body>
