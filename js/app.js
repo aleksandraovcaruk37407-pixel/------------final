@@ -966,6 +966,7 @@ if (!films.length) {
         if (!container || !window.currentUserData) return;
         
         const helperEmail = window.currentUserData.email;
+        console.log('renderHelperTasks: helperEmail=', helperEmail, 'ordersData.length=', ordersData.length);
         
         // Собираем все задачи из всех заказов
         let allTasks = [];
@@ -1036,6 +1037,7 @@ if (!films.length) {
         if (!container || !window.currentUserData) return;
         
         const helperEmail = window.currentUserData.email;
+        console.log('renderHelperReport: helperEmail=', helperEmail, 'ordersData.length=', ordersData.length);
         
         // Фильтруем заказы по периоду
         const filteredOrders = getTasksForPeriod(ordersData, currentHelperReportPeriod);
@@ -4483,12 +4485,10 @@ function deleteOrder(orderId) {
         renderPurchaseOrdersList();
         updateUnpaidSummary();
         
-        // Рендеринг для помощника
-        if (window.currentUserData) {
-            if (window.currentUserData.role === 'helper') {
-                renderHelperTasks();
-                renderHelperReport();
-            }
+        // Рендеринг для помощника (любой не-админ)
+        if (window.currentUserData && window.currentUserData.role !== 'admin') {
+            renderHelperTasks();
+            renderHelperReport();
         }
     }
     
@@ -5035,6 +5035,14 @@ window.updateCloudData = function(data) {
     notes = data.notes || [];
     saveAll();
     renderAll();
+    
+    // Повторный рендер задач помощника после загрузки данных из облака
+    if (window.currentUserData && window.currentUserData.role !== 'admin') {
+        setTimeout(function() {
+            if (typeof renderHelperTasks === 'function') renderHelperTasks();
+            if (typeof renderHelperReport === 'function') renderHelperReport();
+        }, 200);
+    }
 };
 
 // ========== ГОРЯЧИЕ КЛАВИШИ ==========

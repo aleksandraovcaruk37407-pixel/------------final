@@ -1114,6 +1114,13 @@
           console.log('renderAll вызывается, appContent.style.display =', document.getElementById('appContent')?.style.display);
           window.renderAll();
         }, 100);
+        // Повторный рендер через 2 секунды (данные из Firebase могут загрузиться не сразу)
+        setTimeout(() => {
+          if (window.currentUserData && window.currentUserData.role !== 'admin') {
+            if (typeof renderHelperTasks === 'function') renderHelperTasks();
+            if (typeof renderHelperReport === 'function') renderHelperReport();
+          }
+        }, 2000);
       } else {
         console.error('renderAll не определена!');
       }
@@ -1124,7 +1131,7 @@
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-        role: selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
+        role: window.selectedLoginRole || 'helper' // Используем роль, выбранную на экране входа
       };
       window.updateAuthUI();
       window.updateRoleTabs();
