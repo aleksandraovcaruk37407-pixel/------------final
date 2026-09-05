@@ -1235,7 +1235,12 @@
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs admin: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
-      if (navAdmin) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+      // Показываем bottom-nav ТОЛЬКО на мобильных (<=768px)
+      var isMobile = window.innerWidth <= 768;
+      if (navAdmin) {
+        if (isMobile) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+        else { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
+      }
       if (navHelper) { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
     } else {
       adminTabs.style.display = 'none';
@@ -1267,7 +1272,12 @@
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs helper: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
       if (navAdmin) { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
-      if (navHelper) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
+      // Показываем bottom-nav ТОЛЬКО на мобильных (<=768px)
+      var isMobile = window.innerWidth <= 768;
+      if (navHelper) {
+        if (isMobile) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
+        else { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
+      }
     }
   }
   
@@ -1358,13 +1368,21 @@
             console.log('force show nav: role=', window.currentUserData.role);
             var navAdmin = document.getElementById('bottomNavAdmin');
             var navHelper = document.getElementById('bottomNavHelper');
+            // Показываем bottom-nav ТОЛЬКО на мобильных (<=768px)
+            var isMobile = window.innerWidth <= 768;
             if (window.currentUserData.role === 'admin') {
-                if (navAdmin) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+                if (navAdmin) {
+                    if (isMobile) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+                    else { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
+                }
                 if (navHelper) { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
                 console.log('✅ Admin nav shown');
             } else {
                 if (navAdmin) { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
-                if (navHelper) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
+                if (navHelper) {
+                    if (isMobile) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
+                    else { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
+                }
                 console.log('✅ Helper nav shown');
             }
         } else {
