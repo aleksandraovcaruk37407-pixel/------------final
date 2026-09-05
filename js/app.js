@@ -1407,9 +1407,6 @@ if (!films.length) {
             alert('❌ Ошибка: ' + error.message);
         }
     };
-            saveBtn.disabled = false;
-        }
-    };
 
     function completeTask(orderNumber, taskId) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
