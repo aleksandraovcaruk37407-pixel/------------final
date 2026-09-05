@@ -1948,7 +1948,7 @@ if (!films.length) {
     window.setPaymentHistoryPeriod('all');
 
     function getPaymentHistoryForPeriod(period) {
-        if (!budgetData.paymentHistory || budgetData.paymentHistory.length === 0) return [];
+        if (!budgetData || !budgetData.paymentHistory || budgetData.paymentHistory.length === 0) return [];
         
         const now = new Date();
         let startDate = '';
