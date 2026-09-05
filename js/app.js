@@ -479,15 +479,36 @@ if (!films.length) {
 // Debounced Firebase sync (1 раз в 2 сек)
 (function() {
     let syncTimer = null;
+    
+    // Очистка от undefined значений перед отправкой в Firebase
+    function cleanForFirebase(obj) {
+        if (obj === null || obj === undefined) return null;
+        if (Array.isArray(obj)) return obj.map(cleanForFirebase);
+        if (typeof obj !== 'object') return obj;
+        
+        const cleaned = {};
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key)) {
+                const val = cleanForFirebase(obj[key]);
+                if (val !== undefined) cleaned[key] = val;
+            }
+        }
+        return cleaned;
+    }
+    
     window.debouncedSyncFirebase = function() {
         if (syncTimer) clearTimeout(syncTimer);
         syncTimer = setTimeout(function() {
             if (window.db && window.fbSet && window.fbRef) {
                 var syncPayload = {
-                    colors: colors, paints: paints, films: films, extraRef: extraRef, 
-                    rates: rates, ordersData: ordersData, cashOps: cashOps, 
-                    bookings: bookings, materialTypes: materialTypes, 
-                    regularExpenses: regularExpenses, regularIncomes: regularIncomes, notes: notes
+                    colors: cleanForFirebase(colors), paints: cleanForFirebase(paints), 
+                    films: cleanForFirebase(films), extraRef: cleanForFirebase(extraRef), 
+                    rates: cleanForFirebase(rates), ordersData: cleanForFirebase(ordersData), 
+                    cashOps: cleanForFirebase(cashOps), bookings: cleanForFirebase(bookings), 
+                    materialTypes: cleanForFirebase(materialTypes), 
+                    regularExpenses: cleanForFirebase(regularExpenses), 
+                    regularIncomes: cleanForFirebase(regularIncomes), 
+                    notes: cleanForFirebase(notes)
                 };
                 window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
                     .catch(function() {});
