@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Авто-ателье">
+    <meta name="format-detection" content="telephone=no">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -33,11 +34,11 @@
 
 </head>
 <body>
-<!-- app.js -->
-<script src="js/app.js?v=12"></script>
+<!-- app.js — загружаем ПЕРВЫМ (использует только localStorage, не требует Firebase) -->
+<script src="js/app.js?v=16" defer></script>
 
 <!-- Глобальные функции для модальных окон -->
-<script>
+<script defer>
   window.openAuthModal = () => {
     const modal = document.getElementById('authModal');
     if (modal) {
@@ -137,6 +138,8 @@
             <div style="flex:1;"></div>
             <div id="authSection">
                 <span style="font-size:13px;color:#666;" id="userDisplayName"></span>
+                <span id="adminNotifBadge" style="display:none;font-size:13px;color:#dc3545;font-weight:600;"></span>
+                <span id="helperNotifBadge" style="display:none;font-size:13px;color:#dc3545;font-weight:600;"></span>
                 <button class="btn-auth btn-auth-logout" onclick="handleLogout()">🚪 Выйти</button>
             </div>
         </div>
@@ -444,6 +447,13 @@
     <!-- Вкладка Мой отчёт (для помощника) -->
     <div id="helper-report" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
+        
+        <!-- Уведомления помощника -->
+        <div style="margin-bottom:20px; background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
+            <h3 style="margin:0 0 10px 0;">🔔 Мои уведомления <span id="helperNotifBadge" style="display:none;color:#dc3545;"></span></h3>
+            <div id="helperNotificationsList"></div>
+        </div>
+        
         <div style="margin-bottom:15px; display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-sm btn-primary" onclick="setHelperReportPeriod('day')" id="btnHelperDay">📅 День</button>
             <button class="btn btn-sm btn-success" onclick="setHelperReportPeriod('week')" id="btnHelperWeek">📆 Неделя</button>
@@ -487,6 +497,17 @@
             <label style="font-size:13px;font-weight:600;">По:</label>
             <input type="date" id="helperOrderDateTo" onchange="renderAdminHelperTasks()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;font-size:13px;">
         </div>
+        
+        <!-- Уведомления админа -->
+        <div style="margin-bottom:20px; background:#e3f2fd;padding:15px;border-radius:8px;border-left:4px solid #2196f3;">
+            <h3 style="margin:0 0 10px 0;">🔔 Уведомления <span id="adminNotifBadge" style="display:none;color:#dc3545;"></span></h3>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+                <button class="btn btn-sm btn-primary" onclick="clearOldNotifications(7); renderAdminNotifications();">🗑️ Очистить старше 7 дней</button>
+                <button class="btn btn-sm btn-secondary" onclick="window.adminNotifications=[]; saveAdminNotifications(); renderAdminNotifications();">🔄 Сбросить все</button>
+            </div>
+            <div id="adminNotificationsList"></div>
+        </div>
+        
         <div id="adminHelperTasksContainer"></div>
     </div>
 
@@ -519,6 +540,10 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeAddHelperModal()">Отмена</button>
                 <button class="btn-save" onclick="createHelper()">Создать помощника</button>
+            </div>
+            <div style="margin-top:15px;padding-top:15px;border-top:1px solid #dee2e6;">
+                <p style="font-size:12px;color:#666;margin:0 0 10px 0;">⚠️ Если помощник уже зарегистрирован, но не появляется в списке:</p>
+                <button class="btn-add" onclick="registerHelperToDB()" style="padding:8px 16px;font-size:13px;background:#ffc107;color:#000;">🔧 Зарегистрировать в базе</button>
             </div>
         </div>
     </div>
@@ -1102,6 +1127,12 @@
       window.updateAuthUI();
       window.updateRoleTabs();
       
+      // Привяжем обработчики навигации
+      if (typeof window.bindBottomNavClicks === 'function') {
+        window.bindBottomNavClicks();
+        if (typeof window.bindMoreMenuItems === 'function') window.bindMoreMenuItems();
+      }
+      
       // Ждём загрузки app.js перед вызовом updateCloudData
       const checkUpdateCloudData = () => {
         if (typeof window.updateCloudData === 'function') {
@@ -1204,8 +1235,8 @@
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs admin: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
-      if (navAdmin) navAdmin.style.display = 'flex !important';
-      if (navHelper) navHelper.style.display = 'none !important';
+      if (navAdmin) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+      if (navHelper) { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
     } else {
       adminTabs.style.display = 'none';
       helperTabs.style.display = 'flex';
@@ -1235,8 +1266,8 @@
       var navAdmin = document.getElementById('bottomNavAdmin');
       var navHelper = document.getElementById('bottomNavHelper');
       console.log('updateRoleTabs helper: navAdmin=', !!navAdmin, 'navHelper=', !!navHelper, 'role=', window.currentUserData.role);
-      if (navAdmin) navAdmin.style.display = 'none !important';
-      if (navHelper) navHelper.style.display = 'flex !important';
+      if (navAdmin) { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
+      if (navHelper) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
     }
   }
   
@@ -1298,7 +1329,7 @@
 </div>
 
 <!-- Fix: привязка обработчиков bottom nav после загрузки DOM -->
-<script>
+<script defer>
 (function() {
     function bindBottomNav() {
         document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
@@ -1328,12 +1359,12 @@
             var navAdmin = document.getElementById('bottomNavAdmin');
             var navHelper = document.getElementById('bottomNavHelper');
             if (window.currentUserData.role === 'admin') {
-                if (navAdmin) navAdmin.style.display = 'flex !important';
-                if (navHelper) navHelper.style.display = 'none !important';
+                if (navAdmin) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+                if (navHelper) { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
                 console.log('✅ Admin nav shown');
             } else {
-                if (navAdmin) navAdmin.style.display = 'none !important';
-                if (navHelper) navHelper.style.display = 'flex !important';
+                if (navAdmin) { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
+                if (navHelper) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
                 console.log('✅ Helper nav shown');
             }
         } else {
@@ -1341,12 +1372,171 @@
         }
     }
     
-    // Первая попытка через 500мс
-    setTimeout(forceShowNav, 500);
-    // Повторная проверка через 3 сек (на случай медленного Firebase)
-    setTimeout(forceShowNav, 3000);
-    // Ещё раз через 6 сек (на всякий случай)
-    setTimeout(forceShowNav, 6000);
+    // forceShowNav вызывается из updateRoleTabs и getUserDataForAuth
+    // после авторизации, когда currentUserData установлен
+})();
+</script>
+
+<!-- ========== iOS/Android TOUCH FIX ========== -->
+<script defer>
+(function() {
+    // Предотвращение двойного зума на iOS
+    var lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e) {
+        var now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+            e.preventDefault();
+        }
+        lastTouchEnd = now;
+    }, { passive: false });
+    
+    // Улучшенные touch-обработчики для нижней навигации
+    function initTouchFix() {
+        // Нижняя навигация — используем touchstart для мгновенной реакции
+        document.querySelectorAll('.bottom-nav-item[data-tab]').forEach(function(btn) {
+            btn.addEventListener('touchstart', function() {
+                this.classList.add('active');
+            }, { passive: true });
+            btn.addEventListener('touchend', function() {
+                var tabId = this.getAttribute('data-tab');
+                if (typeof window.switchBottomNavTab === 'function') {
+                    window.switchBottomNavTab(tabId);
+                }
+            }, { passive: true });
+        });
+        
+        // Кнопки "Ещё" в нижней навигации
+        document.querySelectorAll('.bottom-nav-more-item[data-tab]').forEach(function(btn) {
+            btn.addEventListener('touchend', function() {
+                var tabId = this.getAttribute('data-tab');
+                if (typeof window.closeBottomNavMoreMenu === 'function') window.closeBottomNavMoreMenu();
+                if (typeof window.switchBottomNavTab === 'function') {
+                    window.switchBottomNavTab(tabId);
+                }
+            }, { passive: true });
+        });
+        
+        // Карточки заказов — touch для открытия
+        document.querySelectorAll('.order-item').forEach(function(item) {
+            item.addEventListener('touchend', function(e) {
+                // Не обрабатываем если кликнули на кнопку внутри
+                if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+                // Клик по заказу — открываем модалку
+                if (typeof window.openOrderModal === 'function') {
+                    var orderId = this.getAttribute('data-id');
+                    if (orderId) window.openOrderModal(orderId);
+                }
+            }, { passive: true });
+        });
+        
+        // Ячейки календаря
+        document.querySelectorAll('.calendar-grid .day-cell').forEach(function(cell) {
+            cell.addEventListener('touchend', function() {
+                if (typeof window.renderCalendar === 'function') {
+                    // Устанавливаем выбранную дату
+                    var dateText = this.getAttribute('data-date');
+                    if (dateText) {
+                        window.selectedDate = new Date(dateText + 'T00:00:00');
+                        window.renderCalendar();
+                    }
+                }
+            }, { passive: true });
+        });
+        
+        // Фильтры заказов
+        document.querySelectorAll('.filter-btn').forEach(function(btn) {
+            btn.addEventListener('touchend', function() {
+                if (typeof window.renderOrders === 'function') {
+                    window.renderOrders();
+                }
+            }, { passive: true });
+        });
+        
+        // Кнопки переключения вкладок
+        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.addEventListener('touchend', function() {
+                var tabId = this.getAttribute('data-tab');
+                if (typeof window.switchBottomNavTab === 'function') {
+                    window.switchBottomNavTab(tabId);
+                }
+            }, { passive: true });
+        });
+    }
+    
+    // Инициализация после загрузки DOM
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTouchFix);
+    } else {
+        initTouchFix();
+    }
+    
+    // Повторная инициализация через интервалы (на случай динамического контента)
+    setTimeout(initTouchFix, 1000);
+    setTimeout(initTouchFix, 3000);
+    setTimeout(initTouchFix, 5000);
+    
+    // Принудительно показать навигацию после touch fix
+    setTimeout(function() {
+        if (window.currentUserData) {
+            var navAdmin = document.getElementById('bottomNavAdmin');
+            var navHelper = document.getElementById('bottomNavHelper');
+            if (window.currentUserData.role === 'admin') {
+                if (navAdmin) { navAdmin.style.display = 'flex'; navAdmin.classList.add('visible'); }
+                if (navHelper) { navHelper.style.display = 'none'; navHelper.classList.remove('visible'); }
+            } else {
+                if (navAdmin) { navAdmin.style.display = 'none'; navAdmin.classList.remove('visible'); }
+                if (navHelper) { navHelper.style.display = 'flex'; navHelper.classList.add('visible'); }
+            }
+            console.log('✅ Nav forced visible after touch fix');
+        }
+    }, 1000);
+    
+    // Предотвращение скролла body на iOS при скролле модалки
+    document.addEventListener('touchmove', function(e) {
+        var activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        var modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        var target = e.target;
+        var isScrollable = target.scrollHeight > target.clientHeight;
+        
+        // Разрешаем скролл внутри модалки
+        if (modal.contains(target) && isScrollable) return;
+        
+        // Блокируем скролл body
+        if (activeModal.contains(target)) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    // Принудительный рендер всех функций при видимости
+    function ensureFunctionsRendered() {
+        if (window.currentUserData && window.currentUserData.role) {
+            // Админ: рендерим все вкладки
+            if (window.currentUserData.role === 'admin') {
+                if (typeof window.renderOrders === 'function') window.renderOrders();
+                if (typeof window.renderCalendar === 'function') window.renderCalendar();
+                if (typeof window.renderAdminHelperTasks === 'function') window.renderAdminHelperTasks();
+                if (typeof window.renderStock === 'function') window.renderStock();
+                if (typeof window.renderCash === 'function') window.renderCash();
+                if (typeof window.renderSummary === 'function') window.renderSummary();
+                if (typeof window.renderServicesTable === 'function') window.renderServicesTable();
+            } else {
+                // Помощник
+                if (typeof window.renderHelperTasks === 'function') window.renderHelperTasks();
+                if (typeof window.renderHelperReport === 'function') window.renderHelperReport();
+            }
+        }
+    }
+    
+    // Рендер через 1, 3, 5 секунд после загрузки
+    setTimeout(ensureFunctionsRendered, 1000);
+    setTimeout(ensureFunctionsRendered, 3000);
+    setTimeout(ensureFunctionsRendered, 5000);
+    
+    console.log('✅ iOS/Android touch fixes initialized');
 })();
 </script>
 </body>

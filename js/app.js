@@ -1347,6 +1347,7 @@ if (!films.length) {
                 <div><b>👤 Имя:</b> ${name}</div>
                 <div><b>📧 Email:</b> ${email}</div>
                 <div><b>🔒 Пароль:</b> <span style="color:#dc3545;font-weight:700;">${password}</span></div>
+                <div><b>🆔 UID:</b> ${user.uid}</div>
             `;
             
             // Обновить список помощников в фильтре
@@ -1372,6 +1373,40 @@ if (!films.length) {
             alert(msg);
         } finally {
             saveBtn.textContent = originalText;
+            saveBtn.disabled = false;
+        }
+    };
+
+    // Ручное создание записи помощника в Realtime Database
+    window.registerHelperToDB = async function() {
+        const email = prompt('Введите email помощника:');
+        if (!email) return;
+        
+        const name = prompt('Введите имя помощника:') || email;
+        
+        try {
+            // Ищем пользователя в Auth
+            console.log('Ищем пользователя в Auth по email:', email);
+            
+            // Создаём запись в Realtime Database напрямую
+            const uid = 'helper_' + email.replace(/[@.]/g, '_');
+            await window.set(window.fbRef(window.db), 'users/' + uid, {
+                email: email,
+                displayName: name,
+                role: 'helper',
+                createdAt: new Date().toISOString(),
+                createdBy: window.currentUserData ? window.currentUserData.email : 'system',
+                manualRegistration: true
+            });
+            
+            alert('✅ Помощник ' + email + ' зарегистрирован в базе!\nUID: ' + uid);
+            updateHelperFilter();
+            updatePaymentHelperFilter();
+        } catch (error) {
+            console.error('Ошибка регистрации в базе:', error);
+            alert('❌ Ошибка: ' + error.message);
+        }
+    };
             saveBtn.disabled = false;
         }
     };
