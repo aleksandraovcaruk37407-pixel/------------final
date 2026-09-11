@@ -1,5 +1,5 @@
 /* ===== Auto-Atelier Service Worker ===== */
-const CACHE_NAME = 'auto-atelier-v2';
+const CACHE_NAME = 'auto-atelier-v3-20260912';
 const STATIC_ASSETS = [
   './',
   './index.html',

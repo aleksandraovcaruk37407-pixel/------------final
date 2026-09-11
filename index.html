@@ -28,6 +28,15 @@
 
 <!-- PWA: Service Worker Registration -->
 <script>
+  // Сначала отменяем старый Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      for (let registration of registrations) {
+        registration.unregister();
+      }
+    });
+  }
+  
   // Регистрация Service Worker для PWA и офлайн-работы
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
