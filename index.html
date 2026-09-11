@@ -12,7 +12,7 @@
     <meta http-equiv="Expires" content="0">
     <title>Учет авто-ателье</title>
     <base href="./">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/styles.css?v=202609120117">
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
@@ -23,43 +23,11 @@
 </head>
 <body>
 <!-- Сначала загружаем Firebase, потом app.js -->
-<script type="module" src="js/firebase.js"></script>
-<script src="js/app.js?v=28" defer></script>
+<script type="module" src="js/firebase.js?v=202609120117"></script>
+<script src="js/app.js?v=202609120117" defer></script>
 
-<!-- PWA: Service Worker Registration -->
+<!-- PWA: Push Notification Setup -->
 <script>
-  // Сначала отменяем старый Service Worker
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for (let registration of registrations) {
-        registration.unregister();
-      }
-    });
-  }
-  
-  // Регистрация Service Worker для PWA и офлайн-работы
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('./sw.js')
-        .then(function(registration) {
-          console.log('[PWA] Service Worker зарегистрирован:', registration.scope);
-          
-          // Проверка обновлений SW
-          registration.addEventListener('updatefound', function() {
-            const newWorker = registration.installing;
-            newWorker.addEventListener('statechange', function() {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[PWA] Новое обновление доступно!');
-              }
-            });
-          });
-        })
-        .catch(function(error) {
-          console.log('[PWA] Ошибка регистрации SW:', error);
-        });
-    });
-  }
-
   // Запрос разрешения на push-уведомления
   function requestNotificationPermission() {
     if (!('Notification' in window)) return;
