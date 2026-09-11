@@ -1001,7 +1001,7 @@
     container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Загрузка...</div>';
     
     try {
-      const snapshot = await get(child(ref(window.db), 'users'));
+      const snapshot = await window.fbGet(window.fbChild(window.fbRef(window.db), 'users'));
       
       if (!snapshot.exists()) {
         container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Пользователей пока нет</div>';
@@ -1072,7 +1072,7 @@
     console.log('>>> Пытаюсь прочитать из базы...');
     
     // Пробуем прочитать из базы
-    get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+    window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
       console.log('>>> snapshot.exists =', snapshot.exists());
       console.log('>>> snapshot.val() =', snapshot.val());
       const userData = snapshot.val();
@@ -1103,7 +1103,7 @@
       // Ждём загрузки app.js перед вызовом updateCloudData
       const checkUpdateCloudData = () => {
         if (typeof window.updateCloudData === 'function') {
-          get(child(ref(window.db), 'atelier_data')).then((snapshot) => {
+          window.fbGet(window.fbChild(window.fbRef(window.db), 'atelier_data')).then((snapshot) => {
             if (snapshot.exists()) {
               window.updateCloudData(snapshot.val());
               console.log("Данные синхронизированы из облака!");
@@ -1254,11 +1254,11 @@
       
       // Создаём запись пользователя в базе, если её нет, затем загружаем данные
       console.log('Проверяю запись пользователя в базе...');
-      get(child(ref(window.db), 'users/' + user.uid)).then((snapshot) => {
+      window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
         console.log('Пользователь найден в базе:', snapshot.exists());
         if (!snapshot.exists()) {
           console.log('Создаю запись пользователя...');
-          return set(ref(window.db), 'users/' + user.uid, {
+          return window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
             role: 'admin',

@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { getDatabase, ref, set, get, child, onValue, off, onDisconnect } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDGsjB5bhSL2keL0xTIOJib3ZB9HEqGyMs",
@@ -17,8 +17,13 @@ window.db = getDatabase(app);
 window.auth = getAuth(app);
 window.fbRef = ref;
 window.fbSet = set;
+window.fbGet = get;
+window.fbChild = child;
 window.onAuthStateChanged = onAuthStateChanged;
 window.signOut = signOut;
+window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+window.updateProfile = updateProfile;
 
 let firebaseConnected = false;
 let cloudDataLoaded = false;
