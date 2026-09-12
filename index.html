@@ -50,19 +50,13 @@
       cssLink.rel = 'stylesheet';
       cssLink.href = 'css/styles.css?' + cacheBust;
       document.head.appendChild(cssLink);
-      
-      // Загружаем app.js с defer
-      var appScript = document.createElement('script');
-      appScript.src = 'js/app.js?' + cacheBust;
-      appScript.defer = true;
-      document.head.appendChild(appScript);
     </script>
     
-    <!-- Firebase module загружается первым (до inline module скрипта внизу) -->
-    <script type="module" id="firebaseModule"></script>
-    <script>
-      document.getElementById('firebaseModule').src = 'js/firebase.js?' + (new Date()).getTime();
-    </script>
+    <!-- Firebase module загружается первым -->
+    <script type="module" src="js/firebase.js?v=202609121639"></script>
+    
+    <!-- app.js загружается с defer -->
+    <script src="js/app.js?v=202609121639" defer></script>
 
 
 </head>
