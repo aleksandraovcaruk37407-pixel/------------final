@@ -51,17 +51,17 @@
       cssLink.href = 'css/styles.css?' + cacheBust;
       document.head.appendChild(cssLink);
       
-      // Динамически загружаем Firebase (module)
-      var firebaseScript = document.createElement('script');
-      firebaseScript.type = 'module';
-      firebaseScript.src = 'js/firebase.js?' + cacheBust;
-      document.head.appendChild(firebaseScript);
-      
-      // Динамически загружаем app.js (defer)
+      // Загружаем app.js с defer
       var appScript = document.createElement('script');
       appScript.src = 'js/app.js?' + cacheBust;
       appScript.defer = true;
       document.head.appendChild(appScript);
+    </script>
+    
+    <!-- Firebase module загружается первым (до inline module скрипта внизу) -->
+    <script type="module" id="firebaseModule"></script>
+    <script>
+      document.getElementById('firebaseModule').src = 'js/firebase.js?' + (new Date()).getTime();
     </script>
 
 
@@ -885,28 +885,61 @@
   };
 
   // ========== ФУНКЦИИ ВХОДА/ВЫХОДА (ДОСТУПНЫ ИЗ HTML) ==========
+  // Ждём загрузки Firebase перед использованием
+  function waitForFirebase(callback) {
+    if (window.auth && typeof window.signInWithEmailAndPassword === 'function') {
+      callback();
+    } else {
+      setTimeout(() => waitForFirebase(callback), 100);
+    }
+  }
+
   window.handleLogin = async () => {
+    console.log('[Auth] handleLogin вызван');
+    console.log('[Auth] window.auth доступен:', !!window.auth);
+    console.log('[Auth] window.signInWithEmailAndPassword доступен:', typeof window.signInWithEmailAndPassword);
+    
     const email = document.getElementById('authEmail').value.trim();
     const password = document.getElementById('authPassword').value;
+    console.log('[Auth] Email:', email);
+    
     if (!email || !password) {
       alert('Заполните все поля!');
       return;
     }
+    
+    // Проверяем, что Firebase загружен
+    if (!window.auth || typeof window.signInWithEmailAndPassword !== 'function') {
+      alert('❌ Firebase ещё не загрузился.\n\nОбновите страницу (Ctrl+F5) и попробуйте снова.');
+      return;
+    }
+    
     try {
-      await signInWithEmailAndPassword(window.auth, email, password);
+      console.log('[Auth] Вызываю signInWithEmailAndPassword...');
+      const result = await window.signInWithEmailAndPassword(window.auth, email, password);
+      console.log('[Auth] Вход успешен, user uid:', result.user.uid);
       closeAuthModal();
     } catch (error) {
-      console.error('Ошибка входа:', error);
+      console.error('[Auth] Ошибка входа:', error);
+      console.error('[Auth] Error code:', error.code);
+      console.error('[Auth] Error message:', error.message);
       let msg = 'Ошибка входа';
-      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден';
+      if (error.code === 'auth/user-not-found') msg = 'Пользователь не найден. Сначала зарегистрируйтесь.';
       if (error.code === 'auth/wrong-password') msg = 'Неверный пароль';
       if (error.code === 'auth/invalid-credential') msg = 'Неверный email или пароль';
-      alert('❌ ' + msg);
+      if (error.code === 'auth/too-many-requests') msg = 'Слишком много попыток. Подождите 5 минут.';
+      if (error.code === 'auth/user-disabled') msg = 'Пользователь отключён';
+      if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
+      alert('❌ ' + msg + '\n\nКод: ' + (error.code || 'unknown'));
     }
   };
 
   // ========== РЕГИСТРАЦИЯ ==========
   window.handleRegister = async () => {
+    console.log('[Auth] handleRegister вызван');
+    console.log('[Auth] window.auth доступен:', !!window.auth);
+    console.log('[Auth] window.createUserWithEmailAndPassword доступен:', typeof window.createUserWithEmailAndPassword);
+    
     const name = document.getElementById('registerName').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
@@ -922,31 +955,42 @@
       return;
     }
     
+    // Проверяем, что Firebase загружен
+    if (!window.auth || typeof window.createUserWithEmailAndPassword !== 'function') {
+      alert('❌ Firebase ещё не загрузился.\n\nОбновите страницу (Ctrl+F5) и попробуйте снова.');
+      return;
+    }
+    
     try {
+      console.log('[Auth] Создаю пользователя...');
       // Создаём пользователя в Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(window.auth, email, password);
+      const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
       const user = userCredential.user;
+      console.log('[Auth] Пользователь создан, uid:', user.uid);
       
       // Обновляем displayName
-      await updateProfile(user, { displayName: name });
+      await window.updateProfile(user, { displayName: name });
+      console.log('[Auth] displayName обновлён');
       
       // Сохраняем роль в Firebase Realtime Database
-      await set(ref(window.db), 'users/' + user.uid, {
+      await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
         email: email,
         displayName: name,
         role: role,
         createdAt: new Date().toISOString()
       });
+      console.log('[Auth] Данные пользователя сохранены');
       
       alert('✅ Регистрация успешна!\n\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник') + '\n\nТеперь войдите в систему.');
       closeAuthModal();
     } catch (error) {
-      console.error('Ошибка регистрации:', error);
+      console.error('[Auth] Ошибка регистрации:', error);
+      console.error('[Auth] Error code:', error.code);
       let msg = 'Ошибка регистрации';
       if (error.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
       if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
       if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
-      alert('❌ ' + msg);
+      alert('❌ ' + msg + '\n\nКод: ' + (error.code || 'unknown'));
     }
   };
 
@@ -954,7 +998,7 @@
   window.handleLogout = async () => {
     if (!confirm('Выйти из системы?')) return;
     try {
-      await signOut(window.auth);
+      await window.signOut(window.auth);
       location.reload();
     } catch (error) {
       console.error('Ошибка выхода:', error);
@@ -981,11 +1025,11 @@
     
     try {
       // Создаём пользователя в Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(window.auth, email, password);
+      const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
       const user = userCredential.user;
       
       // Сохраняем данные пользователя в Realtime Database
-      await set(ref(window.db), 'users/' + user.uid, {
+      await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
         email: email,
         displayName: name,
         role: role,
@@ -1277,7 +1321,7 @@
         console.log('Пользователь найден в базе:', snapshot.exists());
         if (!snapshot.exists()) {
           console.log('Создаю запись пользователя...');
-          return window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
+          return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
             role: 'admin',
