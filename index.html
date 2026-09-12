@@ -128,13 +128,6 @@
                 <label>🔒 Пароль</label>
                 <input type="password" id="registerPassword" placeholder="Минимум 6 символов">
             </div>
-            <div class="form-group">
-                <label>👥 Роль</label>
-                <select id="registerRole" style="width:100%;padding:10px;border-radius:6px;border:1px solid #ced4da;">
-                    <option value="admin">👨‍💼 Администратор</option>
-                    <option value="helper">👷 Помощник</option>
-                </select>
-            </div>
             <div style="display:flex;gap:10px;margin-top:15px;">
                 <button class="btn-add" onclick="handleRegister()" style="flex:1;">Зарегистрироваться</button>
                 <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
@@ -144,11 +137,6 @@
 </div>
 
 <script>
-  // Глобальные функции для модальных окон (базовые)
-  window.setLoginRole = function(role) {
-    window.selectedLoginRole = role;
-  };
-  
   // Базовая функция закрытия модалки (переопределяется в module скрипте)
   window.closeAuthModal = () => {
     const modal = document.getElementById('authModal');
@@ -174,12 +162,6 @@
         <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
             <h1 style="font-size:48px;margin-bottom:20px;">🚗</h1>
             <h2 style="color:#1a3c5e;margin-bottom:30px;">Учет авто-ателье</h2>
-            
-            <!-- Выбор роли -->
-            <div style="display:flex;gap:10px;margin-bottom:20px;">
-                <button class="btn-add" onclick="setLoginRole('admin')" id="btnRoleAdmin" style="flex:1;padding:10px;font-size:14px;background:#1a3c5e;">👨‍💼 Администратор</button>
-                <button class="btn-add" onclick="setLoginRole('helper')" id="btnRoleHelper" style="flex:1;padding:10px;font-size:14px;background:#6c757d;">👷 Помощник</button>
-            </div>
             
             <button class="btn-add" onclick="openAuthModal()" style="padding:12px 40px;font-size:16px;">🔑 Войти в систему</button>
             <p style="margin-top:20px;font-size:13px;color:#888;">Введите email и пароль для доступа</p>
@@ -912,6 +894,47 @@
       console.log('[Auth] Вызываю signInWithEmailAndPassword...');
       const result = await window.signInWithEmailAndPassword(window.auth, email, password);
       console.log('[Auth] Вход успешен, user uid:', result.user.uid);
+      
+      // Автоматически получаем роль пользователя из Firebase
+      const user = result.user;
+      if (window.db && window.fbGet && window.fbChild && window.fbRef) {
+        const snapshot = await window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid));
+        if (snapshot.exists()) {
+          const userData = snapshot.val();
+          console.log('[Auth] Роль пользователя из БД:', userData.role);
+          window.currentUserData = {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || userData.displayName || user.email.split('@')[0],
+            role: userData.role || 'admin' // По умолчанию admin если роль не указана
+          };
+        } else {
+          // Если пользователь не найден в БД — даём роль администратора
+          console.log('[Auth] Пользователь не найден в БД, роль: admin');
+          window.currentUserData = {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0],
+            role: 'admin'
+          };
+          // Создаём запись в БД
+          await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0],
+            role: 'admin',
+            createdAt: new Date().toISOString()
+          });
+        }
+      } else {
+        // Firebase DB недоступен — по умолчанию admin
+        window.currentUserData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email.split('@')[0],
+          role: 'admin'
+        };
+      }
+      
       closeAuthModal();
     } catch (error) {
       console.error('[Auth] Ошибка входа:', error);
@@ -937,7 +960,6 @@
     const name = document.getElementById('registerName').value.trim();
     const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
-    const role = document.getElementById('registerRole').value;
     
     if (!name || !email || !password) {
       alert('Заполните все поля!');
@@ -966,16 +988,16 @@
       await window.updateProfile(user, { displayName: name });
       console.log('[Auth] displayName обновлён');
       
-      // Сохраняем роль в Firebase Realtime Database
+      // Сохраняем роль в Firebase Realtime Database (по умолчанию admin)
       await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
         email: email,
         displayName: name,
-        role: role,
+        role: 'admin',
         createdAt: new Date().toISOString()
       });
       console.log('[Auth] Данные пользователя сохранены');
       
-      alert('✅ Регистрация успешна!\n\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник') + '\n\nТеперь войдите в систему.');
+      alert('✅ Регистрация успешна!\n\nТеперь войдите в систему.');
       closeAuthModal();
     } catch (error) {
       console.error('[Auth] Ошибка регистрации:', error);
@@ -1140,7 +1162,7 @@
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || userData.displayName || 'Пользователь',
-          role: userData.role || 'user'
+          role: userData.role || 'admin'
         };
       } else {
         // Если данных нет в базе — используем данные из Firebase Auth

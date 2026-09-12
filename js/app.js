@@ -1076,29 +1076,7 @@ window.localChangesPending = false;
 
 
     // ========== МОДУЛЬ 4: АВТОРИЗАЦИЯ И ПОЛЬЗОВАТЕЛИ ==========
-    window.selectedLoginRole = 'admin';
-
-    window.setLoginRole = function(role) {
-        window.selectedLoginRole = role;
-        const btnAdmin = document.getElementById('btnRoleAdmin');
-        const btnHelper = document.getElementById('btnRoleHelper');
-        if (btnAdmin && btnHelper) {
-            if (role === 'admin') {
-                btnAdmin.style.background = '#1a3c5e';
-                btnAdmin.style.color = '#fff';
-                btnHelper.style.background = '#6c757d';
-                btnHelper.style.color = '#fff';
-            } else {
-                btnHelper.style.background = '#1a3c5e';
-                btnHelper.style.color = '#fff';
-                btnAdmin.style.background = '#6c757d';
-                btnAdmin.style.color = '#fff';
-            }
-        }
-    }
-
-    // Инициализация роли по умолчанию
-    setLoginRole('admin');
+    // Роль определяется автоматически из Firebase при входе
 
     // ========== МОДУЛЬ 5: СИСТЕМА ПОМОЩНИКОВ (задачи, штрафы, выплаты) ==========
     function renderHelperTasks() {
