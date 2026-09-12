@@ -47,6 +47,69 @@ onAuthStateChanged(window.auth, (user) => {
   }
 });
 
+// ========== ГЛОБАЛЬНАЯ ПРОВЕРКА АВТОРИЗАЦИИ (вызывается ПОСЛЕ загрузки app.js) ==========
+window.initAuthState = function() {
+  console.log('[Auth] initAuthState вызван');
+  
+  onAuthStateChanged(window.auth, (user) => {
+    console.log('onAuthStateChanged: user есть, uid =', user ? user.uid : 'null');
+    if (user) {
+      // Пользователь авторизован - показываем приложение
+      console.log('Пользователь авторизован:', user.email);
+      
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appContent').style.display = 'block';
+      
+      // Создаём запись пользователя в базе, если её нет, затем загружаем данные
+      console.log('Проверяю запись пользователя в базе...');
+      window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
+        console.log('Пользователь найден в базе:', snapshot.exists());
+        if (!snapshot.exists()) {
+          console.log('Создаю запись пользователя...');
+          return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
+            role: 'admin',
+            createdAt: new Date().toISOString()
+          }).then(() => {
+            console.log('Запись пользователя создана успешно');
+          }).catch(err => {
+            console.error('Ошибка создания записи пользователя:', err);
+          });
+        }
+      }).then(() => {
+        console.log('Вызываю getUserDataForAuth...');
+        // Дождаемся синхронизации перед чтением
+        setTimeout(() => {
+          if (typeof window.getUserDataForAuth === 'function') {
+            window.getUserDataForAuth(user);
+          } else {
+            console.error('getUserDataForAuth не определена!');
+          }
+        }, 500);
+      }).catch(err => {
+        console.error('Ошибка работы с пользователем:', err);
+        // Даже если ошибка — пробуем войти
+        setTimeout(() => {
+          if (typeof window.getUserDataForAuth === 'function') {
+            window.getUserDataForAuth(user);
+          }
+        }, 500);
+      });
+    } else {
+      // Пользователь не авторизован - показываем экран входа
+      console.log('Пользователь не авторизован');
+      window.currentUserData = null;
+      
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('appContent').style.display = 'none';
+      if (typeof window.updateAuthUI === 'function') {
+        window.updateAuthUI();
+      }
+    }
+  });
+};
+
 // ========== REAL-TIME СИНХРОНИЗАЦИЯ ==========
 function initRealtimeSync() {
   const dataRef = ref(window.db, 'atelier_data');

@@ -6140,13 +6140,6 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
             };
         }
     };
-                    if (typeof window.switchBottomNavTab === 'function') {
-                        window.switchBottomNavTab(tabId);
-                    }
-                };
-            }
-        });
-    };
     
     setTimeout(window.bindBottomNavClicks, 100);
     setTimeout(window.bindBottomNavClicks, 500);
@@ -6167,5 +6160,13 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         window.bindMoreMenuItems();
         console.log('✅ Bottom nav bound');
     }, 200);
+    
+    // Инициализация состояния авторизации ПОСЛЕ полной загрузки
+    console.log('[App] Вызываю initAuthState...');
+    if (typeof window.initAuthState === 'function') {
+        window.initAuthState();
+    } else {
+        console.error('[App] initAuthState не определена!');
+    }
 })();
 
