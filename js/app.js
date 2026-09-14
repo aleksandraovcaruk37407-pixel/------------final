@@ -4622,16 +4622,10 @@ function removePaymentDistribution(orderNumber) {
 }
 
 function distributePayment(order) {
-    // Предотвращаем дублирование транзакций
-    const exists = cashOps.some(op => op.desc.includes(`Оплата заказа №${order.orderNumber}`));
-    if (exists) return;
-
+    // Распределение дохода больше не создаёт записи в cashOps — они не нужны в календаре
+    // Логика распределения сохраняется для бюджета
     const dist = calculateDistribution(order);
     if (dist.error) return;
-
-    // Добавляем ТОЛЬКО оплату заказа — остальные записи не нужны в календаре
-    const today = formatDate(new Date());
-    cashOps.push({date: today, desc: `Оплата заказа №${order.orderNumber}`, income: dist.clientPrice, expense: 0});
 }
 
 // ========== ОЧИСТКА СТАРЫХ ЗАПИСЕЙ ИЗ CASHOPS ==========
@@ -4642,7 +4636,8 @@ function cleanCashOps() {
         'Материалы',
         'Личные расходы',
         'Бизнес',
-        'Инвестиции'
+        'Инвестиции',
+        'Оплата заказа'
     ];
     
     cashOps = cashOps.filter(op => {
@@ -5073,8 +5068,8 @@ function deleteOrder(orderId) {
         const dateStr = formatDate(selectedDate);
         grid.innerHTML = '';
         const dayOrders = ordersData.filter(o => o.date === dateStr);
-        const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0);
-        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0);
+        const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.desc.includes('Оплата заказа'));
+        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !op.desc.includes('Оплата заказа'));
         const dayNotes = notes.filter(n => n.date === dateStr);
         dayPayments.forEach(p => {
             const div = document.createElement('div');
