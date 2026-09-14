@@ -133,6 +133,10 @@
         .schedule-slot { border: 1px solid #dee2e6; border-radius: 4px; padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .schedule-slot.payment-slot { background: #cce5ff; }
         .schedule-slot.note-slot { background: #e6d9f5; }
+        .schedule-slot.color-new { background: #d4edda; border-color: #28a745; border-left: 4px solid #28a745; }
+        .schedule-slot.color-middle { background: #fff3cd; border-color: #ffc107; border-left: 4px solid #ffc107; }
+        .schedule-slot.color-critical { background: #f8d7da; border-color: #dc3545; border-left: 4px solid #dc3545; }
+        .schedule-slot.color-done { background: #e9ecef; border-color: #6c757d; border-left: 4px solid #6c757d; }
         .modal-overlay { 
             display: none; 
             position: fixed; 
