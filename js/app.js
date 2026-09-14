@@ -212,6 +212,9 @@
     regularIncomes = JSON.parse(localStorage.getItem('regularIncomes_data') || '[]');
     notes = JSON.parse(localStorage.getItem('notes_data') || '[]');
 
+    // Очищаем старые записи о распределении (налог, помощник, материалы и т.д.)
+    cleanCashOps();
+
     budgetData = JSON.parse(localStorage.getItem('budget_data') || 'null') || getDefaultBudgetData();
     
     // Гарантия что все поля существуют (для старых данных)
@@ -4620,20 +4623,31 @@ function removePaymentDistribution(orderNumber) {
 
 function distributePayment(order) {
     // Предотвращаем дублирование транзакций
-    const exists = cashOps.some(op => op.desc.includes(`№${order.orderNumber}`));
+    const exists = cashOps.some(op => op.desc.includes(`Оплата заказа №${order.orderNumber}`));
     if (exists) return;
 
     const dist = calculateDistribution(order);
     if (dist.error) return;
 
+    // Добавляем ТОЛЬКО оплату заказа — остальные записи не нужны в календаре
     const today = formatDate(new Date());
     cashOps.push({date: today, desc: `Оплата заказа №${order.orderNumber}`, income: dist.clientPrice, expense: 0});
-    if (dist.tax > 0) cashOps.push({date: today, desc: `Налог 4% (заказ №${order.orderNumber})`, income: 0, expense: dist.tax});
-    if (dist.helperPay > 0) cashOps.push({date: today, desc: `Помощнику (заказ №${order.orderNumber})`, income: 0, expense: dist.helperPay});
-    if (dist.orderCost > 0) cashOps.push({date: today, desc: `Материалы (заказ №${order.orderNumber})`, income: 0, expense: dist.orderCost});
-    if (dist.personal > 0) cashOps.push({date: today, desc: `Личные расходы (заказ №${order.orderNumber})`, income: 0, expense: dist.personal});
-    if (dist.business > 0) cashOps.push({date: today, desc: `Бизнес (заказ №${order.orderNumber})`, income: 0, expense: dist.business});
-    if (dist.investments > 0) cashOps.push({date: today, desc: `Инвестиции (заказ №${order.orderNumber})`, income: 0, expense: dist.investments});
+}
+
+// ========== ОЧИСТКА СТАРЫХ ЗАПИСЕЙ ИЗ CASHOPS ==========
+function cleanCashOps() {
+    const unwantedPatterns = [
+        'Налог 4%',
+        'Помощнику',
+        'Материалы',
+        'Личные расходы',
+        'Бизнес',
+        'Инвестиции'
+    ];
+    
+    cashOps = cashOps.filter(op => {
+        return !unwantedPatterns.some(pattern => op.desc.includes(pattern));
+    });
 }
 
 function togglePaid(id, checked) {
