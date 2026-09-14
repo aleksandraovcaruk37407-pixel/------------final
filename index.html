@@ -190,13 +190,13 @@
 
     <div class="tabs" id="adminTabs" style="display:none;">
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
+        <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
+        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
+        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
         <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
         <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
         <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
-        <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
-        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -208,18 +208,18 @@
     <!-- Нижняя навигация для мобильных -->
     <div class="bottom-nav" id="adminBottomNav">
         <button class="bottom-nav-item active" data-tab="tab-orders">📋<br><small>Заказы</small></button>
-        <button class="bottom-nav-item" data-tab="tab-stock">📦<br><small>Склад</small></button>
-        <button class="bottom-nav-item" data-tab="tab-cash">💰<br><small>Деньги</small></button>
-        <button class="bottom-nav-item" data-tab="tab-summary">📊<br><small>Итоги</small></button>
         <button class="bottom-nav-item" data-tab="tab-calendar">📅<br><small>Календарь</small></button>
+        <button class="bottom-nav-item" data-tab="tab-purchase">📄<br><small>Закупка</small></button>
+        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Задачи</small></button>
+        <button class="bottom-nav-item" data-tab="tab-stock">📦<br><small>Склад</small></button>
         <button class="bottom-nav-more">⚙️<br><small>Ещё</small></button>
     </div>
     
     <!-- Дополнительное меню для мобильных -->
     <div class="bottom-nav-more-menu" id="bottomNavMoreMenu">
+        <button class="bottom-nav-more-item" data-tab="tab-cash">💰 Деньги</button>
+        <button class="bottom-nav-more-item" data-tab="tab-summary">📊 Итоги</button>
         <button class="bottom-nav-more-item" data-tab="tab-ref">📚 Справочники</button>
-        <button class="bottom-nav-more-item" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="bottom-nav-more-item" data-tab="tab-helper-admin">👥 Задачи</button>
         <button class="bottom-nav-more-item" onclick="document.getElementById('bottomNavMoreMenu').classList.remove('visible')">❌ Закрыть</button>
     </div>
 
