@@ -96,11 +96,9 @@
             var orderDate = document.getElementById('orderDate');
             var orderDurationDays = document.getElementById('orderDurationDays');
             var orderClientPrice = document.getElementById('orderClientPrice');
-            var orderHelperPay = document.getElementById('orderHelperPay');
             if (orderDate) orderDate.addEventListener('input', updateDeadline);
             if (orderDurationDays) orderDurationDays.addEventListener('input', updateDeadline);
             if (orderClientPrice) orderClientPrice.addEventListener('input', updateModalTotals);
-            if (orderHelperPay) orderHelperPay.addEventListener('input', updateModalTotals);
             
             populateSummarySelects();
             renderSummary();
@@ -554,12 +552,11 @@ window.localChangesPending = false;
         const clientPrice = parseFloat(order.clientPrice) || 0;
         // ИСПРАВЛЕНО: используем getOrderCost(order) вместо order.materialCost для точности
         const orderCost = getOrderCost(order);
-        const helperPay = parseFloat(order.helperPay) || 0;
-        const netProfit = Math.max(0, clientPrice - orderCost - helperPay);
+        const netProfit = Math.max(0, clientPrice - orderCost);
 
         if (netProfit <= 0) {
             return {
-                clientPrice, orderCost, helperPay, netProfit,
+                clientPrice, orderCost, netProfit,
                 tax: 0, personal: 0, business: 0, investments: 0, mandatory: 0,
                 products: 0, savings: 0, error: 'net_profit_zero'
             };
@@ -572,7 +569,7 @@ window.localChangesPending = false;
         const mandatory = netProfit - tax - personal - business - investments;
 
         return {
-            clientPrice, orderCost, helperPay, netProfit,
+            clientPrice, orderCost, netProfit,
             tax, personal, business, investments, mandatory,
             products: 0, savings: 0, error: null
         };
@@ -635,7 +632,6 @@ window.localChangesPending = false;
             client: order.client || 'Без клиента',
             clientPrice: dist.clientPrice,
             orderCost: dist.orderCost,
-            helperPay: dist.helperPay,
             netProfit: dist.netProfit,
             tax: dist.tax,
             personal: dist.personal,
@@ -3341,7 +3337,7 @@ window.localChangesPending = false;
             if (ref) totalCost += (parseFloat(extra[key])||0) * (parseFloat(ref.price)||0);
         }
         order.materialCost = totalCost;
-        order.grossProfit = (parseFloat(order.clientPrice)||0) - totalCost - (parseFloat(order.helperPay)||0);
+        order.grossProfit = (parseFloat(order.clientPrice)||0) - totalCost;
         return order;
     }
 
@@ -4061,7 +4057,6 @@ window.localChangesPending = false;
         
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
-        document.getElementById('orderHelperPay').value = parseFloat(order?.helperPay) || 0;
         document.getElementById('orderDone').checked = order?.done || false;
         document.getElementById('orderPaid').checked = order?.paid || false;
         currentManualColor = order?.manualColor || 'auto';
@@ -4510,8 +4505,7 @@ window.localChangesPending = false;
         }
         document.getElementById('orderMaterialCost').value = totalCost.toFixed(2);
         const client = parseFloat(document.getElementById('orderClientPrice').value)||0;
-        const helper = parseFloat(document.getElementById('orderHelperPay').value)||0;
-        document.getElementById('orderGrossProfit').value = (client - totalCost - helper).toFixed(2);
+        document.getElementById('orderGrossProfit').value = (client - totalCost).toFixed(2);
     }
 
     function saveOrderModal() {
@@ -4519,7 +4513,6 @@ window.localChangesPending = false;
         const client = document.getElementById('orderClient').value.trim();
         const phone = document.getElementById('orderPhone').value.trim();
         const clientPrice = parseFloat(document.getElementById('orderClientPrice').value)||0;
-        const helperPay = parseFloat(document.getElementById('orderHelperPay').value)||0;
         const durationDays = parseInt(document.getElementById('orderDurationDays').value)||1;
         const done = document.getElementById('orderDone').checked;
         const paid = document.getElementById('orderPaid').checked;
@@ -4557,7 +4550,7 @@ window.localChangesPending = false;
         const orderData = {
             id: orderEditId || Date.now(),
             orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : (parseInt(localStorage.getItem('lastOrderNumber')||'0')+1),
-            date, client, phone, services: servicesCopy, clientPrice, helperPay, durationDays,
+            date, client, phone, services: servicesCopy, clientPrice, durationDays,
             extraData, done, paid, manualColor: currentManualColor,
             // Данные задания помощнику
             helperEmail: helperEmail,
@@ -4916,7 +4909,7 @@ function deleteOrder(orderId) {
             orderNumber,
             date, client:name, phone,
             services: [{serviceName:service, usesFabric:svc?.usesFabric, usesPaint:serviceUsesPaint(svc), usesFilm:svc?.usesFilm, fabric:{}, paint:{}, film:{}, manualItems:{}}],
-            clientPrice:0, helperPay:0, durationDays:duration, extraData:'{}', done:false, paid:false, manualColor:'auto'
+            clientPrice:0, durationDays:duration, extraData:'{}', done:false, paid:false, manualColor:'auto'
         };
         ordersData.push(orderData);
         recalculateStockFromAllOrders();
@@ -5645,25 +5638,22 @@ function deleteOrder(orderId) {
         document.getElementById('summaryTitle').textContent = titleText;
         document.getElementById('summarySubtitle').textContent = subtitleText;
         
-        let revenue=0, cost=0, helper=0;
+        let revenue=0, cost=0;
         filteredOrders.forEach(o => {
             revenue += parseFloat(o.clientPrice)||0;
             cost += parseFloat(o.materialCost)||0;
-            helper += parseFloat(o.helperPay)||0;
         });
-        const gross = revenue - cost - helper;
+        const gross = revenue - cost;
         let expenses = filteredCash.reduce((acc, op) => acc + (parseFloat(op.expense)||0), 0);
         const net = gross - expenses;
         
         const revenueClass = revenue > 0 ? 'positive' : '';
         const costClass = 'negative';
-        const helperClass = 'negative';
         const netClass = net >= 0 ? 'positive' : 'negative';
         
         document.getElementById('summaryBlock').innerHTML = `
             <div class="summary-item"><label>💰 Выручка</label><span class="${revenueClass}">${revenue.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>📦 Себестоимость</label><span class="${costClass}">${cost.toFixed(2)} ₽</span></div>
-            <div class="summary-item"><label>👥 Помощнику</label><span class="${helperClass}">${helper.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>📈 Валовый доход</label><span>${gross.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>💸 Расходы</label><span class="${costClass}">${expenses.toFixed(2)} ₽</span></div>
             <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${net.toFixed(2)} ₽</span></div>
@@ -5714,7 +5704,7 @@ function deleteOrder(orderId) {
         samples.forEach((sample, index) => {
             const service = createService(sample.service, {meters: sample.service === 'Перетяжка потолка' ? 4 : 0, paintQty: sample.service === 'Восстановление после ДТП' || sample.service === 'Покраска пластика' ? 250 : 0, filmMeters: sample.service === 'Аквапринт' ? 2 : 0});
             if (!service) return;
-            ordersData.push({id:Date.now() + index, orderNumber:index + 1, date:sample.date, client:sample.client, phone:'+7 900 000-00-0' + (index + 1), services:[service], clientPrice:sample.clientPrice, helperPay:1000, durationDays:sample.durationDays, extraData:'{}', done:sample.done, paid:false, manualColor:'auto'});
+            ordersData.push({id:Date.now() + index, orderNumber:index + 1, date:sample.date, client:sample.client, phone:'+7 900 000-00-0' + (index + 1), services:[service], clientPrice:sample.clientPrice, durationDays:sample.durationDays, extraData:'{}', done:sample.done, paid:false, manualColor:'auto'});
         });
         ordersData.forEach(order => recalcOrder(order));
         recalculateStockFromAllOrders();
