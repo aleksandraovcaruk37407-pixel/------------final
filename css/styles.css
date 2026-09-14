@@ -143,17 +143,17 @@
             width: 100vw;
             height: 100%;
             height: 100dvh;
-            background: rgba(0,0,0,0.5); 
-            z-index: 1000; 
+            background: rgba(0,0,0,0.75); 
+            z-index: 10000; 
             justify-content: center; 
             align-items: center;
             -webkit-overflow-scrolling: auto;
             overscroll-behavior: none;
-            touch-action: none;
+            touch-action: pan-y;
         }
         .modal-overlay.active { 
             display: flex;
-            touch-action: none;
+            touch-action: pan-y;
         }
         .modal { 
             background: #fff; 
@@ -179,18 +179,18 @@
         
         /* iOS-specific modal fixes */
         @supports (-webkit-touch-callout: none) {
-            /* Only applies to iOS */
+            /* Only applies to iOS - use dvh for dynamic address bar */
             .modal-overlay {
-                height: 100vh;
+                height: 100dvh;
                 height: -webkit-fill-available;
             }
             .modal {
-                max-height: 85vh;
+                max-height: 85dvh;
                 max-height: -webkit-fill-available;
             }
             body.modal-open {
                 position: relative;
-                height: 100vh;
+                height: 100dvh;
                 overflow: hidden;
             }
         }
@@ -249,10 +249,14 @@
                 touch-action: manipulation;
             }
         }
-        /* Smooth scrolling */
+        /* Smooth scrolling (disabled on mobile for performance) */
         html {
-            scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+        }
+        @media (min-width: 769px) {
+            html {
+                scroll-behavior: smooth;
+            }
         }
         
         @media (max-width: 768px) {
@@ -443,7 +447,7 @@
             }
             /* iOS: prevent pull-to-refresh on modal */
             .modal-overlay.active {
-                touch-action: none;
+                touch-action: pan-y;
             }
             .modal > *:first-child {
                 touch-action: pan-y;
@@ -1232,7 +1236,7 @@
             max-height: 60vh;
             overflow-y: auto;
         }
-        .bottom-nav-more-menu.active {
+        .bottom-nav-more-menu.visible {
             display: block;
         }
         .bottom-nav-more-item {
@@ -1716,4 +1720,14 @@
                 user-select: text;
             }
         }
-    
+        
+        /* ========== DESKTOP: принудительно скрываем нижнюю навигацию ========== */
+        @media (min-width: 769px) {
+            .bottom-nav {
+                display: none !important;
+            }
+            .bottom-nav-more-menu {
+                display: none !important;
+            }
+        }
+        

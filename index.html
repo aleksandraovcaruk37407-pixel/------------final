@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,27 +11,21 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>Учет авто-ателье</title>
-    <!-- Срочно unregister старый Service Worker и очистим кэш -->
+    <!-- PWA: Manifest и Service Worker для push-уведомлений -->
+    <link rel="manifest" href="./manifest.json">
     <script>
-      // Unregister все SW и очистим кэш при каждой загрузке
+      // Не удаляем SW — он нужен для push-уведомлений!
+      // Очищаем ТОЛЬКО старые кэши (не affecting SW)
       (function() {
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.getRegistrations().then(function(regs) {
-            for (var i = 0; i < regs.length; i++) {
-              regs[i].unregister();
-            }
-          });
-        }
         if ('caches' in window) {
           caches.keys().then(function(names) {
             for (var i = 0; i < names.length; i++) {
-              caches.delete(names[i]);
+              if (names[i].startsWith('auto-atelier-')) {
+                caches.delete(names[i]);
+              }
             }
           });
         }
-        // Удалить manifest чтобы SW не регистрировался
-        var manifest = document.querySelector('link[rel="manifest"]');
-        if (manifest) manifest.remove();
       })();
     </script>
     <base href="./">
@@ -55,6 +49,9 @@
     <!-- Firebase module загружается первым -->
     <script type="module" src="js/firebase.js?v=202609130100"></script>
     
+    <!-- FCM — Push-уведомления -->
+    <script src="js/fcm.js?v=202609130100" defer></script>
+    
     <!-- app.js загружается с defer -->
     <script src="js/app.js?v=202609130100" defer></script>
 
@@ -74,12 +71,24 @@
     setTimeout(function() {
       Notification.requestPermission().then(function(permission) {
         console.log('[Push] Разрешение уведомлений:', permission);
+        // Если разрешение получено — инициализируем FCM
+        if (permission === 'granted' && typeof window.initFCM === 'function') {
+          window.initFCM();
+        }
       });
     }, 5000);
   }
 
   // Делаем глобально
   window.requestNotificationPermission = requestNotificationPermission;
+</script>
+
+<!-- Кнопка тестового push-уведомления (для отладки) -->
+<script>
+  // Добавляем кнопку тестового уведомления в консоль
+  console.log('%c🔔 Push-уведомления', 'font-size: 20px; font-weight: bold; color: #1a3c5e;');
+  console.log('%cДля тестирования push-уведомлений вызовите:', 'font-size: 12px; color: #666;');
+  console.log('%c  sendTestPush()', 'font-size: 14px; font-weight: bold; color: #28a745; background: #f0f0f0; padding: 4px 8px; border-radius: 4px;');
 </script>
 
 <!-- Индикатор статуса подключения -->
@@ -246,7 +255,7 @@
     <div id="tab-stock" class="tab-content">
         <div class="scroll-wrap">
             <table class="stock-table">
-                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th></tr></thead>
+                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th><th>💰 Сумма</th><th></th></tr></thead>
                 <tbody id="stockBody"></tbody>
             </table>
         </div>
@@ -488,6 +497,7 @@
         <div style="margin-bottom:15px;">
             <button class="btn-extra" onclick="checkHelperInDB()" style="padding:8px 16px;font-size:13px;">🔍 Проверить помощника в БД</button>
             <button class="btn-extra" onclick="listAllHelpersInDB()" style="padding:8px 16px;font-size:13px;margin-left:10px;">👥 Список всех помощников</button>
+            <button class="btn-extra" onclick="registerHelperInDB()" style="padding:8px 16px;font-size:13px;margin-left:10px;background:#ffc107;">🔧 Зарегистрировать в базе</button>
         </div>
         <div id="adminHelperTasksContainer"></div>
         <div id="helperDbCheckResult" style="margin-top:20px;"></div>
@@ -528,6 +538,35 @@
                 <button class="btn-extra" onclick="openExtraModalFromOrder()">📦 Доп. расходники</button>
                 <span style="font-size:12px; color:#6c757d; margin-left:10px;" id="extraInfo">(не указаны)</span>
                 <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
+            </div>
+            
+            <!-- Блок задания помощнику -->
+            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-top:15px;border:1px solid #dee2e6;">
+                <h4 style="margin-bottom:12px;color:#1a3c5e;">📝 Задание помощнику</h4>
+                <div class="form-group">
+                    <label>👷 Помощник</label>
+                    <select id="orderHelperSelect" style="width:100%;">
+                        <option value="">-- Не назначать --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>📋 Описание задачи</label>
+                    <textarea id="orderTaskDescription" rows="3" placeholder="Опишите задачу для помощника..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>⏰ Срок (дата)</label>
+                        <input type="date" id="orderTaskDeadline">
+                    </div>
+                    <div class="form-group">
+                        <label>⏰ Время</label>
+                        <input type="time" id="orderTaskTime" value="18:00">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>💰 Оплата за задачу (₽)</label>
+                    <input type="number" id="orderTaskPay" placeholder="0" step="0.01">
+                </div>
             </div>
             <div class="color-select">
                 <label>Срочность (цвет):</label>
@@ -692,8 +731,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>⏰ Срок выполнения</label>
+                    <label>⏰ Срок выполнения (дата)</label>
                     <input type="date" id="helperTaskDeadline">
+                </div>
+                <div class="form-group">
+                    <label>⏰ Время</label>
+                    <input type="time" id="helperTaskTime" value="18:00">
                 </div>
                 <div class="form-group">
                     <label>💰 Оплата за задачу (₽)</label>
@@ -723,8 +766,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>⏰ Срок выполнения</label>
+                    <label>⏰ Срок выполнения (дата)</label>
                     <input type="date" id="editTaskDeadline">
+                </div>
+                <div class="form-group">
+                    <label>⏰ Время</label>
+                    <input type="time" id="editTaskTime" value="18:00">
                 </div>
                 <div class="form-group">
                     <label>👷 Помощник</label>
@@ -828,12 +875,19 @@
   window.openAuthModal = () => {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.add('active');
+    // Блокируем прокрутку фона и скрываем контент
+    document.body.classList.add('modal-open');
+    // Скрываем appContent если он вдруг виден
+    const appContent = document.getElementById('appContent');
+    if (appContent) appContent.style.display = 'none';
     if (typeof showLoginForm === 'function') showLoginForm();
   };
 
   window.closeAuthModal = () => {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.remove('active');
+    // Восстанавливаем прокрутку
+    document.body.classList.remove('modal-open');
     const fields = ['authEmail', 'authPassword', 'registerName', 'registerEmail', 'registerPassword'];
     fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   };

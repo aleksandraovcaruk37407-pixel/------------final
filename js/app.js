@@ -1134,7 +1134,7 @@ window.localChangesPending = false;
                     <div style="font-size:14px;margin-bottom:6px;"><b>Услуга:</b> ${safeHTML(task.serviceName)}</div>
                     <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${safeHTML(task.description)}</div>
                     <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;">
-                        <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${safeHTML(task.deadline)}</b></span>
+                        <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${formatTaskDeadline(task.deadline)}</b></span>
                         <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
                         ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                     </div>
@@ -1556,6 +1556,73 @@ window.localChangesPending = false;
         }
     };
 
+    // ========== РЕГИСТРАЦИЯ ПОМОЩНИКА В БАЗЕ ДАННЫХ ==========
+    window.registerHelperInDB = async function() {
+        const email = prompt('Введите email помощника для регистрации в базе:\n(Помощник должен быть зарегистрирован в Firebase Auth)');
+        if (!email) return;
+        
+        const resultDiv = document.getElementById('helperDbCheckResult');
+        if (!resultDiv) return;
+        
+        if (!window.db || !window.set || !window.child || !window.fbRef) {
+            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;">❌ Firebase не подключён</div>';
+            return;
+        }
+        
+        resultDiv.innerHTML = '<div style="background:#e3f2fd;padding:10px;border-radius:6px;font-size:13px;">⏳ Регистрация в базе...</div>';
+        
+        try {
+            const ref = window.fbRef(window.db);
+            const snapshot = await window.get(window.child(ref, 'users'));
+            
+            // Проверяем есть ли уже пользователь
+            if (snapshot.exists()) {
+                const users = snapshot.val();
+                for (const uid in users) {
+                    if (users[uid].email === email) {
+                        resultDiv.innerHTML = `
+                            <div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">
+                                ⚠️ Пользователь с email <b>${email}</b> уже существует в базе!<br>
+                                UID: ${uid}<br>
+                                Имя: ${users[uid].displayName || '—'}<br>
+                                Роль: ${users[uid].role || '—'}
+                            </div>
+                        `;
+                        return;
+                    }
+                }
+            }
+            
+            // Просим ввести UID
+            const uid = prompt('Помощник не найден в базе. Введите UID из Firebase Auth:\n\nUID для daud_yt_play@yandex.ru: Bs1XCI7wBpZA6l8HoUKIMqBibSN2');
+            if (!uid) return;
+            
+            // Создаём запись в Realtime Database
+            await window.set(window.fbRef(window.db), 'users/' + uid, {
+                email: email,
+                displayName: email.split('@')[0],
+                role: 'helper',
+                createdAt: new Date().toISOString(),
+                createdBy: window.currentUserData ? window.currentUserData.email : 'system'
+            });
+            
+            resultDiv.innerHTML = `
+                <div style="background:#d4edda;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">
+                    ✅ <b>Помощник успешно зарегистрирован в базе!</b><br>
+                    Email: ${email}<br>
+                    UID: ${uid}<br>
+                    Роль: helper
+                </div>
+            `;
+            
+            // Обновляем список помощников
+            updateHelperFilter();
+        } catch (error) {
+            console.error('Ошибка регистрации:', error);
+            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ Ошибка: ' + error.message + '</div>';
+        }
+    };
+
     function completeTask(orderNumber, taskId) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         if (!order) return;
@@ -1932,7 +1999,7 @@ window.localChangesPending = false;
                         </div>
                         <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${safeHTML(task.description)}</div>
                         <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;flex-wrap:wrap;">
-                            <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${safeHTML(task.deadline)}</b></span>
+                            <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${formatTaskDeadline(task.deadline)}</b></span>
                             <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
                             ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                             ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
@@ -2813,7 +2880,25 @@ window.localChangesPending = false;
             <span style="color:#666;">Услуга: ${safeHTML(task.serviceName)}</span>
         `;
         document.getElementById('editTaskDescription').value = task.description || '';
-        document.getElementById('editTaskDeadline').value = task.deadline || '';
+        
+        // Извлекаем дату и время из deadline (формат ГГГГ-ММ-ДДТЧЧ:ММ)
+        let deadlineDate = '';
+        let deadlineTime = '18:00';
+        if (task.deadline) {
+            if (task.deadline.includes('T')) {
+                const parts = task.deadline.split('T');
+                deadlineDate = parts[0];
+                const timePart = parts[1] || '18:00';
+                deadlineTime = timePart.substring(0, 5);
+            } else {
+                deadlineDate = task.deadline;
+            }
+        }
+        
+        document.getElementById('editTaskDeadline').value = deadlineDate;
+        if (document.getElementById('editTaskTime')) {
+            document.getElementById('editTaskTime').value = deadlineTime;
+        }
         document.getElementById('editTaskAssignee').value = task.assignedTo || '';
         document.getElementById('editTaskPay').value = task.helperPay || '';
         document.getElementById('editTaskPenalty').value = task.penalty || '';
@@ -2835,6 +2920,7 @@ window.localChangesPending = false;
         const { orderNumber, id, serviceIndex } = currentEditingTask;
         const description = document.getElementById('editTaskDescription').value.trim();
         const deadline = document.getElementById('editTaskDeadline').value;
+        const taskTime = document.getElementById('editTaskTime') ? document.getElementById('editTaskTime').value : '18:00';
         const assignedTo = document.getElementById('editTaskAssignee').value.trim();
         const helperPay = parseFloat(document.getElementById('editTaskPay').value) || 0;
         let penalty = parseFloat(document.getElementById('editTaskPenalty').value) || 0;
@@ -2851,6 +2937,12 @@ window.localChangesPending = false;
         if (!description || !deadline || !assignedTo) {
             alert('Заполните все обязательные поля!');
             return;
+        }
+        
+        // Формируем полный срок с временем
+        let fullDeadline = deadline;
+        if (taskTime) {
+            fullDeadline = deadline + 'T' + taskTime;
         }
         
         const order = ordersData.find(o => o.orderNumber == orderNumber);
@@ -2873,7 +2965,7 @@ window.localChangesPending = false;
         
         // Обновить задачу
         task.description = description;
-        task.deadline = deadline;
+        task.deadline = fullDeadline;
         task.assignedTo = assignedTo;
         task.helperPay = helperPay;
         task.penalty = penalty;
@@ -2977,6 +3069,9 @@ window.localChangesPending = false;
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         document.getElementById('helperTaskDeadline').value = formatDate(tomorrow);
+        if (document.getElementById('helperTaskTime')) {
+            document.getElementById('helperTaskTime').value = '18:00';
+        }
         document.getElementById('helperTaskDescription').value = '';
         document.getElementById('helperTaskPay').value = '';
         document.getElementById('helperTaskPenalty').value = '';
@@ -3000,6 +3095,7 @@ window.localChangesPending = false;
         const assignedTo = document.getElementById('helperTaskAssignee').value;
         const description = document.getElementById('helperTaskDescription').value.trim();
         const deadline = document.getElementById('helperTaskDeadline').value;
+        const taskTime = document.getElementById('helperTaskTime') ? document.getElementById('helperTaskTime').value : '18:00';
         const helperPay = parseFloat(document.getElementById('helperTaskPay').value) || 0;
         let penalty = parseFloat(document.getElementById('helperTaskPenalty').value) || 0;
         
@@ -3021,6 +3117,12 @@ window.localChangesPending = false;
             return;
         }
         
+        // Формируем полный срок с временем
+        let fullDeadline = deadline;
+        if (taskTime) {
+            fullDeadline = deadline + 'T' + taskTime;
+        }
+        
         // Добавляем задачу в первую услугу заказа
         if (!order.services || order.services.length === 0) {
             alert('В заказе нет услуг!');
@@ -3033,7 +3135,7 @@ window.localChangesPending = false;
         service.tasks.push({
             id: Date.now().toString(),
             description,
-            deadline,
+            deadline: fullDeadline,
             assignedTo,
             helperPay,
             penalty,
@@ -3133,6 +3235,35 @@ window.localChangesPending = false;
     function formatDate(d) {
         if (!d || isNaN(d.getTime())) return '';
         return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+
+    function formatDateDDMMYYYY(dateStr) {
+        if (!dateStr) return '';
+        // Если уже в формате ДД.ММ.ГГГГ, возвращаем как есть
+        if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) return dateStr;
+        // Преобразуем ГГГГ-ММ-ДД в ДД.ММ.ГГГГ
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            const parts = dateStr.split('-');
+            return `${parts[2]}.${parts[1]}.${parts[0]}`;
+        }
+        return dateStr;
+    }
+
+    function formatTaskDeadline(deadline) {
+        if (!deadline) return '—';
+        // Формат: ГГГГ-ММ-ДДТЧЧ:ММ или ГГГГ-ММ-ДД
+        let datePart = deadline;
+        let timePart = '';
+        if (deadline.includes('T')) {
+            const parts = deadline.split('T');
+            datePart = parts[0];
+            timePart = parts[1] || '';
+        }
+        const formatted = formatDateDDMMYYYY(datePart);
+        if (timePart) {
+            return formatted + ' ' + timePart.substring(0, 5);
+        }
+        return formatted;
     }
 
     function formatPhone(input) {
@@ -3945,6 +4076,33 @@ window.localChangesPending = false;
         }
         updateModalTotals();
         
+        // Загружаем помощников и заполняем поле задания
+        loadHelpersForSelect(document.getElementById('orderHelperSelect'), false).then(() => {
+            if (order) {
+                const helperSelect = document.getElementById('orderHelperSelect');
+                const taskDesc = document.getElementById('orderTaskDescription');
+                const taskDeadline = document.getElementById('orderTaskDeadline');
+                const taskTime = document.getElementById('orderTaskTime');
+                const taskPay = document.getElementById('orderTaskPay');
+                
+                if (helperSelect && order.helperEmail) {
+                    helperSelect.value = order.helperEmail;
+                }
+                if (taskDesc && order.taskDescription) {
+                    taskDesc.value = order.taskDescription;
+                }
+                if (taskDeadline && order.taskDeadline) {
+                    taskDeadline.value = order.taskDeadline;
+                }
+                if (taskTime && order.taskTime) {
+                    taskTime.value = order.taskTime;
+                }
+                if (taskPay && order.taskPay) {
+                    taskPay.value = order.taskPay;
+                }
+            }
+        });
+        
         // Прокрутка модалки вверх при открытии
         if (isMobile) {
             const orderModalInner = orderModal.querySelector('.modal');
@@ -4362,6 +4520,15 @@ window.localChangesPending = false;
         const durationDays = parseInt(document.getElementById('orderDurationDays').value)||1;
         const done = document.getElementById('orderDone').checked;
         const paid = document.getElementById('orderPaid').checked;
+        
+        // Читаем данные задания помощнику
+        const orderHelperSelect = document.getElementById('orderHelperSelect');
+        const helperEmail = orderHelperSelect ? orderHelperSelect.value : '';
+        const taskDescription = document.getElementById('orderTaskDescription') ? document.getElementById('orderTaskDescription').value.trim() : '';
+        const taskDeadline = document.getElementById('orderTaskDeadline') ? document.getElementById('orderTaskDeadline').value : '';
+        const taskTime = document.getElementById('orderTaskTime') ? document.getElementById('orderTaskTime').value : '18:00';
+        const taskPay = parseFloat(document.getElementById('orderTaskPay') ? document.getElementById('orderTaskPay').value : '0') || 0;
+        
         if (!date || !client) { alert('Заполните дату и имя'); return; }
         currentServices = currentServices.filter(inst => inst.serviceName);
         if (currentServices.length === 0) { alert('Добавьте услугу'); return; }
@@ -4377,11 +4544,24 @@ window.localChangesPending = false;
             ...Object.fromEntries(materialTypes.map(mt => [mt.name, inst[mt.name] ? {...inst[mt.name]} : undefined]))
         }));
         const extraData = JSON.stringify(currentExtraData);
+        
+        // Формируем полный срок с временем
+        let fullDeadline = taskDeadline;
+        if (fullDeadline && taskTime) {
+            fullDeadline = fullDeadline + 'T' + taskTime;
+        }
+        
         const orderData = {
             id: orderEditId || Date.now(),
             orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : (parseInt(localStorage.getItem('lastOrderNumber')||'0')+1),
             date, client, phone, services: servicesCopy, clientPrice, helperPay, durationDays,
-            extraData, done, paid, manualColor: currentManualColor
+            extraData, done, paid, manualColor: currentManualColor,
+            // Данные задания помощнику
+            helperEmail: helperEmail,
+            taskDescription: taskDescription,
+            taskDeadline: taskDeadline,
+            taskTime: taskTime,
+            taskPay: taskPay
         };
         if (!orderEditId) localStorage.setItem('lastOrderNumber', orderData.orderNumber);
         if (orderEditId) {
@@ -4390,6 +4570,33 @@ window.localChangesPending = false;
         } else {
             ordersData.push(orderData);
         }
+        
+        // Если есть задание помощнику — создаём задачу и уведомляем
+        if (helperEmail && taskDescription && taskDeadline) {
+            const order = ordersData.find(o => o.id === orderData.id);
+            if (order) {
+                // Добавляем задачу в первую услугу
+                if (!order.services || order.services.length === 0) {
+                    order.services = [{serviceName: order.services?.[0]?.serviceName || 'Услуга', tasks: []}];
+                }
+                if (!order.services[0].tasks) order.services[0].tasks = [];
+                
+                order.services[0].tasks.push({
+                    id: Date.now().toString(),
+                    description: taskDescription,
+                    deadline: fullDeadline || taskDeadline,
+                    assignedTo: helperEmail,
+                    helperPay: taskPay,
+                    penalty: 0,
+                    status: 'pending',
+                    createdAt: new Date().toISOString()
+                });
+                
+                // Уведомляем помощника
+                notifyHelperAboutTask(helperEmail, orderData.orderNumber, taskDescription);
+            }
+        }
+        
         recalcOrder(orderData);
         recalculateStockFromAllOrders();
         if (paid) {
@@ -5266,11 +5473,15 @@ function deleteOrder(orderId) {
             let taskCount = 0;
             (order.services || []).forEach(s => { taskCount += (s.tasks || []).length; });
             
+            // Форматируем дату в ДД.ММ.ГГГГ
+            const formattedDate = formatDateDDMMYYYY(order.date);
+            const formattedDeadline = formatDateDDMMYYYY(getDeadline(order));
+            
             div.innerHTML = `
                 <div class="order-header">
                     <span class="order-number">№${safeHTML(order.orderNumber)}</span>
-                    <span class="order-date">${safeHTML(order.date)}</span>
-                    <span class="order-deadline">${safeHTML(getDeadline(order))}</span>
+                    <span class="order-date">${safeHTML(formattedDate)}</span>
+                    <span class="order-deadline">${safeHTML(formattedDeadline)}</span>
                     <span class="order-client">${safeHTML(order.client)}</span>
                     <span class="order-phone">${safeHTML(order.phone||'')}</span>
                     <span class="order-service">${safeHTML(order.services.map(s => s.serviceName).join(', '))}</span>
@@ -5322,7 +5533,8 @@ function deleteOrder(orderId) {
                 <td><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${name}"></td>
                 <td><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${name}"></td>
                 <td>${((parseFloat(item.income)||0) - (parseFloat(item.used)||0)).toFixed(2)}</td>
-                <td style="font-weight:600;color:#27ae60;">${totalSum.toFixed(2)} ₽</td>`;
+                <td style="font-weight:600;color:#27ae60;">${totalSum.toFixed(2)} ₽</td>
+                <td><button class="btn-del" onclick="deleteStockItem('${name.replace(/'/g, "\\'")}')" title="Удалить">🗑️</button></td>`;
             tbody.appendChild(tr);
         });
         // Используем делегирование событий для избежания дублирования слушателей
@@ -5342,6 +5554,14 @@ function deleteOrder(orderId) {
             saveStock(stock);
             renderStock();
         });
+    }
+
+    function deleteStockItem(name) {
+        if (!confirm(`Удалить позицию "${name}" из склада?`)) return;
+        const stock = loadStock();
+        const filtered = stock.filter(s => s.name !== name);
+        saveStock(filtered);
+        renderStock();
     }
 
     // ========== МОДУЛЬ 11: ИТОГИ И ОТЧЁТЫ ==========
@@ -5859,27 +6079,56 @@ function handleOverlayClick(event, modalId) {
     }
 }
 
-// ========== iOS/Android: БЛОКИРОВКА СКРОЛЛА И СВАЙП ==========
+// ========== iOS/Android: БЛОКИРОВКА СКРОЛЛА И СВАЙП (UNIFIED) ==========
 (function() {
     let touchStartY = 0;
-    let touchEndY = 0;
     let isSwiping = false;
-    let modalScrollAtStart = 0;
+    let swipeThreshold = 50;
     
-    // Блокировка скролла body когда модалка открыта
-    function blockBodyScroll(e) {
+    // Единый обработчик touchstart для всех модалок
+    document.addEventListener('touchstart', function(e) {
         const activeModal = document.querySelector('.modal-overlay.active');
         if (!activeModal) return;
+        
+        // Пропускаем order modal — у него свой bottom-sheet
+        if (activeModal.id === 'orderModal') return;
         
         const modal = activeModal.querySelector('.modal');
         if (!modal) return;
         
-        // Пропускаем order modal — у него свой обработчик скролла
+        touchStartY = e.touches[0].clientY;
+        isSwiping = false;
+    }, { passive: true });
+    
+    // Единый обработчик touchmove для блокировки скролла И свайпа
+    document.addEventListener('touchmove', function(e) {
+        const activeModal = document.querySelector('.modal-overlay.active');
+        if (!activeModal) return;
+        
+        // Пропускаем order modal
         if (activeModal.id === 'orderModal') return;
         
-        // Если свайп не активен — блокируем скролл body
+        const modal = activeModal.querySelector('.modal');
+        if (!modal) return;
+        
+        const touchY = e.touches[0].clientY;
+        const diff = touchY - touchStartY;
+        
+        // Проверяем что модалка прокручена в начало (можно свайпать)
+        const currentScroll = modal.scrollTop || 0;
+        const atTop = currentScroll <= 5;
+        
+        // Если свайп вниз за порог и модалка вверху — начинаем свайп для закрытия
+        if (diff > swipeThreshold && atTop && !isSwiping) {
+            isSwiping = true;
+            modal.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+            modal.style.transform = 'translateY(100%)';
+            modal.style.opacity = '0.5';
+            return; // Разрешаем свайп, не блокируем
+        }
+        
+        // Если не свайп — блокируем скролл body
         if (!isSwiping) {
-            // Разрешаем скролл только внутри модалки
             const target = e.target;
             const isInsideModal = modal.contains(target);
             const isScrollableElement = target.tagName === 'SELECT' || 
@@ -5891,61 +6140,22 @@ function handleOverlayClick(event, modalId) {
             
             // Если элемент внутри модалки и это скроллируемый контейнер — проверяем
             if (isInsideModal && target.scrollHeight > target.clientHeight) {
-                const atTop = target.scrollTop <= 0;
-                const atBottom = target.scrollTop + target.clientHeight >= target.scrollHeight - 2;
+                const atTopScroll = target.scrollTop <= 0;
+                const atBottomScroll = target.scrollTop + target.clientHeight >= target.scrollHeight - 2;
                 
                 // Если в начале и тянем вниз — разрешаем
-                if (atTop && e.touches[0].clientY > touchStartY) return;
+                if (atTopScroll && diff > 0) return;
                 // Если в конце и тянем вверх — разрешаем
-                if (atBottom && e.touches[0].clientY < touchStartY) return;
+                if (atBottomScroll && diff < 0) return;
             }
             
             // Блокируем скролл body
             e.preventDefault();
         }
-    }
+    }, { passive: false });
     
-    // Свайп вниз для закрытия модалки
-    function handleSwipeStart(e) {
-        const activeModal = document.querySelector('.modal-overlay.active');
-        if (!activeModal) return;
-        
-        // Пропускаем order modal — у него свой bottom-sheet
-        if (activeModal.id === 'orderModal') return;
-        
-        const modal = activeModal.querySelector('.modal');
-        if (!modal) return;
-        
-        touchStartY = e.touches[0].clientY;
-        touchEndY = touchStartY;
-        modalScrollAtStart = modal.scrollTop || 0;
-        isSwiping = false;
-    }
-    
-    function handleSwipeMove(e) {
-        const activeModal = document.querySelector('.modal-overlay.active');
-        if (!activeModal) return;
-        
-        const modal = activeModal.querySelector('.modal');
-        if (!modal) return;
-        
-        touchEndY = e.touches[0].clientY;
-        const diff = touchEndY - touchStartY;
-        
-        // Проверяем что модалка прокручена в начало (можно свайпать)
-        const currentScroll = modal.scrollTop || 0;
-        const atTop = currentScroll <= 5;
-        
-        // На мобильных — модалка снизу, свайп вниз для закрытия
-        if (diff > 50 && atTop && !isSwiping) {
-            isSwiping = true;
-            modal.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
-            modal.style.transform = 'translateY(100%)';
-            modal.style.opacity = '0.5';
-        }
-    }
-    
-    function handleSwipeEnd(e) {
+    // Обработчик touchend для закрытия модалки по свайпу
+    document.addEventListener('touchend', function(e) {
         const activeModal = document.querySelector('.modal-overlay.active');
         if (!activeModal) return;
         
@@ -5964,15 +6174,7 @@ function handleOverlayClick(event, modalId) {
             }, 300);
         }
         isSwiping = false;
-    }
-    
-    // iOS/Android: Блокировка скролла body
-    document.addEventListener('touchmove', blockBodyScroll, { passive: false });
-    
-    // iOS/Android: Свайп для закрытия
-    document.addEventListener('touchstart', handleSwipeStart, { passive: true });
-    document.addEventListener('touchmove', handleSwipeMove, { passive: true });
-    document.addEventListener('touchend', handleSwipeEnd, { passive: true });
+    }, { passive: true });
     
     // При закрытии модалки — сброс
     document.addEventListener('touchcancel', function() {
@@ -6145,6 +6347,19 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         window.initAuthState();
     } else {
         console.error('[App] initAuthState не определена!');
+    }
+    
+    // Инициализация FCM push-уведомлений
+    console.log('[App] Инициализация FCM...');
+    if (typeof window.initFCM === 'function') {
+        window.initFCM();
+    } else {
+        console.log('[App] FCM модуль ещё не загружен, повторю позже...');
+        setTimeout(() => {
+            if (typeof window.initFCM === 'function') {
+                window.initFCM();
+            }
+        }, 2000);
     }
 })();
 
