@@ -96,9 +96,11 @@
             var orderDate = document.getElementById('orderDate');
             var orderDurationDays = document.getElementById('orderDurationDays');
             var orderClientPrice = document.getElementById('orderClientPrice');
+            var orderTaskPay = document.getElementById('orderTaskPay');
             if (orderDate) orderDate.addEventListener('input', updateDeadline);
             if (orderDurationDays) orderDurationDays.addEventListener('input', updateDeadline);
             if (orderClientPrice) orderClientPrice.addEventListener('input', updateModalTotals);
+            if (orderTaskPay) orderTaskPay.addEventListener('input', updateModalTotals);
             
             populateSummarySelects();
             renderSummary();
@@ -4505,7 +4507,8 @@ window.localChangesPending = false;
         }
         document.getElementById('orderMaterialCost').value = totalCost.toFixed(2);
         const client = parseFloat(document.getElementById('orderClientPrice').value)||0;
-        document.getElementById('orderGrossProfit').value = (client - totalCost).toFixed(2);
+        const taskPay = parseFloat(document.getElementById('orderTaskPay') ? document.getElementById('orderTaskPay').value : '0') || 0;
+        document.getElementById('orderGrossProfit').value = (client - totalCost - taskPay).toFixed(2);
     }
 
     function saveOrderModal() {
