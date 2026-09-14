@@ -871,6 +871,13 @@
   // Firebase инициализируется через firebase.js
   // Этот скрипт содержит только глобальные функции для работы с UI
   
+  // ========== ЕДИНЫЙ СПИСОК АДМИНОВ (ОДНО ИСТОЧНИКОПРАВДА) ==========
+  // Все админы указываются ТОЛЬКО здесь. Не дублируй в других местах!
+  window.ADMIN_EMAILS = [
+    'egor.wtf38@gmail.com',    // Егор Чекмарев
+    'aleksandraovcaruk37407@gmail.com'  // Александра
+  ];
+  
   // ========== ГЛОБАЛЬНЫЕ ФУНКЦИИ (ДОСТУПНЫ ИЗ HTML) ==========
   window.openAuthModal = () => {
     const modal = document.getElementById('authModal');
@@ -947,17 +954,33 @@
       
       // Автоматически получаем роль пользователя из Firebase
       const user = result.user;
+      
+      // Проверяем, является ли пользователь админом по email (глобальный список)
+      const isAdminByEmail = window.ADMIN_EMAILS.includes(user.email.toLowerCase());
+      
       if (window.db && window.fbGet && window.fbChild && window.fbRef) {
         const snapshot = await window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid));
         if (snapshot.exists()) {
           const userData = snapshot.val();
           console.log('[Auth] Роль пользователя из БД:', userData.role);
+          // Если email в списке админов — принудительно ставим admin
+          const role = isAdminByEmail ? 'admin' : (userData.role || 'admin');
+          console.log('[Auth] Определяемая роль (с учётом email):', role);
           window.currentUserData = {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || userData.displayName || user.email.split('@')[0],
-            role: userData.role || 'admin' // По умолчанию admin если роль не указана
+            role: role
           };
+          // Если в базе роль helper, а email админа — исправляем в базе
+          if (userData.role === 'helper' && isAdminByEmail) {
+            console.log('[Auth] Исправляю роль в базе с helper на admin');
+            await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
+              ...userData,
+              role: 'admin',
+              updatedAt: new Date().toISOString()
+            });
+          }
         } else {
           // Если пользователь не найден в БД — даём роль администратора
           console.log('[Auth] Пользователь не найден в БД, роль: admin');
@@ -986,6 +1009,10 @@
       }
       
       closeAuthModal();
+      
+      // Обновляем UI после входа
+      if (typeof window.updateAuthUI === 'function') window.updateAuthUI();
+      if (typeof window.updateRoleTabs === 'function') window.updateRoleTabs();
     } catch (error) {
       console.error('[Auth] Ошибка входа:', error);
       console.error('[Auth] Error code:', error.code);
@@ -1200,6 +1227,12 @@
     console.log('>>> getUserDataForAuth вызван для', user.email, 'uid:', user.uid);
     console.log('>>> Пытаюсь прочитать из базы...');
     
+    // Проверяем, является ли пользователь админом по email (глобальный список)
+    const isAdminByEmail = window.ADMIN_EMAILS.includes(user.email.toLowerCase());
+    if (isAdminByEmail) {
+      console.log('>>> ✅ Email в списке админов, устанавливаем роль admin');
+    }
+    
     // Пробуем прочитать из базы
     window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
       console.log('>>> snapshot.exists =', snapshot.exists());
@@ -1208,12 +1241,26 @@
       
       if (userData) {
         console.log('>>> Данные пользователя найдены:', userData);
+        // Если email в списке админов — принудительно ставим admin
+        const role = isAdminByEmail ? 'admin' : (userData.role || 'admin');
+        console.log('>>> Определяемая роль:', role);
+        
         window.currentUserData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || userData.displayName || 'Пользователь',
-          role: userData.role || 'admin'
+          role: role
         };
+        
+        // Если в базе роль helper, а email админа — исправляем в базе
+        if (userData.role === 'helper' && isAdminByEmail) {
+          console.log('>>> Исправляю роль в базе с helper на admin');
+          window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
+            ...userData,
+            role: 'admin',
+            updatedAt: new Date().toISOString()
+          });
+        }
       } else {
         // Если данных нет в базе — используем данные из Firebase Auth
         console.log('>>> Данные не найдены в базе, использую данные из Auth');
@@ -1221,7 +1268,7 @@
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-          role: 'admin' // По умолчанию админ
+          role: isAdminByEmail ? 'admin' : 'admin' // По умолчанию админ
         };
       }
       

@@ -47,6 +47,9 @@ onAuthStateChanged(window.auth, (user) => {
   }
 });
 
+// Список email админов — используем глобальный из index.html (window.ADMIN_EMAILS)
+// НЕ ДУБЛИРУЙ список здесь, если меняешь — меняй только в index.html
+
 // ========== ГЛОБАЛЬНАЯ ПРОВЕРКА АВТОРИЗАЦИИ (вызывается ПОСЛЕ загрузки app.js) ==========
 window.initAuthState = function() {
   console.log('[Auth] initAuthState вызван');
@@ -56,6 +59,12 @@ window.initAuthState = function() {
     if (user) {
       // Пользователь авторизован - показываем приложение
       console.log('Пользователь авторизован:', user.email);
+      
+      // Проверяем, является ли пользователь админом по email (глобальный список)
+      const isAdminByEmail = window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(user.email.toLowerCase());
+      if (isAdminByEmail) {
+        console.log('>>> ✅ Email админа в списке, принудительно устанавливаем роль admin');
+      }
       
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appContent').style.display = 'block';
@@ -69,12 +78,25 @@ window.initAuthState = function() {
           return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-            role: 'admin',
+            role: isAdminByEmail ? 'admin' : 'admin',
             createdAt: new Date().toISOString()
           }).then(() => {
             console.log('Запись пользователя создана успешно');
           }).catch(err => {
             console.error('Ошибка создания записи пользователя:', err);
+          });
+        } else {
+          // Если пользователь уже есть в базе, но роль helper, а email админа — исправляем
+          return window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snap) => {
+            if (snap.exists() && snap.val().role === 'helper' && isAdminByEmail) {
+              console.log('>>> Исправляю роль в базе с helper на admin при авторизации');
+              return window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
+                ...snap.val(),
+                role: 'admin',
+                updatedAt: new Date().toISOString()
+              });
+            }
+            return null;
           });
         }
       }).then(() => {
