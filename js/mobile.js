@@ -25,109 +25,113 @@
     function initMobileNav() {
         if (!isMobile && !isSmallScreen) return;
 
-        // Показываем нижнюю навигацию (bottom-nav)
-        var adminNav = document.getElementById('adminBottomNav');
-        var helperNav = document.getElementById('helperBottomNav');
-        
-        if (adminNav) {
-            adminNav.classList.add('visible');
-            adminNav.style.display = 'flex';
-        }
-        if (helperNav) {
-            helperNav.classList.add('visible');
-            helperNav.style.display = 'flex';
-        }
-
         // Скрываем десктопные табы
         var desktopTabs = document.querySelector('.desktop-tabs');
         if (desktopTabs) {
             desktopTabs.style.display = 'none';
         }
 
-        // Обработчики для кнопок нижней навигации
-        var navItems = document.querySelectorAll('.bottom-nav-item, .bottom-nav-more-item');
-        navItems.forEach(function(item) {
-            item.addEventListener('click', function(e) {
-                var tabId = this.getAttribute('data-tab');
-                if (!tabId) return;
-
-                // Убираем активный класс у всех кнопок в той же навигации
-                var parentNav = this.closest('.bottom-nav, .bottom-nav-more-menu');
-                if (parentNav) {
-                    parentNav.querySelectorAll('.bottom-nav-item, .bottom-nav-more-item').forEach(function(nav) {
-                        nav.classList.remove('active');
-                    });
-                }
-                this.classList.add('active');
-
-                // Переключаем контент
-                var tabContents = document.querySelectorAll('.tab-content');
-                tabContents.forEach(function(content) { content.classList.remove('active'); });
-
-                var targetTab = document.getElementById(tabId);
-                if (targetTab) {
-                    targetTab.classList.add('active');
-                }
-
-                // Обновляем данные вкладки
-                if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') {
-                    renderCalendar();
-                }
-                if (tabId === 'tab-ref' && typeof renderRefs === 'function') {
-                    renderRefs();
-                }
-                if (tabId === 'tab-purchase' && typeof renderPurchaseOrdersList === 'function') {
-                    renderPurchaseOrdersList();
-                }
-                if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') {
-                    renderHelperTasks();
-                }
-                if (tabId === 'helper-report' && typeof renderHelperReport === 'function') {
-                    renderHelperReport();
-                }
-                if (tabId === 'tab-helper-admin') {
-                    if (typeof updateHelperFilter === 'function') updateHelperFilter();
-                    if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
-                    if (typeof renderAdminNotifications === 'function') renderAdminNotifications();
-                    if (typeof listAllHelpersInDB === 'function') listAllHelpersInDB();
-                }
-                if (tabId === 'helper-report') {
-                    if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
-                }
-
-                // Вибрация при нажатии (если поддерживается)
-                if (navigator.vibrate) {
-                    navigator.vibrate(10);
-                }
-
-                // Закрываем меню "Ещё" если открыто
-                var moreMenu = document.getElementById('bottomNavMoreMenu');
-                if (moreMenu) {
-                    moreMenu.classList.remove('visible');
-                }
+        // Обработчики для кнопок нижней навигации (admin)
+        var adminNav = document.getElementById('adminBottomNav');
+        if (adminNav) {
+            var adminItems = adminNav.querySelectorAll('.bottom-nav-item');
+            adminItems.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var tabId = this.getAttribute('data-tab');
+                    if (!tabId) return;
+                    switchToTab(tabId, adminNav);
+                });
             });
-        });
 
-        // Обработчик для кнопки "Ещё"
-        var moreBtn = document.querySelector('.bottom-nav-more');
-        if (moreBtn) {
-            moreBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                var moreMenu = document.getElementById('bottomNavMoreMenu');
-                if (moreMenu) {
-                    moreMenu.classList.toggle('visible');
-                }
+            // Кнопка "Ещё"
+            var moreBtn = adminNav.querySelector('.bottom-nav-more');
+            if (moreBtn) {
+                moreBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var moreMenu = document.getElementById('bottomNavMoreMenu');
+                    if (moreMenu) moreMenu.classList.toggle('visible');
+                });
+            }
+        }
+
+        // Обработчики для навигации помощника
+        var helperNav = document.getElementById('helperBottomNav');
+        if (helperNav) {
+            var helperItems = helperNav.querySelectorAll('.bottom-nav-item');
+            helperItems.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var tabId = this.getAttribute('data-tab');
+                    if (!tabId) return;
+                    switchToTab(tabId, helperNav);
+                });
+            });
+        }
+
+        // Обработчики для меню "Ещё"
+        var moreMenu = document.getElementById('bottomNavMoreMenu');
+        if (moreMenu) {
+            var moreItems = moreMenu.querySelectorAll('.bottom-nav-more-item[data-tab]');
+            moreItems.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var tabId = this.getAttribute('data-tab');
+                    if (!tabId) return;
+                    switchToTab(tabId, moreMenu);
+                });
             });
         }
 
         // Закрываем меню "Ещё" при клике вне его
         document.addEventListener('click', function(e) {
-            var moreMenu = document.getElementById('bottomNavMoreMenu');
-            var moreBtn = document.querySelector('.bottom-nav-more');
-            if (moreMenu && moreBtn && !moreMenu.contains(e.target) && !moreBtn.contains(e.target)) {
-                moreMenu.classList.remove('visible');
+            if (moreMenu && adminNav) {
+                var moreBtn = adminNav.querySelector('.bottom-nav-more');
+                if (!moreMenu.contains(e.target) && (!moreBtn || !moreBtn.contains(e.target))) {
+                    moreMenu.classList.remove('visible');
+                }
             }
         });
+    }
+
+    // ========== ПЕРЕКЛЮЧЕНИЕ ВКЛАДОК ==========
+    function switchToTab(tabId, navContainer) {
+        // Переключаем контент
+        var tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(function(content) { content.classList.remove('active'); });
+
+        var targetTab = document.getElementById(tabId);
+        if (targetTab) {
+            targetTab.classList.add('active');
+        }
+
+        // Обновляем активные кнопки
+        if (navContainer) {
+            var items = navContainer.querySelectorAll('.bottom-nav-item, .bottom-nav-more-item');
+            items.forEach(function(btn) { btn.classList.remove('active'); });
+            var activeBtn = navContainer.querySelector('[data-tab="' + tabId + '"]');
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        // Обновляем данные вкладки
+        if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') renderCalendar();
+        if (tabId === 'tab-ref' && typeof renderRefs === 'function') renderRefs();
+        if (tabId === 'tab-purchase' && typeof renderPurchaseOrdersList === 'function') renderPurchaseOrdersList();
+        if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
+        if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
+        if (tabId === 'tab-helper-admin') {
+            if (typeof updateHelperFilter === 'function') updateHelperFilter();
+            if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
+            if (typeof renderAdminNotifications === 'function') renderAdminNotifications();
+            if (typeof listAllHelpersInDB === 'function') listAllHelpersInDB();
+        }
+        if (tabId === 'helper-report') {
+            if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
+        }
+
+        // Вибрация
+        if (navigator.vibrate) navigator.vibrate(10);
+
+        // Закрываем меню "Ещё"
+        var moreMenu = document.getElementById('bottomNavMoreMenu');
+        if (moreMenu) moreMenu.classList.remove('visible');
     }
 
     // ========== ЖЕСТЫ (SWIPE) ==========
