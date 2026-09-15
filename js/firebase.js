@@ -103,7 +103,7 @@ window.initAuthState = function() {
         }
       }).then(async () => {
         console.log('Вызываю getUserDataForAuth...');
-        // Сначала синхронизируем пользователей в облако
+        // Сначала синхронизируем пользователей из облака
         if (typeof window.syncUsersToCloud === 'function') {
           await window.syncUsersToCloud();
         }
@@ -251,27 +251,47 @@ window.syncToCloud = function() {
   }
 };
 
-// ========== СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ В ОБЛАКО ==========
+// ========== ДВУСТОРОННЯЯ СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ ==========
 window.syncUsersToCloud = async function() {
   if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef || !window.fbGet || !window.child) {
     return null;
   }
   
   try {
-    // Читаем всех пользователей из /users (корень БД)
-    const snapshot = await window.fbGet(window.child(window.fbRef(window.db), 'users'));
-    if (!snapshot.exists()) {
-      console.log('[Firebase] Пользователи не найдены в /users');
-      return null;
+    // 1. Читаем из /atelier_data/users (там могли быть старые синхронизированные пользователи)
+    const cloudSnapshot = await window.fbGet(window.child(window.fbRef(window.db), 'atelier_data/users'));
+    const cloudUsers = cloudSnapshot.exists() ? cloudSnapshot.val() : {};
+    
+    // 2. Читаем из /users (корень БД — новые пользователи создаются здесь)
+    const rootSnapshot = await window.fbGet(window.child(window.fbRef(window.db), 'users'));
+    const rootUsers = rootSnapshot.exists() ? rootSnapshot.val() : {};
+    
+    // 3. Объединяем: приоритет у /users (корень), но добавляем отсутствующих из облака
+    const mergedUsers = {};
+    for (const uid in rootUsers) {
+      mergedUsers[uid] = rootUsers[uid];
     }
-    const users = snapshot.val();
-    console.log('[Firebase] Найдено пользователей в /users:', Object.keys(users).length);
+    for (const uid in cloudUsers) {
+      if (!mergedUsers[uid]) {
+        mergedUsers[uid] = cloudUsers[uid];
+      }
+    }
     
-    // Копируем в atelier_data/users
-    await window.fbSet(window.fbRef(window.db), 'atelier_data/users', users);
-    console.log('[Firebase] ✅ Пользователи синхронизированы в atelier_data/users');
+    console.log('[Firebase] 📊 Из /users:', Object.keys(rootUsers).length);
+    console.log('[Firebase] 📊 Из /atelier_data/users:', Object.keys(cloudUsers).length);
+    console.log('[Firebase] 📊 Объединено:', Object.keys(mergedUsers).length);
+    console.log('[Firebase] 📋 UID пользователей:', Object.keys(mergedUsers));
     
-    return users;
+    if (Object.keys(mergedUsers).length === 0) return null;
+    
+    // 4. Записываем в оба места
+    await window.fbSet(window.fbRef(window.db), 'users', mergedUsers);
+    await window.fbSet(window.fbRef(window.db), 'atelier_data/users', mergedUsers);
+    
+    console.log('[Firebase] ✅ Пользователи синхронизированы в оба места:', Object.keys(mergedUsers).length);
+    console.log('[Firebase] 👤 Детали:', Object.values(mergedUsers).map(u => `${u.email} (${u.role})`));
+    
+    return mergedUsers;
   } catch (error) {
     console.error('[Firebase] Ошибка синхронизации пользователей:', error);
     return null;
