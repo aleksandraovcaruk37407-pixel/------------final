@@ -4603,17 +4603,30 @@ window.localChangesPending = false;
             const div = document.createElement('div');
             div.innerHTML = `<div class="section-title">🧵 Ткань</div>
                 <label>Категория</label><input type="text" class="fabric-category" value="${inst.fabric.category||''}">
-                <label>Артикул</label><input type="text" class="fabric-code" value="${inst.fabric.code||''}" list="fabricCodes">
+                <label>Артикул</label><div style="display:flex;gap:4px;"><input type="text" class="fabric-code" value="${inst.fabric.code||''}" list="fabricCodes" style="flex:1;"><button type="button" class="btn-del fabric-clear" style="padding:4px 8px;font-size:14px;min-height:auto;min-width:auto;" title="Очистить">✕</button></div>
                 <label>Цена</label><input type="number" class="fabric-price" value="${parseFloat(inst.fabric.price)||0}">
                 <label>Метры</label><input type="number" class="fabric-meters" value="${parseFloat(inst.fabric.meters)||0}">
                 <label>Стоимость</label><input type="text" class="fabric-cost" readonly>`;
             container.appendChild(div);
             const catInput = div.querySelector('.fabric-category');
             const codeInput = div.querySelector('.fabric-code');
+            const clearBtn = div.querySelector('.fabric-clear');
             const priceInput = div.querySelector('.fabric-price');
             const metersInput = div.querySelector('.fabric-meters');
             const costInput = div.querySelector('.fabric-cost');
             createDatalist('fabricCodes', colors.map(c => c.code));
+            
+            // Кнопка очистки
+            clearBtn.addEventListener('click', function() {
+                inst.fabric = {};
+                codeInput.value = '';
+                catInput.value = '';
+                priceInput.value = '0';
+                metersInput.value = '0';
+                costInput.value = '0.00';
+                updateModalTotals();
+            });
+            
             const update = () => {
                 inst.fabric.category = catInput.value;
                 inst.fabric.code = codeInput.value;
@@ -4635,16 +4648,28 @@ window.localChangesPending = false;
         if (serviceUsesPaint(svc)) {
             const div = document.createElement('div');
             div.innerHTML = `<div class="section-title">🎨 Краска</div>
-                <label>Артикул</label><input type="text" class="paint-code" value="${inst.paint.code||''}" list="paintCodes">
+                <label>Артикул</label><div style="display:flex;gap:4px;"><input type="text" class="paint-code" value="${inst.paint.code||''}" list="paintCodes" style="flex:1;"><button type="button" class="btn-del paint-clear" style="padding:4px 8px;font-size:14px;min-height:auto;min-width:auto;" title="Очистить">✕</button></div>
                 <label>Цена</label><input type="number" class="paint-price" value="${parseFloat(inst.paint.price)||0}" readonly>
                 <label>Мл</label><input type="number" class="paint-qty" value="${parseFloat(inst.paint.qty)||0}">
                 <label>Стоимость</label><input type="text" class="paint-cost" readonly>`;
             container.appendChild(div);
             const codeInput = div.querySelector('.paint-code');
+            const clearBtn = div.querySelector('.paint-clear');
             const priceInput = div.querySelector('.paint-price');
             const qtyInput = div.querySelector('.paint-qty');
             const costInput = div.querySelector('.paint-cost');
             createDatalist('paintCodes', paints.map(p => p.code));
+            
+            // Кнопка очистки
+            clearBtn.addEventListener('click', function() {
+                inst.paint = {};
+                codeInput.value = '';
+                priceInput.value = '0';
+                qtyInput.value = '0';
+                costInput.value = '0.00';
+                updateModalTotals();
+            });
+            
             const update = () => {
                 inst.paint.code = codeInput.value;
                 const found = findReferenceMatch(codeInput.value, paints);
@@ -4666,16 +4691,28 @@ window.localChangesPending = false;
         if (serviceUsesMarker(svc, 'Пленка для аквапринта')) {
             const div = document.createElement('div');
             div.innerHTML = `<div class="section-title">🖼️ Плёнка</div>
-                <label>Артикул</label><input type="text" class="film-code" value="${inst.film.code||''}" list="filmCodes">
+                <label>Артикул</label><div style="display:flex;gap:4px;"><input type="text" class="film-code" value="${inst.film.code||''}" list="filmCodes" style="flex:1;"><button type="button" class="btn-del film-clear" style="padding:4px 8px;font-size:14px;min-height:auto;min-width:auto;" title="Очистить">✕</button></div>
                 <label>Цена</label><input type="number" class="film-price" value="${parseFloat(inst.film.price)||0}" readonly>
                 <label>Метры</label><input type="number" class="film-meters" value="${parseFloat(inst.film.meters)||0}">
                 <label>Стоимость</label><input type="text" class="film-cost" readonly>`;
             container.appendChild(div);
             const codeInput = div.querySelector('.film-code');
+            const clearBtn = div.querySelector('.film-clear');
             const priceInput = div.querySelector('.film-price');
             const metersInput = div.querySelector('.film-meters');
             const costInput = div.querySelector('.film-cost');
             createDatalist('filmCodes', films.map(f => f.code));
+            
+            // Кнопка очистки
+            clearBtn.addEventListener('click', function() {
+                inst.film = {};
+                codeInput.value = '';
+                priceInput.value = '0';
+                metersInput.value = '0';
+                costInput.value = '0.00';
+                updateModalTotals();
+            });
+            
             const update = () => {
                 inst.film.code = codeInput.value;
                 const found = findReferenceMatch(codeInput.value, films);
@@ -4710,16 +4747,28 @@ window.localChangesPending = false;
                 // Определяем единицу измерения по коду и названию артикула
                 const unitLabel = getUnitFromArticleName(mt.name, null);
                 div.innerHTML = `<div class="section-title">${icon} ${mt.name}</div>
-                    <label>Артикул или поиск по названию</label><input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Введите код или название для поиска">
+                    <label>Артикул или поиск по названию</label><div style="display:flex;gap:4px;"><input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Введите код или название для поиска" style="flex:1;"><button type="button" class="btn-del custom-clear" data-mt-clear="${mt.name}" style="padding:4px 8px;font-size:14px;min-height:auto;min-width:auto;" title="Очистить">✕</button></div>
                     <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
                     <label>Количество ${unitLabel}</label><input type="number" class="custom-qty" value="${markerData.qty||''}" step="0.1" placeholder="0.0">
                     <label>Стоимость</label><input type="text" class="custom-cost" value="0.00" readonly>`;
                 container.appendChild(div);
                 const codeInput = div.querySelector('.custom-code');
+                const clearBtn = div.querySelector('.custom-clear');
                 const priceInput = div.querySelector('.custom-price');
                 const qtyInput = div.querySelector('.custom-qty');
                 const costInput = div.querySelector('.custom-cost');
                 createDatalist(`${mt.name}Codes`, mt.articles.map(a => a.code + ' - ' + a.name));
+                
+                // Кнопка очистки
+                clearBtn.addEventListener('click', function() {
+                    inst[mt.name] = {};
+                    codeInput.value = '';
+                    priceInput.value = '0';
+                    qtyInput.value = '';
+                    costInput.value = '0.00';
+                    updateModalTotals();
+                });
+                
                 const update = () => {
                     const query = codeInput.value.trim().toLowerCase();
                     let art = null;

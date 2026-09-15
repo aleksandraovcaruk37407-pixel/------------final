@@ -31,9 +31,6 @@
             desktopTabs.style.display = 'none';
         }
 
-        // НЕ показываем навигацию автоматически — это делает updateRoleTabs() в index.html
-        // Просто добавляем обработчики кликов на существующие навигации
-
         // Обработчики для кнопок нижней навигации (admin)
         var adminNav = document.getElementById('adminBottomNav');
         if (adminNav) {
@@ -138,15 +135,12 @@
     }
 
     // ========== СЛЕДИМ ЗА ИЗМЕНЕНИЯМИ РОЛИ ==========
-    // Если updateRoleTabs вызывается, навигация уже управляется правильно
-    // Но на всякий случай добавляем MutationObserver
     function observeRoleChanges() {
         var adminNav = document.getElementById('adminBottomNav');
         var helperNav = document.getElementById('helperBottomNav');
         
         if (adminNav && helperNav) {
             var observer = new MutationObserver(function() {
-                // Если обе навигации скрыты — показываем админа по умолчанию
                 var adminVisible = adminNav.style.display === 'flex' || adminNav.classList.contains('visible');
                 var helperVisible = helperNav.style.display === 'flex' || helperNav.classList.contains('visible');
                 
@@ -166,7 +160,7 @@
         }
     }
 
-    // ========== ЖЕСТЫ (SWIPE) ==========
+    // ========== SWIPE ЖЕСТЫ (только для основного контента, не для модалок) ==========
     function initSwipeGestures() {
         if (!isMobile) return;
 
@@ -174,16 +168,25 @@
         var touchStartY = 0;
         var touchEndX = 0;
         var touchEndY = 0;
-        var minSwipeDistance = 50;
+        var minSwipeDistance = 80;
 
-        var tabOrder = ['tab-orders', 'tab-calendar', 'tab-ref', 'tab-purchase', 'tab-budget', 'tab-helper', 'tab-cash', 'tab-summary', 'tab-settings'];
+        // Порядок вкладок админа
+        var adminTabOrder = ['tab-orders', 'tab-calendar', 'tab-purchase', 'tab-stock', 'tab-cash', 'tab-summary', 'tab-ref', 'tab-helper-admin'];
+        // Порядок вкладок помощника
+        var helperTabOrder = ['helper-tasks', 'helper-report'];
 
         document.addEventListener('touchstart', function(e) {
+            // НЕ обрабатываем свайп внутри модалок
+            if (e.target.closest('.modal') || e.target.closest('.modal-overlay')) return;
+            
             touchStartX = e.changedTouches[0].screenX;
             touchStartY = e.changedTouches[0].screenY;
         }, { passive: true });
 
         document.addEventListener('touchend', function(e) {
+            // НЕ обрабатываем свайп внутри модалок
+            if (e.target.closest('.modal') || e.target.closest('.modal-overlay')) return;
+            
             touchEndX = e.changedTouches[0].screenX;
             touchEndY = e.changedTouches[0].screenY;
             handleSwipe();
@@ -193,103 +196,87 @@
             var diffX = touchEndX - touchStartX;
             var diffY = touchEndY - touchStartY;
 
-            // Определяем направление (горизонтальный свайп)
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                var currentTab = document.querySelector('.tab-content.active');
-                if (!currentTab) return;
+            // Только горизонтальный свайп
+            if (Math.abs(diffX) < Math.abs(diffY) || Math.abs(diffX) < minSwipeDistance) return;
 
-                var currentIndex = tabOrder.indexOf(currentTab.id);
-                if (currentIndex === -1) return;
+            // Определяем текущую вкладку и порядок
+            var currentTab = document.querySelector('.tab-content.active');
+            if (!currentTab) return;
 
-                // Свайп влево — следующая вкладка
-                if (diffX > minSwipeDistance && currentIndex < tabOrder.length - 1) {
-                    switchToTab(tabOrder[currentIndex + 1]);
-                }
-                // Свайп вправо — предыдущая вкладка
-                else if (diffX < -minSwipeDistance && currentIndex > 0) {
-                    switchToTab(tabOrder[currentIndex - 1]);
-                }
+            var tabOrder = currentTab.id === 'helper-tasks' || currentTab.id === 'helper-report' 
+                ? helperTabOrder : adminTabOrder;
+
+            var currentIndex = tabOrder.indexOf(currentTab.id);
+            if (currentIndex === -1) return;
+
+            // Свайп влево — следующая вкладка
+            if (diffX < -minSwipeDistance && currentIndex < tabOrder.length - 1) {
+                switchToTab(tabOrder[currentIndex + 1]);
             }
-        }
-
-        function switchToTab(tabId) {
-            // Обновляем контент
-            var tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(function(content) { content.classList.remove('active'); });
-
-            var targetTab = document.getElementById(tabId);
-            if (targetTab) {
-                targetTab.classList.add('active');
+            // Свайп вправо — предыдущая вкладка
+            else if (diffX > minSwipeDistance && currentIndex > 0) {
+                switchToTab(tabOrder[currentIndex - 1]);
             }
-
-            // Обновляем кнопки навигации
-            var navItems = document.querySelectorAll('.mobile-nav-item');
-            navItems.forEach(function(item) {
-                item.classList.remove('active');
-                if (item.getAttribute('data-tab') === tabId) {
-                    item.classList.add('active');
-                }
-            });
-
-            // Вибрация
-            if (navigator.vibrate) {
-                navigator.vibrate(15);
-            }
-
-            // Обновляем данные
-            if (typeof renderCalendar === 'function' && tabId === 'tab-calendar') renderCalendar();
-            if (typeof renderRefs === 'function' && tabId === 'tab-ref') renderRefs();
-            if (typeof renderPurchaseOrdersList === 'function' && tabId === 'tab-purchase') renderPurchaseOrdersList();
         }
     }
 
-    // ========== МОБИЛЬНЫЕ МОДАЛЬНЫЕ ОКНА (BOTTOM SHEET) ==========
+    // ========== МОБИЛЬНЫЕ МОДАЛЬНЫЕ ОКНА ==========
     function initMobileModals() {
         if (!isMobile) return;
 
-        var modal = document.getElementById('orderModal');
-        if (!modal) return;
+        // === Order Modal — НЕ позволяем закрыть свайпом вниз ===
+        var orderModal = document.getElementById('orderModal');
+        if (orderModal) {
+            // Запрещаем touch-action: pan-y на модалке, чтобы скролл работал внутри
+            orderModal.style.touchAction = 'pan-y';
+            
+            // Запрещаем свайп вниз для закрытия orderModal
+            orderModal.addEventListener('touchmove', function(e) {
+                // Разрешаем скролл внутри модалки
+                var modalInner = e.target.closest('.modal');
+                if (modalInner) {
+                    e.stopPropagation();
+                }
+            }, { passive: true });
+        }
 
-        var modalContent = modal;
-        var touchStartY = 0;
-        var currentTranslateY = 0;
-        var isDragging = false;
+        // === Calendar Booking Modal ===
+        var bookingModal = document.getElementById('bookingModal');
+        if (bookingModal) {
+            bookingModal.style.touchAction = 'pan-y';
+        }
 
-        // Добавляем handle для перетаскивания
-        var handle = document.createElement('div');
-        handle.className = 'modal-handle';
-        modalContent.insertBefore(handle, modalContent.firstChild);
+        // === Helper Task Modal ===
+        var helperTaskModal = document.getElementById('helperTaskModal');
+        if (helperTaskModal) {
+            helperTaskModal.style.touchAction = 'pan-y';
+        }
+    }
 
-        modalContent.addEventListener('touchstart', function(e) {
-            touchStartY = e.touches[0].clientY;
-            isDragging = true;
-            modalContent.style.transition = 'none';
-        }, { passive: true });
+    // ========== СКРЫВАЕМ КНОПКИ НА МОБИЛЬНЫХ ==========
+    function hideMobileButtons() {
+        if (!isMobile && !isSmallScreen) return;
 
-        modalContent.addEventListener('touchmove', function(e) {
-            if (!isDragging) return;
-            var touchY = e.touches[0].clientY;
-            var diff = touchY - touchStartY;
+        // Скрываем кнопку "Экспорт" в настройках
+        var exportBtn = document.querySelector('button[onclick="exportData()"]');
+        if (exportBtn) exportBtn.style.display = 'none';
 
-            // Разрешаем тянуть только вниз
-            if (diff > 0) {
-                currentTranslateY = diff;
-                modalContent.style.transform = 'translateY(' + currentTranslateY + 'px)';
+        // Скрываем кнопку "Импорт" в настройках
+        var importBtn = document.querySelector('button[onclick*="fileInput"].click()');
+        if (importBtn) importBtn.style.display = 'none';
+
+        // Скрываем кнопку "Экспорт" в календаре (вторую кнопку)
+        var calendarExportBtns = document.querySelectorAll('#tab-calendar button[title="Экспорт"]');
+        if (calendarExportBtns.length > 1) {
+            // Оставляем первую кнопку (рядом с "Неделя"), скрываем остальные
+            for (var i = 1; i < calendarExportBtns.length; i++) {
+                calendarExportBtns[i].style.display = 'none';
             }
-        }, { passive: true });
+        }
 
-        modalContent.addEventListener('touchend', function() {
-            isDragging = false;
-            modalContent.style.transition = 'transform 0.3s ease';
-
-            // Если потянули вниз больше чем на 100px — закрываем
-            if (currentTranslateY > 100) {
-                closeModal();
-            } else {
-                modalContent.style.transform = 'translateY(0)';
-            }
-            currentTranslateY = 0;
-        });
+        // Скрываем кнопку "Экспорт в текстовый файл" в итогах
+        var summaryExportBtn = document.querySelector('button[onclick="exportSummaryReport()"]');
+        if (summaryExportBtn) summaryExportBtn.style.display = 'none';
     }
 
     // ========== УПРАВЛЕНИЕ КЛАВИАТУРОЙ ==========
@@ -302,7 +289,6 @@
         inputs.forEach(function(input) {
             input.addEventListener('focus', function() {
                 lastFocused = this;
-                // Небольшая задержка для прокрутки
                 setTimeout(function() {
                     if (lastFocused && lastFocused.offsetParent) {
                         lastFocused.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -318,7 +304,6 @@
 
     // ========== ПРЕДОТВРАЩЕНИЕ НЕЖЕЛАТЕЛЬНОГО ЗУМА ==========
     function preventZoom() {
-        // Запрещаем двойной тап для зума
         var lastTouchEnd = 0;
         document.addEventListener('touchend', function(e) {
             var now = Date.now();
@@ -331,20 +316,17 @@
 
     // ========== ОПТИМИЗАЦИЯ ПРОИЗВОДИТЕЛЬНОСТИ ==========
     function optimizePerformance() {
-        // Используем requestAnimationFrame для анимаций
         if (!window.requestAnimationFrame) {
             window.requestAnimationFrame = function(callback) {
                 return setTimeout(callback, 1000 / 60);
             };
         }
 
-        // Дебаунс для resize событий
         var resizeTimeout;
         window.addEventListener('resize', function() {
             clearTimeout(resizeTimeout);
             resizeTimeout = setTimeout(function() {
                 isSmallScreen = window.innerWidth <= 768;
-                // Пересчитываем safe areas
                 applySafeAreas();
             }, 250);
         });
@@ -352,14 +334,12 @@
 
     // ========== ОБРАБОТКА ОТСУТСТВИЯ ИНТЕРНЕТА ==========
     function initOfflineHandling() {
-        // Показываем уведомление при потере соединения
         window.addEventListener('offline', function() {
             showMobileNotification('⚠️ Нет подключения к интернету', '#ffc107');
         });
 
         window.addEventListener('online', function() {
             showMobileNotification('✅ Подключение восстановлено', '#28a745');
-            // Синхронизируем данные
             if (typeof window.syncToCloud === 'function') {
                 window.syncToCloud();
             }
@@ -391,6 +371,7 @@
         initMobileNav();
         initSwipeGestures();
         initMobileModals();
+        hideMobileButtons();
         initKeyboardHandling();
         preventZoom();
         optimizePerformance();
