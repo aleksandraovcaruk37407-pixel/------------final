@@ -1466,7 +1466,7 @@ window.localChangesPending = false;
             await window.updateProfile(user, { displayName: name });
             
             // Сохранение данных пользователя в Realtime Database
-            await window.set(window.fbRef(window.db), 'users/' + user.uid, {
+            await window.set(window.fbRef(window.db, 'users/' + user.uid), {
                 email: email,
                 displayName: name,
                 role: 'helper',
