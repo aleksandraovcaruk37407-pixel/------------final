@@ -17,6 +17,7 @@ window.db = getDatabase(app);
 window.auth = getAuth(app);
 window.fbRef = ref;
 window.fbSet = set;
+window.set = set;
 window.fbGet = get;
 window.fbChild = child;
 window.get = get;
@@ -92,7 +93,7 @@ window.initAuthState = function() {
           return window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snap) => {
             if (snap.exists() && snap.val().role === 'helper' && isAdminByEmail) {
               console.log('>>> Исправляю роль в базе с helper на admin при авторизации');
-              return window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
+              return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
                 ...snap.val(),
                 role: 'admin',
                 updatedAt: new Date().toISOString()
@@ -285,8 +286,8 @@ window.syncUsersToCloud = async function() {
     if (Object.keys(mergedUsers).length === 0) return null;
     
     // 4. Записываем в оба места
-    await window.fbSet(window.fbRef(window.db), 'users', mergedUsers);
-    await window.fbSet(window.fbRef(window.db), 'atelier_data/users', mergedUsers);
+    await window.fbSet(window.fbRef(window.db, 'users'), mergedUsers);
+    await window.fbSet(window.fbRef(window.db, 'atelier_data/users'), mergedUsers);
     
     console.log('[Firebase] ✅ Пользователи синхронизированы в оба места:', Object.keys(mergedUsers).length);
     console.log('[Firebase] 👤 Детали:', Object.values(mergedUsers).map(u => `${u.email} (${u.role})`));

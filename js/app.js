@@ -1452,7 +1452,7 @@ window.localChangesPending = false;
             return;
         }
         
-        const saveBtn = document.querySelector('#addHelperModal .btn-save');
+        const saveBtn = document.querySelector('#addHelperModal .btn-add');
         const originalText = saveBtn.textContent;
         saveBtn.textContent = '⏳ Создание...';
         saveBtn.disabled = true;
@@ -1735,7 +1735,7 @@ window.localChangesPending = false;
             if (!uid) return;
             
             // Создаём запись в Realtime Database
-            await window.set(window.fbRef(window.db), 'users/' + uid, {
+            await window.set(window.fbRef(window.db, 'users/' + uid), {
                 email: email,
                 displayName: email.split('@')[0],
                 role: 'helper',

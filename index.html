@@ -1344,7 +1344,7 @@
         // Если в базе роль helper, а email админа — исправляем в базе
         if (userData.role === 'helper' && isAdminByEmail) {
           console.log('>>> Исправляю роль в базе с helper на admin');
-          window.fbSet(window.fbRef(window.db), 'users/' + user.uid, {
+          window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
             ...userData,
             role: 'admin',
             updatedAt: new Date().toISOString()
