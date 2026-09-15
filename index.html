@@ -1432,6 +1432,7 @@
     const helperTabs = document.getElementById('helperTabs');
     const adminBottomNav = document.getElementById('adminBottomNav');
     const helperBottomNav = document.getElementById('helperBottomNav');
+    const footerToolbar = document.querySelector('.footer-toolbar');
     
     if (isAdmin) {
       adminTabs.style.display = 'flex';
@@ -1447,6 +1448,9 @@
       document.getElementById('tab-purchase').style.display = '';
       document.getElementById('helper-tasks').style.display = 'none';
       document.getElementById('helper-report').style.display = 'none';
+      
+      // Показать footer-toolbar (экспорт, импорт, очистить)
+      if (footerToolbar) footerToolbar.style.display = 'flex';
       
       // Активировать вкладку заказов
       document.querySelectorAll('#adminTabs .tab-btn').forEach(b => b.classList.remove('active'));
@@ -1485,6 +1489,9 @@
       document.getElementById('tab-purchase').style.display = 'none';
       document.getElementById('helper-tasks').style.display = '';
       document.getElementById('helper-report').style.display = '';
+      
+      // Скрыть footer-toolbar (экспорт, импорт, очистить)
+      if (footerToolbar) footerToolbar.style.display = 'none';
       
       // Активировать вкладку задач помощника
       document.querySelectorAll('#helperTabs .tab-btn').forEach(b => b.classList.remove('active'));
