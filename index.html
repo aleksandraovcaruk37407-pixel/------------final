@@ -265,18 +265,6 @@
     <div id="tab-cash" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">💰 Финансы и бюджет</h2>
         
-        <!-- Распределение при оплате заказа -->
-        <div class="budget-card" style="background:#d4edda;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #28a745;">
-            <h3 style="margin:0 0 10px 0;">✅ Распределение при оплате заказа</h3>
-            <div class="budget-row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-                <select id="budgetOrderSelect" style="flex:1;min-width:200px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
-                    <option value="">-- Выбери заказ --</option>
-                </select>
-                <button onclick="distributeFromOrder()" class="btn-add" style="white-space:nowrap;background:#28a745;color:#fff;">📊 Распределить</button>
-            </div>
-            <div id="budgetDistributionResult" style="margin-top:12px;"></div>
-        </div>
-
         <!-- Сводка по бюджету -->
         <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
             <h3 style="margin:0 0 10px 0;">📊 Сводка по бюджету</h3>
@@ -295,12 +283,6 @@
             <div id="mandatoryPaymentsProgress"></div>
         </div>
 
-        <!-- Долги (досрочное погашение) -->
-        <div class="budget-card" style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
-            <h3 style="margin:0 0 10px 0;">📊 Долги (досрочное погашение)</h3>
-            <div id="debtsProgress"></div>
-        </div>
-
         <!-- История распределений -->
         <div class="budget-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
             <h3 style="margin:0 0 10px 0;">📜 История распределений</h3>
@@ -310,25 +292,39 @@
         <!-- Операции -->
         <div style="margin-top:30px;">
             <h3 style="color:#1a3c5e; margin-bottom:10px;">💵 Операции</h3>
-            <div class="inline-flex" style="justify-content:space-between;margin-bottom:10px;">
-                <button class="btn-add" onclick="addCashRow()">+ Добавить операцию</button>
-                <span style="font-size:14px; color:#6c757d;">Баланс: <b id="cashBalance">0</b> ₽</span>
+            
+            <!-- Баланс -->
+            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <div>
+                    <span style="font-size:14px;color:#6c757d;">💰 Баланс:</span>
+                    <span id="cashBalance" style="font-size:24px;font-weight:700;color:#1a3c5e;margin-left:8px;">0.00</span>
+                    <span style="font-size:18px;font-weight:600;color:#1a3c5e;"> ₽</span>
+                </div>
+                <button class="btn-add" onclick="openAddCashModal()" style="background:#28a745;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;">➕ Добавить операцию</button>
             </div>
+            
             <div class="scroll-wrap">
                 <table>
-                    <thead><tr><th>Дата</th><th>Описание</th><th>Приход</th><th>Расход</th><th>Баланс</th><th></th></tr></thead>
+                    <thead><tr><th>📅 Дата</th><th>📝 Описание</th><th>📈 Приход</th><th>📉 Расход</th><th>💰 Баланс</th><th></th></tr></thead>
                     <tbody id="cashBody"></tbody>
                 </table>
             </div>
             
             <!-- Регулярные платежи -->
-            <div style="margin-top:20px;">
-                <h3>📌 Регулярные платежи</h3>
+            <div style="margin-top:25px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <h3 style="margin:0;">📌 Регулярные расходы</h3>
+                    <button class="btn-add" onclick="openAddRegularExpenseModal()" style="background:#dc3545;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">➕ Добавить расход</button>
+                </div>
                 <div id="regularExpensesList"></div>
-                <button class="btn-extra" onclick="addRegularExpense()">➕ Добавить регулярный расход</button>
-                <h3 style="margin-top:15px;">💵 Регулярные доходы</h3>
+            </div>
+            
+            <div style="margin-top:20px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                    <h3 style="margin:0;">💵 Регулярные доходы</h3>
+                    <button class="btn-add" onclick="openAddRegularIncomeModal()" style="background:#28a745;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">➕ Добавить доход</button>
+                </div>
                 <div id="regularIncomesList"></div>
-                <button class="btn-extra" onclick="addRegularIncome()">➕ Добавить регулярный доход</button>
             </div>
         </div>
     </div>
@@ -381,16 +377,16 @@
 
     <!-- Вкладка Календарь -->
     <div id="tab-calendar" class="tab-content">
-        <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button onclick="changeMonth(-1)" style="padding:8px 12px; font-size:16px;">◀</button>
-                <button onclick="goToday()" style="padding:8px 16px; font-size:14px; font-weight:600; background:#007bff; color:#fff; border:none; border-radius:20px; cursor:pointer;">📍 Сегодня</button>
-                <button onclick="goTomorrow()" style="padding:8px 16px; font-size:14px; font-weight:600; background:#28a745; color:#fff; border:none; border-radius:20px; cursor:pointer;">Завтра ▶</button>
+        <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <button onclick="changeMonth(-1)" id="calPrevMonth" title="Предыдущий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">◀</button>
+                <button onclick="goToday()" title="Текущая дата" style="padding:8px 14px; font-size:13px; font-weight:600; background:#007bff; color:#fff; border:none; border-radius:6px; cursor:pointer;">📍 Сегодня</button>
+                <button onclick="changeMonth(1)" id="calNextMonth" title="Следующий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">▶</button>
             </div>
-            <h2 id="calendarTitle" style="font-size:20px; color:#1a3c5e; margin:0;"></h2>
-            <div style="display:flex; gap:8px; align-items:center;">
-                <button onclick="toggleCalendarView()" id="viewToggleBtn" style="padding:8px 14px; font-size:13px; font-weight:600; background:#6c757d; color:#fff; border:none; border-radius:20px; cursor:pointer;">📅 Неделя</button>
-                <button onclick="exportCalendar()" style="padding:8px 14px; font-size:13px; font-weight:600; background:#17a2b8; color:#fff; border:none; border-radius:20px; cursor:pointer;">📤 Экспорт</button>
+            <h2 id="calendarTitle" style="font-size:18px; color:#1a3c5e; margin:0; flex:1; text-align:center; min-width:150px;"></h2>
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <button onclick="toggleCalendarView()" id="viewToggleBtn" title="Переключить вид" style="padding:8px 12px; font-size:12px; font-weight:600; background:#6c757d; color:#fff; border:none; border-radius:6px; cursor:pointer;">📅 Неделя</button>
+                <button onclick="exportCalendar()" title="Экспорт" style="padding:8px 12px; font-size:12px; font-weight:600; background:#17a2b8; color:#fff; border:none; border-radius:6px; cursor:pointer;">📤 Экспорт</button>
             </div>
         </div>
         <div id="calendarSummary" style="background:#f8f9fa; padding:10px; border-radius:8px; margin:10px 0; display:flex; gap:15px; flex-wrap:wrap; font-size:14px; font-weight:600;"></div>
@@ -704,6 +700,91 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeAddExtraRefModal()">Отмена</button>
                 <button class="btn-save" onclick="saveNewExtraRef()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления операции -->
+    <div class="modal-overlay" id="addCashModal">
+        <div class="modal">
+            <h3 id="addCashModalTitle">➕ Новая операция</h3>
+            <div class="form-group">
+                <label>📅 Дата</label>
+                <input type="date" id="cashOpDate">
+            </div>
+            <div class="form-group">
+                <label>📝 Описание</label>
+                <input type="text" id="cashOpDesc" placeholder="Например: Оплата поставщику">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>📈 Приход (₽)</label>
+                    <input type="number" id="cashOpIncome" placeholder="0" step="0.01" value="0">
+                </div>
+                <div class="form-group">
+                    <label>📉 Расход (₽)</label>
+                    <input type="number" id="cashOpExpense" placeholder="0" step="0.01" value="0">
+                </div>
+            </div>
+            <div style="background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:15px;">
+                <div style="font-size:14px;color:#6c757d;">Итого изменение баланса:</div>
+                <div id="cashOpPreview" style="font-size:20px;font-weight:700;color:#28a745;">+0.00 ₽</div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddCashModal()">Отмена</button>
+                <button class="btn-save" onclick="saveCashOp()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления регулярного расхода -->
+    <div class="modal-overlay" id="addRegularExpenseModal">
+        <div class="modal" style="max-width:450px;">
+            <h3>➕ Новый регулярный расход</h3>
+            <input type="hidden" id="regExpenseEditIdx" value="-1">
+            <div class="form-group">
+                <label>📝 Название</label>
+                <input type="text" id="regExpenseDesc" placeholder="Например: Аренда помещения">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>📅 День месяца</label>
+                    <input type="number" id="regExpenseDay" min="1" max="31" placeholder="28">
+                </div>
+                <div class="form-group">
+                    <label>💰 Сумма (₽)</label>
+                    <input type="number" id="regExpenseAmount" placeholder="30000" step="0.01">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddRegularExpenseModal()">Отмена</button>
+                <button class="btn-save" onclick="saveRegularExpense()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка добавления регулярного дохода -->
+    <div class="modal-overlay" id="addRegularIncomeModal">
+        <div class="modal" style="max-width:450px;">
+            <h3>➕ Новый регулярный доход</h3>
+            <input type="hidden" id="regIncomeEditIdx" value="-1">
+            <div class="form-group">
+                <label>📝 Название</label>
+                <input type="text" id="regIncomeDesc" placeholder="Например: Оплата от клиента">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>📅 День месяца</label>
+                    <input type="number" id="regIncomeDay" min="1" max="31" placeholder="15">
+                </div>
+                <div class="form-group">
+                    <label>💰 Сумма (₽)</label>
+                    <input type="number" id="regIncomeAmount" placeholder="50000" step="0.01">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeAddRegularIncomeModal()">Отмена</button>
+                <button class="btn-save" onclick="saveRegularIncome()">Сохранить</button>
             </div>
         </div>
     </div>

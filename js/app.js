@@ -91,6 +91,9 @@
             document.getElementById('addExtraRefModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddExtraRefModal(); });
             document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
             document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
+            document.getElementById('addCashModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddCashModal(); });
+            document.getElementById('addRegularExpenseModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularExpenseModal(); });
+            document.getElementById('addRegularIncomeModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularIncomeModal(); });
             
             // Input обработчики
             var orderDate = document.getElementById('orderDate');
@@ -101,6 +104,12 @@
             if (orderDurationDays) orderDurationDays.addEventListener('input', updateDeadline);
             if (orderClientPrice) orderClientPrice.addEventListener('input', updateModalTotals);
             if (orderTaskPay) orderTaskPay.addEventListener('input', updateModalTotals);
+            
+            // Кассовые операции — превью
+            var cashOpIncome = document.getElementById('cashOpIncome');
+            var cashOpExpense = document.getElementById('cashOpExpense');
+            if (cashOpIncome) cashOpIncome.addEventListener('input', updateCashOpPreview);
+            if (cashOpExpense) cashOpExpense.addEventListener('input', updateCashOpPreview);
             
             populateSummarySelects();
             renderSummary();
@@ -697,10 +706,51 @@ window.localChangesPending = false;
         renderBudget();
     }
 
+    function editMandatoryPayment(idx, field, value) {
+        if (!budgetData || !budgetData.mandatoryPayments) return;
+        const mp = budgetData.mandatoryPayments[idx];
+        if (!mp) return;
+        
+        if (field === 'name') {
+            mp.name = value.trim();
+        } else if (field === 'amount') {
+            const amount = parseFloat(value) || 0;
+            mp.amount = amount;
+            mp.target = amount;
+        } else if (field === 'day') {
+            const day = parseInt(value) || 1;
+            mp.day = Math.max(1, Math.min(31, day));
+        }
+        saveBudgetData();
+        renderBudget();
+    }
+
+    function editMandatoryPaymentIcon(idx) {
+        if (!budgetData || !budgetData.mandatoryPayments) return;
+        const mp = budgetData.mandatoryPayments[idx];
+        if (!mp) return;
+        
+        const icons = ['🏢','🏠','🏦','📱','👶','📞','📢','💰','🚀','📈','👤','💼','🛒','⚡','🔧','🎯','📦','🚗','✂️','🎨'];
+        const currentIdx = icons.indexOf(mp.icon);
+        const nextIdx = (currentIdx + 1) % icons.length;
+        mp.icon = icons[nextIdx];
+        saveBudgetData();
+        renderBudget();
+    }
+
+    function deleteMandatoryPayment(idx) {
+        if (!budgetData || !budgetData.mandatoryPayments) return;
+        const mp = budgetData.mandatoryPayments[idx];
+        if (!mp) return;
+        if (!confirm(`Удалить "${mp.name}"?`)) return;
+        budgetData.mandatoryPayments.splice(idx, 1);
+        saveBudgetData();
+        renderBudget();
+    }
+
     function renderBudget() {
         if (!budgetData) return;
         renderMandatoryPayments();
-        renderDebts();
         renderWallets();
         renderDistributionHistory();
         populateBudgetOrderSelect();
@@ -725,20 +775,24 @@ window.localChangesPending = false;
             const percent = Math.min(100, (mp.saved / mp.target) * 100);
             const isPaid = mp.paid;
             return `
-                <div class="budget-progress-item ${isPaid ? 'paid' : ''}">
-                    <div class="budget-progress-header">
-                        <span class="name">${mp.icon} ${mp.name}</span>
-                        <span class="amount">${isPaid ? '✅ Оплачен' : `${mp.saved.toLocaleString()} / ${mp.target.toLocaleString()} ₽`}</span>
+                <div class="budget-progress-item ${isPaid ? 'paid' : ''}" style="margin-bottom:12px;">
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+                        <span style="font-size:18px;">${mp.icon}</span>
+                        <input type="text" value="${safeHTML(mp.name)}" onchange="editMandatoryPayment(${mp.idx},'name',this.value)" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="Название">
+                        <input type="number" value="${mp.amount || mp.target}" onchange="editMandatoryPayment(${mp.idx},'amount',this.value)" style="width:100px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="Сумма">
+                        <input type="number" value="${mp.day}" min="1" max="31" onchange="editMandatoryPayment(${mp.idx},'day',this.value)" style="width:70px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="День месяца">
+                        <button onclick="editMandatoryPaymentIcon(${mp.idx})" style="padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;background:#f8f9fa;cursor:pointer;font-size:14px;" title="Иконка">🎨</button>
+                        <button onclick="deleteMandatoryPayment(${mp.idx})" style="padding:6px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff5f5;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">✕</button>
                     </div>
-                    <div class="progress-bar-budget">
+                    <div class="progress-bar-budget" style="margin-bottom:6px;">
                         <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(0)}%</div>
                     </div>
                     <div class="budget-progress-meta">
                         <span>Накоплено: ${mp.saved.toLocaleString()} ₽ из ${mp.target.toLocaleString()} ₽</span>
-                        <span>День месяца: ${mp.day}</span>
+                        <span>День: ${mp.day}</span>
                     </div>
-                    <div style="margin-top:8px;display:flex;gap:6px;">
-                        ${!isPaid ? `<button class="btn-budget-pay" onclick="payMandatoryPayment(${mp.idx})">💰 Отметить оплаченным</button>` : ''}
+                    <div style="margin-top:6px;display:flex;gap:6px;">
+                        ${!isPaid ? `<button class="btn-budget-pay" onclick="payMandatoryPayment(${mp.idx})">✅ Отметить оплаченным</button>` : ''}
                         ${isPaid ? `<button class="btn-budget-pay" style="background:#6c757d;" onclick="resetMandatoryPayment(${mp.idx})">↺ Сбросить</button>` : ''}
                     </div>
                 </div>
@@ -3436,10 +3490,25 @@ window.localChangesPending = false;
         cashOps.forEach((op, idx) => {
             balance += parseFloat(op.income)||0 - parseFloat(op.expense)||0;
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${safeHTML(op.date)}</td><td>${safeHTML(op.desc)}</td><td>${(parseFloat(op.income)||0).toFixed(2)}</td><td>${(parseFloat(op.expense)||0).toFixed(2)}</td><td>${balance.toFixed(2)}</td><td><button class="btn-del" onclick="deleteCashOp(${idx})">✕</button></td>`;
+            const incomeClass = parseFloat(op.income) > 0 ? 'color:#28a745;font-weight:600;' : '';
+            const expenseClass = parseFloat(op.expense) > 0 ? 'color:#dc3545;font-weight:600;' : '';
+            const balanceColor = balance >= 0 ? 'color:#28a745;' : 'color:#dc3545;';
+            tr.innerHTML = `
+                <td style="white-space:nowrap;">${safeHTML(op.date)}</td>
+                <td style="text-align:left;max-width:200px;">${safeHTML(op.desc)}</td>
+                <td style="${incomeClass}">${parseFloat(op.income) > 0 ? (parseFloat(op.income)||0).toFixed(2) : '—'}</td>
+                <td style="${expenseClass}">${parseFloat(op.expense) > 0 ? (parseFloat(op.expense)||0).toFixed(2) : '—'}</td>
+                <td style="font-weight:600;${balanceColor}">${balance.toFixed(2)}</td>
+                <td><button class="btn-del" onclick="deleteCashOp(${idx})" title="Удалить">🗑️</button></td>
+            `;
             tbody.appendChild(tr);
         });
-        document.getElementById('cashBalance').textContent = balance.toFixed(2);
+        
+        const balEl = document.getElementById('cashBalance');
+        if (balEl) {
+            balEl.textContent = balance.toFixed(2);
+            balEl.style.color = balance >= 0 ? '#28a745' : '#dc3545';
+        }
         
         // Вызываем все функции бюджета
         renderBudget();
@@ -3448,14 +3517,41 @@ window.localChangesPending = false;
         regDiv.innerHTML = '';
         regularExpenses.forEach((exp, idx) => {
             const div = document.createElement('div');
-            div.innerHTML = `<span>${safeHTML(exp.desc)} (${exp.day} числа, ${exp.amount}₽) <button class="btn-del" onclick="deleteRegularExpense(${idx})">✕</button></span>`;
+            div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:6px;border:1px solid #dee2e6;';
+            div.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:16px;">💸</span>
+                    <div>
+                        <div style="font-weight:600;font-size:14px;">${safeHTML(exp.desc)}</div>
+                        <div style="font-size:12px;color:#6c757d;">📅 ${exp.day} числа · 💰 ${exp.amount.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="openAddRegularExpenseModal(${idx})" style="padding:4px 8px;border:1px solid #007bff;border-radius:4px;background:#fff;color:#007bff;cursor:pointer;font-size:12px;" title="Редактировать">✏️</button>
+                    <button onclick="deleteRegularExpense(${idx})" style="padding:4px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">🗑️</button>
+                </div>
+            `;
             regDiv.appendChild(div);
         });
+        
         const incomeDiv = document.getElementById('regularIncomesList');
         incomeDiv.innerHTML = '';
         regularIncomes.forEach((income, idx) => {
             const div = document.createElement('div');
-            div.innerHTML = `<span>${safeHTML(income.desc)} (${income.day} числа, ${income.amount}₽) <button class="btn-del" onclick="deleteRegularIncome(${idx})">✕</button></span>`;
+            div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f0fff4;border-radius:6px;margin-bottom:6px;border:1px solid #c3e6cb;';
+            div.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:16px;">💵</span>
+                    <div>
+                        <div style="font-weight:600;font-size:14px;">${safeHTML(income.desc)}</div>
+                        <div style="font-size:12px;color:#6c757d;">📅 ${income.day} числа · 💰 ${income.amount.toLocaleString()} ₽</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="openAddRegularIncomeModal(${idx})" style="padding:4px 8px;border:1px solid #007bff;border-radius:4px;background:#fff;color:#007bff;cursor:pointer;font-size:12px;" title="Редактировать">✏️</button>
+                    <button onclick="deleteRegularIncome(${idx})" style="padding:4px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">🗑️</button>
+                </div>
+            `;
             incomeDiv.appendChild(div);
         });
     }
@@ -3542,6 +3638,139 @@ window.localChangesPending = false;
         regularIncomes.splice(idx, 1);
         saveAll();
         renderAll();
+    }
+
+    // ========== МОДАЛКИ ОПЕРАЦИЙ И РЕГУЛЯРНЫХ ПЛАТЕЖЕЙ ==========
+    function openAddCashModal() {
+        document.getElementById('addCashModalTitle').textContent = '➕ Новая операция';
+        document.getElementById('cashOpDate').value = formatDate(new Date());
+        document.getElementById('cashOpDesc').value = '';
+        document.getElementById('cashOpIncome').value = '0';
+        document.getElementById('cashOpExpense').value = '0';
+        updateCashOpPreview();
+        document.getElementById('addCashModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+
+    function closeAddCashModal() {
+        document.getElementById('addCashModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
+
+    function saveCashOp() {
+        const date = document.getElementById('cashOpDate').value;
+        const desc = document.getElementById('cashOpDesc').value.trim();
+        const income = parseFloat(document.getElementById('cashOpIncome').value) || 0;
+        const expense = parseFloat(document.getElementById('cashOpExpense').value) || 0;
+        
+        if (!date) { alert('❌ Укажите дату'); return; }
+        if (!desc) { alert('❌ Введите описание'); return; }
+        if (income <= 0 && expense <= 0) { alert('❌ Укажите приход или расход'); return; }
+        
+        cashOps.push({date, desc, income, expense});
+        saveAll();
+        closeAddCashModal();
+        renderAll();
+    }
+
+    function openAddRegularExpenseModal(editIdx) {
+        document.getElementById('regExpenseEditIdx').value = editIdx || -1;
+        if (editIdx !== undefined && editIdx >= 0) {
+            const exp = regularExpenses[editIdx];
+            document.getElementById('regExpenseDesc').value = exp.desc;
+            document.getElementById('regExpenseDay').value = exp.day;
+            document.getElementById('regExpenseAmount').value = exp.amount;
+            document.getElementById('addRegularExpenseModalTitle').textContent = '✏️ Редактировать расход';
+        } else {
+            document.getElementById('regExpenseDesc').value = '';
+            document.getElementById('regExpenseDay').value = '';
+            document.getElementById('regExpenseAmount').value = '';
+            document.getElementById('addRegularExpenseModalTitle').textContent = '➕ Новый регулярный расход';
+        }
+        document.getElementById('addRegularExpenseModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+
+    function closeAddRegularExpenseModal() {
+        document.getElementById('addRegularExpenseModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
+
+    function saveRegularExpense() {
+        const editIdx = parseInt(document.getElementById('regExpenseEditIdx').value);
+        const desc = document.getElementById('regExpenseDesc').value.trim();
+        const day = parseInt(document.getElementById('regExpenseDay').value);
+        const amount = parseFloat(document.getElementById('regExpenseAmount').value);
+        
+        if (!desc) { alert('❌ Введите название'); return; }
+        if (isNaN(day) || day < 1 || day > 31) { alert('❌ Неверный день (1-31)'); return; }
+        if (isNaN(amount) || amount <= 0) { alert('❌ Неверная сумма'); return; }
+        
+        if (editIdx >= 0) {
+            regularExpenses[editIdx] = {desc, day, amount};
+        } else {
+            regularExpenses.push({desc, day, amount});
+        }
+        saveAll();
+        closeAddRegularExpenseModal();
+        renderAll();
+    }
+
+    function openAddRegularIncomeModal(editIdx) {
+        document.getElementById('regIncomeEditIdx').value = editIdx || -1;
+        if (editIdx !== undefined && editIdx >= 0) {
+            const inc = regularIncomes[editIdx];
+            document.getElementById('regIncomeDesc').value = inc.desc;
+            document.getElementById('regIncomeDay').value = inc.day;
+            document.getElementById('regIncomeAmount').value = inc.amount;
+            document.getElementById('addRegularIncomeModalTitle').textContent = '✏️ Редактировать доход';
+        } else {
+            document.getElementById('regIncomeDesc').value = '';
+            document.getElementById('regIncomeDay').value = '';
+            document.getElementById('regIncomeAmount').value = '';
+            document.getElementById('addRegularIncomeModalTitle').textContent = '➕ Новый регулярный доход';
+        }
+        document.getElementById('addRegularIncomeModal').classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+
+    function closeAddRegularIncomeModal() {
+        document.getElementById('addRegularIncomeModal').classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
+
+    function saveRegularIncome() {
+        const editIdx = parseInt(document.getElementById('regIncomeEditIdx').value);
+        const desc = document.getElementById('regIncomeDesc').value.trim();
+        const day = parseInt(document.getElementById('regIncomeDay').value);
+        const amount = parseFloat(document.getElementById('regIncomeAmount').value);
+        
+        if (!desc) { alert('❌ Введите название'); return; }
+        if (isNaN(day) || day < 1 || day > 31) { alert('❌ Неверный день (1-31)'); return; }
+        if (isNaN(amount) || amount <= 0) { alert('❌ Неверная сумма'); return; }
+        
+        if (editIdx >= 0) {
+            regularIncomes[editIdx] = {desc, day, amount};
+        } else {
+            regularIncomes.push({desc, day, amount});
+        }
+        saveAll();
+        closeAddRegularIncomeModal();
+        renderAll();
+    }
+
+    function updateCashOpPreview() {
+        const income = parseFloat(document.getElementById('cashOpIncome').value) || 0;
+        const expense = parseFloat(document.getElementById('cashOpExpense').value) || 0;
+        const diff = income - expense;
+        const preview = document.getElementById('cashOpPreview');
+        if (diff >= 0) {
+            preview.textContent = `+${diff.toFixed(2)} ₽`;
+            preview.style.color = '#28a745';
+        } else {
+            preview.textContent = `${diff.toFixed(2)} ₽`;
+            preview.style.color = '#dc3545';
+        }
     }
 
     function renderMarkersTable() {
@@ -4618,10 +4847,81 @@ function removePaymentDistribution(orderNumber) {
 }
 
 function distributePayment(order) {
-    // Распределение дохода больше не создаёт записи в cashOps — они не нужны в календаре
-    // Логика распределения сохраняется для бюджета
     const dist = calculateDistribution(order);
     if (dist.error) return;
+    
+    // Создаём записи в cashOps для каждого направления распределения
+    const orderTag = ` №${order.orderNumber} (${order.client || 'Без клиента'})`;
+    
+    // Налог
+    if (dist.tax > 0) {
+        cashOps.push({
+            date: order.date || formatDate(new Date()),
+            desc: `Налог 4%${orderTag}`,
+            income: 0,
+            expense: dist.tax
+        });
+    }
+    
+    // Личные расходы
+    if (dist.personal > 0) {
+        cashOps.push({
+            date: order.date || formatDate(new Date()),
+            desc: `Личные расходы${orderTag}`,
+            income: 0,
+            expense: dist.personal
+        });
+    }
+    
+    // Бизнес
+    if (dist.business > 0) {
+        cashOps.push({
+            date: order.date || formatDate(new Date()),
+            desc: `Бизнес${orderTag}`,
+            income: 0,
+            expense: dist.business
+        });
+    }
+    
+    // Инвестиции
+    if (dist.investments > 0) {
+        cashOps.push({
+            date: order.date || formatDate(new Date()),
+            desc: `Инвестиции${orderTag}`,
+            income: 0,
+            expense: dist.investments
+        });
+    }
+    
+    // Обязательные платежи — распределяем по конкретным платежам
+    let remaining = dist.mandatory;
+    const sortedPayments = budgetData.mandatoryPayments
+        .filter(mp => !mp.paid)
+        .sort((a, b) => a.day - b.day);
+    
+    sortedPayments.forEach(mp => {
+        if (remaining <= 0) return;
+        const needed = mp.target - mp.saved;
+        const toAdd = Math.min(remaining, needed);
+        if (toAdd > 0) {
+            cashOps.push({
+                date: order.date || formatDate(new Date()),
+                desc: `Обязательный платёж: ${mp.name}${orderTag}`,
+                income: 0,
+                expense: toAdd
+            });
+            mp.saved += toAdd;
+            remaining -= toAdd;
+        }
+    });
+    
+    // Обновляем кошельки бюджета
+    budgetData.wallets.tax.target += dist.tax;
+    budgetData.wallets.personal.target += dist.personal;
+    budgetData.wallets.business.target += dist.business;
+    budgetData.wallets.investments.target += dist.investments;
+    
+    saveBudgetData();
 }
 
 // ========== ОЧИСТКА СТАРЫХ ЗАПИСЕЙ ИЗ CASHOPS ==========
@@ -4721,6 +5021,10 @@ function deleteOrder(orderId) {
         const selectedOrders = ordersData.filter(o => selectedIds.includes(String(o.id)));
         const docContainer = document.getElementById('purchaseDocumentContainer');
         docContainer.innerHTML = '';
+        
+        // Общая сумма закупки
+        let totalPurchaseSum = 0;
+        
         const markers = { 'Ткань': [], 'Краска': [], 'Пленка': [] };
         materialTypes.forEach(mt => markers[mt.name] = []);
         const otherMaterials = {};
@@ -4729,18 +5033,18 @@ function deleteOrder(orderId) {
                 const svc = rates.find(r => r.service === inst.serviceName);
                 if (!svc) return;
                 if (svc.usesFabric && inst.fabric && inst.fabric.code) {
-                    markers['Ткань'].push({article: inst.fabric.code, name: inst.fabric.colorName || inst.fabric.code, qty: parseFloat(inst.fabric.meters)||0, unit:'м'});
+                    markers['Ткань'].push({article: inst.fabric.code, name: inst.fabric.colorName || inst.fabric.code, qty: parseFloat(inst.fabric.meters)||0, unit:'м', price: parseFloat(inst.fabric.price)||0});
                 }
                 if (serviceUsesPaint(svc) && inst.paint && inst.paint.code) {
-                    markers['Краска'].push({article: inst.paint.code, name: inst.paint.colorName || inst.paint.code, qty: parseFloat(inst.paint.qty)||0, unit:'мл'});
+                    markers['Краска'].push({article: inst.paint.code, name: inst.paint.colorName || inst.paint.code, qty: parseFloat(inst.paint.qty)||0, unit:'мл', price: parseFloat(inst.paint.price)||0});
                 }
                 if (svc.usesFilm && inst.film && inst.film.code) {
-                    markers['Пленка'].push({article: inst.film.code, name: inst.film.name || inst.film.code, qty: parseFloat(inst.film.meters)||0, unit:'м'});
+                    markers['Пленка'].push({article: inst.film.code, name: inst.film.name || inst.film.code, qty: parseFloat(inst.film.meters)||0, unit:'м', price: parseFloat(inst.film.price)||0});
                 }
                 materialTypes.forEach(mt => {
                     const markerData = inst[mt.name];
                     if (markerData && markerData.code) {
-                        markers[mt.name].push({article: markerData.code, name: mt.articles.find(a=>a.code===markerData.code)?.name || markerData.code, qty: parseFloat(markerData.qty)||0, unit: mt.unit});
+                        markers[mt.name].push({article: markerData.code, name: mt.articles.find(a=>a.code===markerData.code)?.name || markerData.code, qty: parseFloat(markerData.qty)||0, unit: mt.unit, price: parseFloat(markerData.price)||0});
                     }
                 });
                 svc.items.forEach(item => {
@@ -4750,57 +5054,95 @@ function deleteOrder(orderId) {
                     if (item.name === 'Ткань' && svc.usesFabric) return;
                     if (materialTypes.some(mt=>mt.name===item.name)) return;
                     let qty = (inst.manualItems || {})[item.name] ? parseFloat((inst.manualItems || {})[item.name]) : (item.manual ? 0 : (item.perMeter ? (parseFloat(item.quantity)||0)*(parseFloat(inst.fabric?.meters)||0) : (parseFloat(item.quantity)||0)));
-                    if (qty > 0) otherMaterials[item.name] = (parseFloat(otherMaterials[item.name])||0) + qty;
+                    if (qty > 0) otherMaterials[item.name] = {qty: (parseFloat(otherMaterials[item.name]?.qty || 0)) + qty, price: item.price || 0};
                 });
             });
             let extra = {};
             try { extra = JSON.parse(order.extraData || '{}'); } catch(e) {}
             for (let key in extra) {
-                otherMaterials[key] = (parseFloat(otherMaterials[key])||0) + (parseFloat(extra[key])||0);
+                const ref = extraRef.find(e => e.name === key);
+                if (ref) {
+                    otherMaterials[key] = {
+                        qty: (parseFloat(otherMaterials[key]?.qty || 0)) + (parseFloat(extra[key])||0),
+                        price: ref.price || 0
+                    };
+                }
             }
         });
+        
+        // Рендерим маркеры (ткань, краска, плёнка, материалы)
         for (let markerName in markers) {
             if (markers[markerName].length) {
                 const section = document.createElement('h3');
                 section.textContent = markerName;
                 docContainer.appendChild(section);
                 const table = document.createElement('table');
-                table.innerHTML = '<tr><th>Артикул</th><th>Наименование</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th></tr>';
+                table.innerHTML = '<tr><th>Артикул</th><th>Наименование</th><th>Цена за ед.</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th><th>Сумма</th></tr>';
                 const grouped = {};
                 markers[markerName].forEach(m => {
-                    if (!grouped[m.article]) grouped[m.article] = {name:m.name, qty:0, unit:m.unit};
+                    if (!grouped[m.article]) grouped[m.article] = {name:m.name, qty:0, unit:m.unit, price: m.price || 0};
                     grouped[m.article].qty += m.qty;
+                    if (m.price > 0) grouped[m.article].price = m.price;
                 });
                 const stock = loadStock();
+                let sectionTotal = 0;
                 for (let art in grouped) {
                     const g = grouped[art];
                     const stockItem = stock.find(s => s.name === g.name) || {remain:0};
                     const remain = parseFloat(stockItem.remain) || 0;
                     const toBuy = Math.max(0, g.qty - remain);
+                    const itemSum = toBuy * g.price;
+                    sectionTotal += itemSum;
+                    totalPurchaseSum += itemSum;
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${art}</td><td>${g.name}</td><td>${g.qty.toFixed(2)}</td><td>${g.unit}</td><td>${remain.toFixed(2)}</td><td>${toBuy.toFixed(2)}</td>`;
+                    tr.innerHTML = `<td>${art}</td><td>${g.name}</td><td>${g.price.toFixed(2)} ₽</td><td>${g.qty.toFixed(2)}</td><td>${g.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${itemSum.toFixed(2)} ₽</td>`;
                     table.appendChild(tr);
                 }
+                // Итого по секции
+                const totalRow = document.createElement('tr');
+                totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
+                totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по ${markerName}:</td><td style="color:#dc3545;">${sectionTotal.toFixed(2)} ₽</td>`;
+                table.appendChild(totalRow);
                 docContainer.appendChild(table);
             }
         }
+        
+        // Прочие расходники
         if (Object.keys(otherMaterials).length) {
             const section = document.createElement('h3');
             section.textContent = 'Прочие расходники';
             docContainer.appendChild(section);
             const table = document.createElement('table');
-            table.innerHTML = '<tr><th>Материал</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th></tr>';
+            table.innerHTML = '<tr><th>Материал</th><th>Цена за ед.</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th><th>Сумма</th></tr>';
             const stock = loadStock();
+            let sectionTotal = 0;
             for (let name in otherMaterials) {
-                const ref = extraRef.find(e=>e.name===name) || {unit:'шт'};
+                const data = otherMaterials[name];
+                const ref = extraRef.find(e=>e.name===name) || {unit:'шт', price:0};
                 const stockItem = stock.find(s => s.name === name) || {remain:0};
                 const remain = parseFloat(stockItem.remain) || 0;
-                const toBuy = Math.max(0, parseFloat(otherMaterials[name]) - remain);
+                const toBuy = Math.max(0, data.qty - remain);
+                const itemSum = toBuy * (data.price || ref.price || 0);
+                sectionTotal += itemSum;
+                totalPurchaseSum += itemSum;
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${name}</td><td>${parseFloat(otherMaterials[name]).toFixed(2)}</td><td>${ref.unit}</td><td>${remain.toFixed(2)}</td><td>${toBuy.toFixed(2)}</td>`;
+                tr.innerHTML = `<td>${name}</td><td>${(data.price || ref.price || 0).toFixed(2)} ₽</td><td>${data.qty.toFixed(2)}</td><td>${ref.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${itemSum.toFixed(2)} ₽</td>`;
                 table.appendChild(tr);
             }
+            // Итого по секции
+            const totalRow = document.createElement('tr');
+            totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
+            totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по прочим расходникам:</td><td style="color:#dc3545;">${sectionTotal.toFixed(2)} ₽</td>`;
+            table.appendChild(totalRow);
             docContainer.appendChild(table);
+        }
+        
+        // ИТОГО ЗАКУПКА
+        if (totalPurchaseSum > 0) {
+            const totalDiv = document.createElement('div');
+            totalDiv.style.cssText = 'background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;';
+            totalDiv.innerHTML = `💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${totalPurchaseSum.toFixed(2)} ₽</span>`;
+            docContainer.appendChild(totalDiv);
         }
     }
 
@@ -5112,9 +5454,14 @@ function deleteOrder(orderId) {
     }
     
     function goTomorrow() {
-        currentDate = new Date();
-        currentDate.setDate(currentDate.getDate() + 1);
-        selectedDate = new Date(currentDate);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        selectedDate = tomorrow;
+        // Если в режиме месяца — не меняем currentDate, чтобы не сдвигать календарь
+        // Если в режиме недели — показываем неделю с завтрашнего дня
+        if (calendarViewMode === 'week') {
+            currentDate = new Date(tomorrow);
+        }
         renderCalendar();
     }
     
