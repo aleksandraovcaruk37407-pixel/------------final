@@ -1296,16 +1296,17 @@
                 background: none;
                 border: none;
                 cursor: pointer;
-                padding: 8px 4px;
-                font-size: 20px;
+                padding: 10px 6px;
+                font-size: 24px;
                 color: #666;
                 transition: color 0.2s;
                 -webkit-tap-highlight-color: transparent;
             }
             
             .bottom-nav-item small {
-                font-size: 10px;
-                margin-top: 2px;
+                font-size: 12px;
+                margin-top: 3px;
+                font-weight: 600;
             }
             
             .bottom-nav-item.active {
@@ -1322,14 +1323,15 @@
                 background: none;
                 border: none;
                 cursor: pointer;
-                padding: 8px 4px;
-                font-size: 20px;
+                padding: 10px 6px;
+                font-size: 24px;
                 color: #666;
             }
             
             .bottom-nav-more small {
-                font-size: 10px;
-                margin-top: 2px;
+                font-size: 12px;
+                margin-top: 3px;
+                font-weight: 600;
             }
             
             /* Дополнительное меню */
@@ -1638,6 +1640,9 @@
             .filter-btn {
                 flex: 1 1 auto;
                 margin-bottom: 4px;
+                font-size: 11px !important;
+                padding: 6px 8px !important;
+                min-height: 32px !important;
             }
             
             /* Улучшаем отображение карточек заказов */
