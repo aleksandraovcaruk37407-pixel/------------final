@@ -46,6 +46,13 @@
             recalculateStockFromAllOrders();
             renderAll();
 
+            // Загружаем список пользователей для админа
+            if (window.currentUserData && window.currentUserData.role === 'admin') {
+                if (typeof listAllHelpersInDB === 'function') {
+                    setTimeout(() => listAllHelpersInDB(), 500);
+                }
+            }
+
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -61,6 +68,7 @@
                         if (typeof updateHelperFilter === 'function') updateHelperFilter();
                         renderAdminHelperTasks();
                         renderAdminNotifications();
+                        if (typeof listAllHelpersInDB === 'function') listAllHelpersInDB();
                     }
                     if (btn.dataset.tab === 'helper-report') {
                         if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
@@ -1565,6 +1573,9 @@ window.localChangesPending = false;
             const ref = window.fbRef(window.db);
             const snapshot = await window.get(window.child(ref, 'users'));
             
+            console.log('🔍 listAllHelpersInDB: snapshot.exists()=', snapshot.exists());
+            console.log('🔍 listAllHelpersInDB: all users=', snapshot.val());
+            
             if (!snapshot.exists()) {
                 resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ База пользователей пуста!</div>';
                 return;
@@ -1576,6 +1587,7 @@ window.localChangesPending = false;
             
             for (const uid in users) {
                 const user = users[uid];
+                console.log('🔍 Processing user:', uid, user);
                 if (user.role === 'helper') {
                     helpers.push(user);
                 } else if (user.role === 'admin') {
