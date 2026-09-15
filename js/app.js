@@ -48,12 +48,19 @@
 
             // Загружаем список пользователей для админа
             if (window.currentUserData && window.currentUserData.role === 'admin') {
-                if (typeof listAllHelpersInDB === 'function') {
-                    setTimeout(() => listAllHelpersInDB(), 500);
-                }
-                // Синхронизируем пользователей из /users в atelier_data/users
                 if (typeof window.syncUsersToCloud === 'function') {
-                    setTimeout(() => window.syncUsersToCloud(), 200);
+                    window.syncUsersToCloud().then((users) => {
+                        if (users && Object.keys(users).length > 0) {
+                            console.log('[App] Пользователи синхронизированы, загружаем список');
+                        }
+                        // После синхронизации загружаем список
+                        if (typeof listAllHelpersInDB === 'function') {
+                            setTimeout(() => listAllHelpersInDB(), 200);
+                        }
+                        if (typeof updateHelperFilter === 'function') {
+                            setTimeout(() => updateHelperFilter(), 400);
+                        }
+                    });
                 }
             }
 
@@ -1516,7 +1523,12 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            
+            if (!snapshot.exists()) {
+                console.log('🔍 checkHelperInDB: atelier_data/users пусто, читаем из /users');
+                snapshot = await window.get(window.child(ref, 'users'));
+            }
             
             if (!snapshot.exists()) {
                 resultDiv.innerHTML = `
@@ -1575,7 +1587,13 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            
+            // Сначала пробуем atelier_data/users, если пусто — читаем из /users
+            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            if (!snapshot.exists()) {
+                console.log('🔍 listAllHelpersInDB: atelier_data/users пусто, читаем из /users');
+                snapshot = await window.get(window.child(ref, 'users'));
+            }
             
             console.log('🔍 listAllHelpersInDB: snapshot.exists()=', snapshot.exists());
             console.log('🔍 listAllHelpersInDB: all users=', snapshot.val());
@@ -1644,7 +1662,11 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            if (!snapshot.exists()) {
+                console.log('🔍 registerHelperInDB: atelier_data/users пусто, читаем из /users');
+                snapshot = await window.get(window.child(ref, 'users'));
+            }
             if (snapshot.exists()) {
                 const users = snapshot.val();
                 for (const uid in users) {
@@ -1745,7 +1767,7 @@ window.localChangesPending = false;
     let currentEditingTask = null;
 
     // Обновление списка помощников из Firebase (все зарегистрированные)
-    function updateHelperFilter() {
+    async function updateHelperFilter() {
         const filterSelect = document.getElementById('adminHelperFilter');
         if (!filterSelect) return;
         
@@ -1769,50 +1791,51 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            // Данные в atelier_data/users, а не в users (корень)
-            window.get(window.child(ref, 'atelier_data/users')).then((snapshot) => {
-                console.log('🔍 updateHelperFilter: users snapshot.exists =', snapshot.exists());
-                console.log('🔍 updateHelperFilter: users snapshot.val =', snapshot.val());
-                if (!snapshot.exists()) {
-                    console.log('updateHelperFilter: нет пользователей в Firebase');
-                    return;
+            
+            // Сначала пробуем atelier_data/users, если пусто — читаем из /users
+            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            if (!snapshot.exists()) {
+                console.log('🔍 updateHelperFilter: atelier_data/users пусто, читаем из /users');
+                snapshot = await window.get(window.child(ref, 'users'));
+            }
+            
+            console.log('🔍 updateHelperFilter: users snapshot.exists =', snapshot.exists());
+            console.log('🔍 updateHelperFilter: users snapshot.val =', snapshot.val());
+            if (!snapshot.exists()) {
+                console.log('updateHelperFilter: нет пользователей в Firebase');
+                return;
+            }
+            
+            const users = snapshot.val();
+            const helpers = [];
+            
+            for (const uid in users) {
+                if (users[uid].role === 'helper') {
+                    helpers.push({
+                        uid: uid,
+                        email: users[uid].email,
+                        displayName: users[uid].displayName || users[uid].email
+                    });
                 }
-                
-                const users = snapshot.val();
-                const helpers = [];
-                
-                for (const uid in users) {
-                    if (users[uid].role === 'helper') {
-                        helpers.push({
-                            uid: uid,
-                            email: users[uid].email,
-                            displayName: users[uid].displayName || users[uid].email
-                        });
-                    }
-                }
-                
-                // Сортируем по имени
-                helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
-                
-                const currentValue = filterSelect.value;
-                filterSelect.innerHTML = '<option value="all">Все помощники</option>';
-                helpers.forEach(helper => {
-                    const option = document.createElement('option');
-                    option.value = helper.email;
-                    option.textContent = `${helper.displayName} (${helper.email})`;
-                    filterSelect.appendChild(option);
-                });
-                
-                if (currentValue && [...helpers].some(h => h.email === currentValue)) {
-                    filterSelect.value = currentValue;
-                }
-                
-                console.log('✅ updateHelperFilter: загружено', helpers.length, 'помощников');
-            }).catch(err => {
-                console.error('❌ Ошибка обновления списка помощников:', err);
-                // Retry при ошибке
-                setTimeout(() => updateHelperFilter(), 2000);
+            }
+            
+            // Сортируем по имени
+            helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
+            
+            const currentValue = filterSelect.value;
+            filterSelect.innerHTML = '<option value="all">Все помощники</option>';
+            helpers.forEach(helper => {
+                const option = document.createElement('option');
+                option.value = helper.email;
+                option.textContent = `${helper.displayName} (${helper.email})`;
+                filterSelect.appendChild(option);
             });
+            
+            if (currentValue && [...helpers].some(h => h.email === currentValue)) {
+                filterSelect.value = currentValue;
+            }
+            
+            console.log('✅ updateHelperFilter: загружено', helpers.length, 'помощников');
         } catch (e) {
             console.error('Ошибка в updateHelperFilter:', e);
             // Retry при ошибке

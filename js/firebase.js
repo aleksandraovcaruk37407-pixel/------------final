@@ -101,11 +101,11 @@ window.initAuthState = function() {
             return null;
           });
         }
-      }).then(() => {
+      }).then(async () => {
         console.log('Вызываю getUserDataForAuth...');
-        // Синхронизируем пользователей в облако
+        // Сначала синхронизируем пользователей в облако
         if (typeof window.syncUsersToCloud === 'function') {
-          setTimeout(() => window.syncUsersToCloud(), 1000);
+          await window.syncUsersToCloud();
         }
         // Дождаемся синхронизации перед чтением
         setTimeout(() => {
@@ -252,30 +252,29 @@ window.syncToCloud = function() {
 };
 
 // ========== СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ В ОБЛАКО ==========
-window.syncUsersToCloud = function() {
-  if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef) {
-    return;
+window.syncUsersToCloud = async function() {
+  if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef || !window.fbGet || !window.child) {
+    return null;
   }
   
   try {
-    // Читаем всех пользователей из /users
-    window.fbGet(window.fbRef(window.db), 'users').then((snapshot) => {
-      if (snapshot.exists()) {
-        const users = snapshot.val();
-        // Копируем в atelier_data/users
-        window.fbSet(window.fbRef(window.db), 'atelier_data/users', users)
-          .then(() => {
-            console.log("[Firebase] Пользователи синхронизированы в atelier_data/users");
-          })
-          .catch(err => {
-            console.error("[Firebase] Ошибка синхронизации пользователей:", err);
-          });
-      }
-    }).catch(err => {
-      console.error("[Firebase] Ошибка чтения пользователей:", err);
-    });
+    // Читаем всех пользователей из /users (корень БД)
+    const snapshot = await window.fbGet(window.child(window.fbRef(window.db), 'users'));
+    if (!snapshot.exists()) {
+      console.log('[Firebase] Пользователи не найдены в /users');
+      return null;
+    }
+    const users = snapshot.val();
+    console.log('[Firebase] Найдено пользователей в /users:', Object.keys(users).length);
+    
+    // Копируем в atelier_data/users
+    await window.fbSet(window.fbRef(window.db), 'atelier_data/users', users);
+    console.log('[Firebase] ✅ Пользователи синхронизированы в atelier_data/users');
+    
+    return users;
   } catch (error) {
-    console.error("[Firebase] Ошибка подготовки пользователей:", error);
+    console.error('[Firebase] Ошибка синхронизации пользователей:', error);
+    return null;
   }
 };
 
