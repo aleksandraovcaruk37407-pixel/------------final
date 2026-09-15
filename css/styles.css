@@ -153,11 +153,9 @@
             align-items: center;
             -webkit-overflow-scrolling: auto;
             overscroll-behavior: none;
-            touch-action: pan-y;
         }
         .modal-overlay.active { 
             display: flex;
-            touch-action: pan-y;
         }
         .modal { 
             background: #fff; 
@@ -170,7 +168,6 @@
             overflow-y: auto; 
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
-            touch-action: pan-y;
         }
         /* iOS: prevent body scroll when modal open */
         body.modal-open {
@@ -1715,6 +1712,12 @@
         
         /* Мобильные модалки — скролл внутри */
         @media screen and (max-width: 768px) {
+            /* Убираем фиксированную высоту у overlay — она блокирует скролл */
+            .modal-overlay {
+                height: auto !important;
+                min-height: 100dvh !important;
+            }
+            
             /* Модалка заказа на мобильных — bottom sheet */
             #orderModal.modal-overlay {
                 position: fixed !important;
@@ -1726,6 +1729,9 @@
                 background: rgba(0,0,0,0.5) !important;
                 align-items: flex-end !important;
                 justify-content: center !important;
+                display: none !important;
+                height: auto !important;
+                min-height: 100dvh !important;
             }
             
             #orderModal.modal-overlay.active {
@@ -1735,15 +1741,15 @@
             #orderModal.modal-overlay.active .modal {
                 width: 100% !important;
                 max-width: 100% !important;
-                max-height: 90dvh !important;
-                margin: 0 !important;
+                min-height: 50dvh !important;
+                max-height: 92dvh !important;
+                height: auto !important;
+                margin: 0 0 20px 0 !important;
                 border-radius: 20px 20px 0 0 !important;
                 background: #fff !important;
                 overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch !important;
                 overscroll-behavior: contain !important;
-                touch-action: auto !important;
-                height: auto !important;
             }
             
             /* Все остальные модалки на мобильных */
@@ -1757,6 +1763,9 @@
                 background: rgba(0,0,0,0.5) !important;
                 align-items: center !important;
                 justify-content: center !important;
+                display: none !important;
+                height: auto !important;
+                min-height: 100dvh !important;
             }
             
             .modal-overlay:not(#orderModal).active {
@@ -1767,14 +1776,74 @@
                 width: 95% !important;
                 max-width: 100% !important;
                 max-height: 85dvh !important;
-                margin: 0 !important;
+                height: auto !important;
+                margin: 20px 0 !important;
                 border-radius: 12px !important;
                 padding: 15px !important;
                 overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch !important;
                 overscroll-behavior: contain !important;
-                touch-action: auto !important;
+            }
+            
+            /* Модалка заказа на мобильных — bottom sheet */
+            #orderModal.modal-overlay {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                z-index: 10000 !important;
+                background: rgba(0,0,0,0.5) !important;
+                align-items: flex-end !important;
+                justify-content: center !important;
+                display: none !important;
+            }
+            
+            #orderModal.modal-overlay.active {
+                display: flex !important;
+            }
+            
+            #orderModal.modal-overlay.active .modal {
+                width: 100% !important;
+                max-width: 100% !important;
+                min-height: 50dvh !important;
+                max-height: 92dvh !important;
                 height: auto !important;
+                margin: 0 0 20px 0 !important;
+                border-radius: 20px 20px 0 0 !important;
+                background: #fff !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+                overscroll-behavior: contain !important;
+            }
+            
+            /* Все остальные модалки на мобильных */
+            .modal-overlay:not(#orderModal) {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                z-index: 10000 !important;
+                background: rgba(0,0,0,0.5) !important;
+                align-items: center !important;
+                justify-content: center !important;
+                display: none !important;
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch !important;
+            }
+            
+            .modal-overlay:not(#orderModal).active {
+                display: flex !important;
+            }
+            
+            .modal-overlay:not(#orderModal).active .modal {
+                width: 95% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                margin: 20px 0 !important;
+                border-radius: 12px !important;
+                padding: 15px !important;
             }
             
             /* Увеличиваем поля ввода для мобильных */
