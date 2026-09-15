@@ -198,15 +198,6 @@
                 overflow: hidden;
             }
         }
-        
-        /* Мобильные: модалка заказа скроллится внутри */
-        @media screen and (max-width: 768px) {
-            .modal.order-modal-bottom-sheet {
-                /* Разрешаем скролл внутри модалки */
-                touch-action: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-            }
-        }
         .modal h3 { margin-bottom: 15px; color: #1a3c5e; }
         .modal .form-group { margin-bottom: 12px; }
         .modal .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -1157,7 +1148,7 @@
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch !important;
             overscroll-behavior: contain !important;
-            touch-action: pan-y !important;
+            /* УБРАЛИ touch-action: pan-y — он блокирует скролл! */
         }
         .modal.order-modal-bottom-sheet.active {
             transform: translateY(0);
@@ -1165,12 +1156,7 @@
         }
         /* Order modal overlay — разрешаем touch события */
         #orderModal.modal-overlay.active {
-            touch-action: auto !important;
-        }
-        
-        /* Разрешаем скролл внутри модалки заказа на мобильных */
-        #orderModal.modal-overlay.active .modal.order-modal-bottom-sheet {
-            touch-action: auto !important;
+            /* УБРАЛИ touch-action — он блокирует скролл */
         }
         .modal-handle {
             width: 40px;
@@ -1837,7 +1823,9 @@
         
         /* ========== DESKTOP: принудительно скрываем нижнюю навигацию ========== */
         @media (min-width: 769px) {
-            .bottom-nav {
+            .bottom-nav,
+            .bottom-nav.visible,
+            .bottom-nav.visible * {
                 display: none !important;
             }
             .bottom-nav-more-menu {
