@@ -31,6 +31,9 @@
             desktopTabs.style.display = 'none';
         }
 
+        // НЕ показываем навигацию автоматически — это делает updateRoleTabs() в index.html
+        // Просто добавляем обработчики кликов на существующие навигации
+
         // Обработчики для кнопок нижней навигации (admin)
         var adminNav = document.getElementById('adminBottomNav');
         if (adminNav) {
@@ -132,6 +135,35 @@
         // Закрываем меню "Ещё"
         var moreMenu = document.getElementById('bottomNavMoreMenu');
         if (moreMenu) moreMenu.classList.remove('visible');
+    }
+
+    // ========== СЛЕДИМ ЗА ИЗМЕНЕНИЯМИ РОЛИ ==========
+    // Если updateRoleTabs вызывается, навигация уже управляется правильно
+    // Но на всякий случай добавляем MutationObserver
+    function observeRoleChanges() {
+        var adminNav = document.getElementById('adminBottomNav');
+        var helperNav = document.getElementById('helperBottomNav');
+        
+        if (adminNav && helperNav) {
+            var observer = new MutationObserver(function() {
+                // Если обе навигации скрыты — показываем админа по умолчанию
+                var adminVisible = adminNav.style.display === 'flex' || adminNav.classList.contains('visible');
+                var helperVisible = helperNav.style.display === 'flex' || helperNav.classList.contains('visible');
+                
+                if (!adminVisible && !helperVisible) {
+                    if (window.currentUserData && window.currentUserData.role === 'admin') {
+                        adminNav.style.display = 'flex';
+                        adminNav.classList.add('visible');
+                    } else {
+                        helperNav.style.display = 'flex';
+                        helperNav.classList.add('visible');
+                    }
+                }
+            });
+            
+            observer.observe(adminNav, { attributes: true, attributeFilter: ['style', 'class'] });
+            observer.observe(helperNav, { attributes: true, attributeFilter: ['style', 'class'] });
+        }
     }
 
     // ========== ЖЕСТЫ (SWIPE) ==========
@@ -363,6 +395,7 @@
         preventZoom();
         optimizePerformance();
         initOfflineHandling();
+        observeRoleChanges();
     }
 
     // Запускаем инициализацию

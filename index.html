@@ -1455,8 +1455,14 @@
       document.getElementById('tab-orders').classList.add('active');
       
       // Показать нижнюю навигацию админа
-      if (adminBottomNav) adminBottomNav.style.display = 'flex';
-      if (helperBottomNav) helperBottomNav.style.display = 'none';
+      if (adminBottomNav) {
+        adminBottomNav.style.display = 'flex';
+        adminBottomNav.classList.add('visible');
+      }
+      if (helperBottomNav) {
+        helperBottomNav.style.display = 'none';
+        helperBottomNav.classList.remove('visible');
+      }
       
       // Активировать кнопку "Заказы" в нижней навигации
       if (adminBottomNav) {
@@ -1487,8 +1493,14 @@
       document.getElementById('helper-tasks').classList.add('active');
       
       // Показать нижнюю навигацию помощника
-      if (helperBottomNav) helperBottomNav.style.display = 'flex';
-      if (adminBottomNav) adminBottomNav.style.display = 'none';
+      if (helperBottomNav) {
+        helperBottomNav.style.display = 'flex';
+        helperBottomNav.classList.add('visible');
+      }
+      if (adminBottomNav) {
+        adminBottomNav.style.display = 'none';
+        adminBottomNav.classList.remove('visible');
+      }
       
       // Активировать кнопку "Задачи" в нижней навигации
       if (helperBottomNav) {

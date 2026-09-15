@@ -1266,8 +1266,9 @@
 
         /* ========== MOBILE RESPONSIVE (≤768px) ========== */
         @media (max-width: 768px) {
-            /* Нижняя навигация — управляется через JavaScript (updateRoleTabs) */
+            /* Нижняя навигация скрыта по умолчанию — показывает только JS */
             .bottom-nav {
+                display: none !important;
                 position: fixed;
                 bottom: 0;
                 left: 0;
@@ -1279,6 +1280,11 @@
                 z-index: 999;
                 justify-content: space-around;
                 align-items: center;
+            }
+            
+            /* Показываем только навигацию с классом visible */
+            .bottom-nav.visible {
+                display: flex !important;
             }
             
             .bottom-nav-item {
