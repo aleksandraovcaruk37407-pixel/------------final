@@ -96,6 +96,36 @@
                 });
             });
 
+            // Мобильная навигация — кнопки в меню "Ещё"
+            document.querySelectorAll('.bottom-nav-more-item[data-tab]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    var tabId = btn.getAttribute('data-tab');
+                    if (!tabId) return;
+                    
+                    // Переключаем контент
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    var targetTab = document.getElementById(tabId);
+                    if (targetTab) {
+                        targetTab.classList.add('active');
+                    }
+                    
+                    // Обновляем активные кнопки
+                    document.querySelectorAll('.bottom-nav-item, .bottom-nav-more-item').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Закрываем меню
+                    if (moreMenu) moreMenu.classList.remove('visible');
+                    
+                    // Обновляем данные вкладки
+                    if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') renderCalendar();
+                    if (tabId === 'tab-ref' && typeof renderRefs === 'function') renderRefs();
+                    if (tabId === 'tab-purchase' && typeof renderPurchaseOrdersList === 'function') renderPurchaseOrdersList();
+                    
+                    // Вибрация
+                    if (navigator.vibrate) navigator.vibrate(10);
+                });
+            });
+
             document.getElementById('orderModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeOrderModal(); });
             document.getElementById('authModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAuthModal(); });
             document.getElementById('addHelperModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddHelperModal(); });
@@ -113,6 +143,22 @@
             document.getElementById('addCashModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddCashModal(); });
             document.getElementById('addRegularExpenseModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularExpenseModal(); });
             document.getElementById('addRegularIncomeModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularIncomeModal(); });
+            
+            // Мобильная навигация — кнопка "Ещё"
+            var moreBtn = document.querySelector('.bottom-nav-more');
+            var moreMenu = document.getElementById('bottomNavMoreMenu');
+            if (moreBtn && moreMenu) {
+                moreBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    moreMenu.classList.toggle('visible');
+                });
+            }
+            // Закрываем меню "Ещё" при клике вне его
+            document.addEventListener('click', function(e) {
+                if (moreMenu && moreBtn && !moreMenu.contains(e.target) && !moreBtn.contains(e.target)) {
+                    moreMenu.classList.remove('visible');
+                }
+            });
             
             // Input обработчики
             var orderDate = document.getElementById('orderDate');

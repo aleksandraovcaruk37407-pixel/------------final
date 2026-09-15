@@ -44,6 +44,12 @@
       cssLink.rel = 'stylesheet';
       cssLink.href = 'css/styles.css?' + cacheBust;
       document.head.appendChild(cssLink);
+      
+      // Загружаем мобильные стили
+      var mobileCssLink = document.createElement('link');
+      mobileCssLink.rel = 'stylesheet';
+      mobileCssLink.href = 'css/mobile.css?' + cacheBust;
+      document.head.appendChild(mobileCssLink);
     </script>
     
     <!-- Firebase module загружается первым -->
@@ -54,6 +60,9 @@
     
     <!-- app.js загружается с defer -->
     <script src="js/app.js?v=202609130100" defer></script>
+    
+    <!-- Мобильная оптимизация -->
+    <script src="js/mobile.js?v=202609150000" defer></script>
 
 
 </head>
