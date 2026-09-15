@@ -224,32 +224,54 @@
     function initMobileModals() {
         if (!isMobile) return;
 
-        // === Order Modal — НЕ позволяем закрыть свайпом вниз ===
+        // === Order Modal — разрешаем скролл внутри модалки ===
         var orderModal = document.getElementById('orderModal');
         if (orderModal) {
-            // Запрещаем touch-action: pan-y на модалке, чтобы скролл работал внутри
-            orderModal.style.touchAction = 'pan-y';
-            
-            // Запрещаем свайп вниз для закрытия orderModal
-            orderModal.addEventListener('touchmove', function(e) {
+            // Находим внутренний контейнер модалки
+            var modalInner = orderModal.querySelector('.modal');
+            if (modalInner) {
                 // Разрешаем скролл внутри модалки
-                var modalInner = e.target.closest('.modal');
-                if (modalInner) {
+                modalInner.style.webkitOverflowScrolling = 'touch';
+                modalInner.style.overflowY = 'auto';
+                modalInner.style.maxHeight = '85vh';
+                modalInner.style.padding = '15px';
+                modalInner.style.paddingBottom = 'calc(15px + env(safe-area-inset-bottom, 0px))';
+                
+                // Блокируем свайп вниз для закрытия модалки заказа
+                modalInner.addEventListener('touchstart', function(e) {
+                    // Разрешаем скролл внутри модалки
                     e.stopPropagation();
-                }
-            }, { passive: true });
+                }, { passive: true });
+                
+                modalInner.addEventListener('touchmove', function(e) {
+                    // Разрешаем скролл внутри модалки
+                    e.stopPropagation();
+                }, { passive: true });
+            }
         }
 
         // === Calendar Booking Modal ===
         var bookingModal = document.getElementById('bookingModal');
         if (bookingModal) {
-            bookingModal.style.touchAction = 'pan-y';
+            var bookingInner = bookingModal.querySelector('.modal');
+            if (bookingInner) {
+                bookingInner.style.webkitOverflowScrolling = 'touch';
+                bookingInner.style.overflowY = 'auto';
+                bookingInner.style.maxHeight = '85vh';
+                bookingInner.style.padding = '15px';
+            }
         }
 
         // === Helper Task Modal ===
         var helperTaskModal = document.getElementById('helperTaskModal');
         if (helperTaskModal) {
-            helperTaskModal.style.touchAction = 'pan-y';
+            var helperInner = helperTaskModal.querySelector('.modal');
+            if (helperInner) {
+                helperInner.style.webkitOverflowScrolling = 'touch';
+                helperInner.style.overflowY = 'auto';
+                helperInner.style.maxHeight = '85vh';
+                helperInner.style.padding = '15px';
+            }
         }
     }
 

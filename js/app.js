@@ -1388,14 +1388,20 @@ window.localChangesPending = false;
         document.getElementById('helperCredentials').innerHTML = '';
         
         modal.classList.add('active');
-        document.body.classList.add('modal-open');
+        // НЕ блокируем скролл body на мобильных
+        if (window.innerWidth > 768) {
+            document.body.classList.add('modal-open');
+        }
     };
 
     window.closeAddHelperModal = function() {
         const modal = document.getElementById('addHelperModal');
         if (modal) {
             modal.classList.remove('active');
-            document.body.classList.remove('modal-open');
+            // Разблокировать скролл body (только на десктопе)
+            if (window.innerWidth > 768) {
+                document.body.classList.remove('modal-open');
+            }
         }
     };
 
@@ -4370,7 +4376,10 @@ window.localChangesPending = false;
         }
         
         orderModal.classList.add('active');
-        document.body.classList.add('modal-open');
+        // НЕ блокируем скролл body на мобильных — модалка скроллится внутри
+        if (window.innerWidth > 768) {
+            document.body.classList.add('modal-open');
+        }
         
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
@@ -4418,11 +4427,16 @@ window.localChangesPending = false;
             }
         });
         
-        // Прокрутка модалки вверх при открытии
+        // Прокрутка модалки вверх при открытии (только на мобильных)
         if (isMobile) {
             const orderModalInner = orderModal.querySelector('.modal');
             if (orderModalInner) {
-                setTimeout(() => { orderModalInner.scrollTop = 0; }, 100);
+                setTimeout(() => { 
+                    orderModalInner.scrollTop = 0;
+                    // Убеждаемся, что скролл включён
+                    orderModalInner.style.overflowY = 'auto';
+                    orderModalInner.style.webkitOverflowScrolling = 'touch';
+                }, 100);
             }
         }
     }
@@ -4451,8 +4465,10 @@ window.localChangesPending = false;
         orderModal.classList.remove('active');
         orderEditId = null;
         currentServices = [];
-        // Разблокировать скролл body
-        document.body.classList.remove('modal-open');
+        // Разблокировать скролл body (только на десктопе)
+        if (window.innerWidth > 768) {
+            document.body.classList.remove('modal-open');
+        }
     }
     
     // ========== iOS/Android: СВАЙП ВНИЗ ДЛЯ ЗАКРЫТИЯ ORDER MODAL ==========
@@ -4504,7 +4520,10 @@ window.localChangesPending = false;
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.add('active');
-            document.body.classList.add('modal-open');
+            // НЕ блокируем скролл body на мобильных — модалка скроллится внутри
+            if (window.innerWidth > 768) {
+                document.body.classList.add('modal-open');
+            }
         }
     }
     
@@ -4512,7 +4531,10 @@ window.localChangesPending = false;
         const modal = document.getElementById(modalId);
         if (modal) {
             modal.classList.remove('active');
-            document.body.classList.remove('modal-open');
+            // Разблокировать скролл body (только на десктопе)
+            if (window.innerWidth > 768) {
+                document.body.classList.remove('modal-open');
+            }
         }
     }
 
