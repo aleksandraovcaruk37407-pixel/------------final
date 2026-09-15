@@ -1400,6 +1400,29 @@
                 font-size: 13px;
                 min-width: 45px;
             }
+            
+            /* Кнопки очистки артикула — большие и заметные */
+            .btn-clear-art {
+                padding: 8px 14px !important;
+                font-size: 18px !important;
+                background: #dc3545 !important;
+                color: #fff !important;
+                border: none !important;
+                border-radius: 8px !important;
+                cursor: pointer !important;
+                min-width: 44px !important;
+                min-height: 44px !important;
+                flex-shrink: 0 !important;
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation;
+            }
+            .btn-clear-art:active {
+                background: #c82333 !important;
+                transform: scale(0.95);
+            }
             .order-header .order-date,
             .order-header .order-deadline {
                 font-size: 12px;
