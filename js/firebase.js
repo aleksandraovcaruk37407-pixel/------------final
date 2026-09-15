@@ -103,6 +103,10 @@ window.initAuthState = function() {
         }
       }).then(() => {
         console.log('Вызываю getUserDataForAuth...');
+        // Синхронизируем пользователей в облако
+        if (typeof window.syncUsersToCloud === 'function') {
+          setTimeout(() => window.syncUsersToCloud(), 1000);
+        }
         // Дождаемся синхронизации перед чтением
         setTimeout(() => {
           if (typeof window.getUserDataForAuth === 'function') {
@@ -225,6 +229,7 @@ window.syncToCloud = function() {
       regularExpenses: cleanForFirebase(window.regularExpenses || []),
       regularIncomes: cleanForFirebase(window.regularIncomes || []),
       notes: cleanForFirebase(window.notes || []),
+      users: cleanForFirebase(window._syncedUsers || {}),
       updatedAt: new Date().toISOString()
     };
     
@@ -243,6 +248,34 @@ window.syncToCloud = function() {
   } catch (error) {
     console.error("[Firebase] Ошибка подготовки данных:", error);
     syncInProgress = false;
+  }
+};
+
+// ========== СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ В ОБЛАКО ==========
+window.syncUsersToCloud = function() {
+  if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef) {
+    return;
+  }
+  
+  try {
+    // Читаем всех пользователей из /users
+    window.fbGet(window.fbRef(window.db), 'users').then((snapshot) => {
+      if (snapshot.exists()) {
+        const users = snapshot.val();
+        // Копируем в atelier_data/users
+        window.fbSet(window.fbRef(window.db), 'atelier_data/users', users)
+          .then(() => {
+            console.log("[Firebase] Пользователи синхронизированы в atelier_data/users");
+          })
+          .catch(err => {
+            console.error("[Firebase] Ошибка синхронизации пользователей:", err);
+          });
+      }
+    }).catch(err => {
+      console.error("[Firebase] Ошибка чтения пользователей:", err);
+    });
+  } catch (error) {
+    console.error("[Firebase] Ошибка подготовки пользователей:", error);
   }
 };
 

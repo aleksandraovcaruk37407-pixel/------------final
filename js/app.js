@@ -51,6 +51,10 @@
                 if (typeof listAllHelpersInDB === 'function') {
                     setTimeout(() => listAllHelpersInDB(), 500);
                 }
+                // Синхронизируем пользователей из /users в atelier_data/users
+                if (typeof window.syncUsersToCloud === 'function') {
+                    setTimeout(() => window.syncUsersToCloud(), 200);
+                }
             }
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1512,7 +1516,7 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'users'));
+            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             
             if (!snapshot.exists()) {
                 resultDiv.innerHTML = `
@@ -1571,7 +1575,7 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'users'));
+            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             
             console.log('🔍 listAllHelpersInDB: snapshot.exists()=', snapshot.exists());
             console.log('🔍 listAllHelpersInDB: all users=', snapshot.val());
@@ -1640,9 +1644,7 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            const snapshot = await window.get(window.child(ref, 'users'));
-            
-            // Проверяем есть ли уже пользователь
+            const snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             if (snapshot.exists()) {
                 const users = snapshot.val();
                 for (const uid in users) {
@@ -1767,7 +1769,10 @@ window.localChangesPending = false;
         
         try {
             const ref = window.fbRef(window.db);
-            window.get(window.child(ref, 'users')).then((snapshot) => {
+            // Данные в atelier_data/users, а не в users (корень)
+            window.get(window.child(ref, 'atelier_data/users')).then((snapshot) => {
+                console.log('🔍 updateHelperFilter: users snapshot.exists =', snapshot.exists());
+                console.log('🔍 updateHelperFilter: users snapshot.val =', snapshot.val());
                 if (!snapshot.exists()) {
                     console.log('updateHelperFilter: нет пользователей в Firebase');
                     return;
