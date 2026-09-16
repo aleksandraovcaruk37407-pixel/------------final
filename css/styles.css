@@ -137,48 +137,13 @@
         .schedule-slot.color-middle { background: #fff3cd; border-color: #ffc107; border-left: 4px solid #ffc107; }
         .schedule-slot.color-critical { background: #f8d7da; border-color: #dc3545; border-left: 4px solid #dc3545; }
         .schedule-slot.color-done { background: #e9ecef; border-color: #6c757d; border-left: 4px solid #6c757d; }
-        .modal-overlay { 
-            display: none; 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            right: 0; 
-            bottom: 0;
-            width: 100vw;
-            height: 100%;
-            background: rgba(0,0,0,0.75); 
-            z-index: 10000; 
-            justify-content: center; 
-            align-items: center;
-        }
-        .modal-overlay.active { 
-            display: flex;
-        }
-        .modal { 
-            background: #fff; 
-            border-radius: 12px; 
-            padding: 25px; 
-            max-width: 900px; 
-            width: 95%; 
-            max-height: 90vh; 
-            max-height: 85dvh;
-            overflow-y: auto; 
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-        }
-        /* iOS: prevent body scroll when modal open */
-        body.modal-open {
-            position: fixed;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            -webkit-overflow-scrolling: auto;
+        
+        /* По умолчанию на десктопе показываем adminTabs, скрываем helperTabs */
+        .tabs#helperTabs {
+            display: none !important;
         }
         
-        /* iOS-specific modal fixes */
-        @supports (-webkit-touch-callout: none) {
-            /* Only applies to iOS - use dvh for dynamic address bar */
-            .modal-overlay {
+        .modal-overlay {
                 height: 100dvh;
                 height: -webkit-fill-available;
             }
@@ -1734,9 +1699,27 @@
                 display: block !important;
             }
             
-            /* Order modal */
+            /* Order modal — фиксированные кнопки */
             #orderModal .modal {
                 border-radius: 20px 20px 0 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+            }
+            
+            /* Контент модалки заказа — скроллится */
+            #orderModal .modal > *:not(.form-actions) {
+                flex-shrink: 0 !important;
+            }
+            
+            /* Кнопки — фиксированы внизу */
+            #orderModal .form-actions {
+                position: sticky !important;
+                bottom: 0 !important;
+                background: #fff !important;
+                padding: 15px 0 10px 0 !important;
+                border-top: 1px solid #dee2e6 !important;
+                margin-top: 15px !important;
+                flex-shrink: 0 !important;
             }
             
             /* Увеличиваем поля ввода для мобильных */

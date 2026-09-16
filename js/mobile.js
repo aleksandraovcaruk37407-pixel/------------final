@@ -171,7 +171,7 @@
         var minSwipeDistance = 80;
 
         // Порядок вкладок админа
-        var adminTabOrder = ['tab-orders', 'tab-calendar', 'tab-purchase', 'tab-stock', 'tab-cash', 'tab-summary', 'tab-ref', 'tab-helper-admin'];
+        var adminTabOrder = ['tab-orders', 'tab-calendar', 'tab-purchase', 'tab-helper-admin', 'tab-stock', 'tab-cash', 'tab-summary', 'tab-ref'];
         // Порядок вкладок помощника
         var helperTabOrder = ['helper-tasks', 'helper-report'];
 
