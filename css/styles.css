@@ -146,7 +146,6 @@
             bottom: 0;
             width: 100vw;
             height: 100%;
-            height: 100dvh;
             background: rgba(0,0,0,0.75); 
             z-index: 10000; 
             justify-content: center; 
@@ -1714,6 +1713,7 @@
             .modal-overlay {
                 align-items: flex-end !important;
                 padding: 0 !important;
+                height: 100% !important;
             }
             
             /* Modal — bottom sheet с скроллом */
@@ -1722,13 +1722,14 @@
                 max-width: 100% !important;
                 margin: 0 !important;
                 border-radius: 20px 20px 0 0 !important;
-                max-height: 92dvh !important;
+                max-height: 90dvh !important;
                 height: auto !important;
                 overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch !important;
                 overscroll-behavior: contain !important;
                 padding: 20px 15px 30px 15px !important;
                 background: #fff !important;
+                display: block !important;
             }
             
             /* Order modal */
