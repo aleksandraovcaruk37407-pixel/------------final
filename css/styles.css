@@ -1709,11 +1709,13 @@
         
         /* Мобильные модалки — bottom sheet */
         @media screen and (max-width: 768px) {
-            /* Overlay — flex, прижимает modal к низу */
+            /* Overlay — fixed, flex, прижимает modal к низу */
             .modal-overlay {
                 align-items: flex-end !important;
+                justify-content: center !important;
                 padding: 0 !important;
-                height: 100% !important;
+                height: 100dvh !important;
+                height: -webkit-fill-available !important;
             }
             
             /* Modal — bottom sheet с скроллом */
