@@ -43,10 +43,16 @@ onAuthStateChanged(window.auth, (user) => {
   if (user) {
     console.log("[Firebase] Пользователь авторизован, uid:", user.uid);
     firebaseConnected = true;
-    initRealtimeSync();
+    // НЕ вызываем initRealtimeSync() здесь — это делает initAuthState()
+    // initRealtimeSync();
   } else {
     console.log("[Firebase] Пользователь не авторизован — синхронизация не активна");
     firebaseConnected = false;
+    // Показываем экран входа
+    const loginScreen = document.getElementById('loginScreen');
+    const appContent = document.getElementById('appContent');
+    if (loginScreen) loginScreen.style.display = 'flex';
+    if (appContent) appContent.style.display = 'none';
   }
 });
 
