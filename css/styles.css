@@ -7,13 +7,6 @@
     --safe-right: env(safe-area-inset-right, 0px);
 }
 
-/* Подсветка выбранной кнопки срочности */
-.color-btn.active {
-    border: 3px dashed #1a3c5e !important; /* Жирная контрастная рамка */
-    transform: scale(1.2);                 /* Кнопка станет чуть крупнее остальных */
-    box-shadow: 0 0 10px rgba(26, 60, 94, 0.5); /* Эффект мягкого свечения */
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; padding: 20px; overscroll-behavior: none; }
         .container { 
@@ -143,19 +136,39 @@
             display: none !important;
         }
         
+        /* Modal overlay — скрыт по умолчанию, показывается только с классом .active */
         .modal-overlay {
-                height: 100dvh;
-                height: -webkit-fill-available;
-            }
-            .modal {
-                max-height: 85dvh;
-                max-height: -webkit-fill-available;
-            }
-            body.modal-open {
-                position: relative;
-                height: 100dvh;
-                overflow: hidden;
-            }
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            height: 100dvh;
+            height: -webkit-fill-available;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal {
+            max-height: 85dvh;
+            max-height: -webkit-fill-available;
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            max-width: 500px;
+            width: 100%;
+            overflow-y: auto;
+        }
+        body.modal-open {
+            position: relative;
+            height: 100dvh;
+            overflow: hidden;
         }
         .modal h3 { margin-bottom: 15px; color: #1a3c5e; }
         .modal .form-group { margin-bottom: 12px; }

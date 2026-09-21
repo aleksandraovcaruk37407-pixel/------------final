@@ -1,22 +1,16 @@
 /* ==========================================================================
     FCM — FIREBASE CLOUD MESSAGING (PUSH УВЕДОМЛЕНИЯ)
     Работает когда приложение ЗАКРЫТО
-    
-    Функции:
-    - Запрос разрешения на push-уведомления
-    - Регистрация токена в Firebase
-    - Сохранение токенов в Realtime Database
-    - Обработка входящих push-уведомлений
     ========================================================================== */
 
-    // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
     window.fcmToken = null;
     window.fcmSubscribed = false;
     window.fcmMessaging = null;
     window.swRegistration = null;
     
     // ========== VAPID КЛЮЧ ==========
-    const VAPID_KEY = 'BELoLE_fBAJp71111QKsj-fGh8KBGOMkRolutJla9294Y9d6lAEVuS0ittqKwqIOVT-uIg0CJnf6ILHd_XeCCEg';
+    // ВНИМАНИЕ: Замените на реальный VAPID ключ из Firebase Console → Cloud Messaging → Web configuration
+    const VAPID_KEY = null; // Установите свой ключ или оставьте null
     
     // ========== РЕГИСТРАЦИЯ SERVICE WORKER ==========
     window.registerSW = async function() {
@@ -42,16 +36,13 @@
             return;
         }
         
-        // Проверяем поддержку
         if (!('Notification' in window)) {
             console.log('[FCM] Web Notifications не поддерживаются');
             return;
         }
         
-        // Регистрируем Service Worker
         await window.registerSW();
         
-        // Запрашиваем разрешение
         const permission = await requestNotificationPermission();
         console.log('[FCM] Разрешение уведомлений:', permission);
         
@@ -60,29 +51,17 @@
             return;
         }
         
-        // Сохраняем токен
         await saveFCMToken();
-        
         console.log('[FCM] FCM инициализирован');
     };
     
-    // ========== ЗАПРОС РАЗРЕШЕНИЯ НА УВЕДОМЛЕНИЯ ==========
+    // ========== ЗАПРОС РАЗРЕШЕНИЯ ==========
     async function requestNotificationPermission() {
-        if (!('Notification' in window)) {
-            return 'denied';
-        }
-        
-        if (Notification.permission === 'granted') {
-            return 'granted';
-        }
-        
-        if (Notification.permission === 'denied') {
-            return 'denied';
-        }
-        
+        if (!('Notification' in window)) return 'denied';
+        if (Notification.permission === 'granted') return 'granted';
+        if (Notification.permission === 'denied') return 'denied';
         try {
-            const permission = await Notification.requestPermission();
-            return permission;
+            return await Notification.requestPermission();
         } catch (error) {
             console.error('[FCM] Ошибка запроса разрешения:', error);
             return 'denied';
@@ -93,33 +72,26 @@
     async function saveFCMToken() {
         try {
             const user = window.auth.currentUser;
-            if (!user) {
-                console.log('[FCM] Пользователь не авторизован');
-                return;
-            }
+            if (!user) { console.log('[FCM] Пользователь не авторизован'); return; }
             
-            // Формируем данные токена
             const tokenData = {
                 token: 'browser-notification-' + user.uid,
                 userId: user.uid,
                 email: user.email,
                 displayName: user.displayName || user.email.split('@')[0],
                 role: window.currentUserData?.role || 'admin',
-                deviceType: navigator.userAgent.includes('iPhone') || navigator.userAgent.includes('iPad') ? 'ios' : 
-                            navigator.userAgent.includes('Android') ? 'android' : 'other',
-                browser: navigator.userAgent.includes('Chrome') ? 'chrome' : 
-                         navigator.userAgent.includes('Safari') ? 'safari' : 
-                         navigator.userAgent.includes('Firefox') ? 'firefox' : 'other',
+                deviceType: /iPhone|iPad|iPod/.test(navigator.userAgent) ? 'ios' : 
+                            /Android/.test(navigator.userAgent) ? 'android' : 'other',
+                browser: /Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent) ? 'chrome' : 
+                         /Safari/.test(navigator.userAgent) ? 'safari' : 'other',
                 lastUpdated: new Date().toISOString()
             };
             
-            // Сохраняем токен в /fcm_tokens/{userId}/browser
             await window.fbSet(
                 window.fbRef(window.db, 'fcm_tokens/' + user.uid + '/browser'),
                 tokenData
             );
             
-            // Обновляем запись пользователя
             await window.fbSet(
                 window.fbRef(window.db, 'users/' + user.uid + '/fcmToken'),
                 {
@@ -137,7 +109,7 @@
         }
     }
     
-    // ========== ПОЛУЧЕНИЕ ВСЕХ ТОКЕНОВ АДМИНОВ ==========
+    // ========== ПОЛУЧЕНИЕ ТОКЕНОВ АДМИНОВ ==========
     window.getAllAdminTokens = async function() {
         try {
             const snapshot = await window.fbGet(window.fbRef(window.db, 'fcm_tokens'));
@@ -167,69 +139,27 @@
         }
     };
     
-    // ========== ОТПРАВКА PUSH УВЕДОМЛЕНИЯ (через Cloud Function) ==========
+    // ========== ОТПРАВКА PUSH УВЕДОМЛЕНИЯ ==========
+    // ВНИМАНИЕ: Прямая отправка с фронтенда не работает без серверного ключа.
+    // Используйте Firebase Cloud Functions для production.
     window.sendPushNotification = async function(options) {
         const { title, body, data, icon } = options;
         
         try {
-            // Получаем все токены админов
             const adminTokens = await window.getAllAdminTokens();
             if (adminTokens.length === 0) {
                 console.log('[FCM] Нет токенов для отправки');
                 return;
             }
             
-            // Формируем payload для каждого токена
-            const promises = adminTokens.map(async (admin) => {
-                try {
-                    await fetch('https://fcm.googleapis.com/v1/projects/auto-atelier-1486d/messages:send', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'key=YOUR_SERVER_KEY_HERE'
-                        },
-                        body: JSON.stringify({
-                            message: {
-                                token: admin.token,
-                                notification: {
-                                    title: title,
-                                    body: body,
-                                    icon: icon || '/icons/icon-192.png'
-                                },
-                                data: data || {},
-                                android: {
-                                    priority: 'high',
-                                    notification: {
-                                        channel: 'daily_notifications',
-                                        icon: 'notification',
-                                        color: '#1a3c5e'
-                                    }
-                                },
-                                apns: {
-                                    payload: {
-                                        aps: {
-                                            badge: 1,
-                                            sound: 'default'
-                                        }
-                                    }
-                                }
-                            }
-                        })
-                    });
-                } catch (error) {
-                    console.error('[FCM] Ошибка отправки:', error);
-                }
-            });
-            
-            await Promise.all(promises);
-            console.log('[FCM] Push-уведомления отправлены:', adminTokens.length, 'админам');
+            console.warn('[FCM] Прямая отправка push требует серверного ключа. Используйте Cloud Functions.');
             
         } catch (error) {
             console.error('[FCM] Ошибка отправки push:', error);
         }
     };
     
-    // ========== ПОКАЗ PUSH УВЕДОМЛЕНИЯ (когда приложение открыто) ==========
+    // ========== ПОКАЗ PUSH УВЕДОМЛЕНИЯ ==========
     window.showPushNotification = function(title, body, options = {}) {
         if (!('Notification' in window) || Notification.permission !== 'granted') {
             return;
@@ -241,12 +171,7 @@
             badge: options.badge || '/icons/icon-96.png',
             tag: options.tag || 'default',
             requireInteraction: true,
-            silent: false,
-            actions: [
-                { action: 'open', title: '📱 Открыть' },
-                { action: 'close', title: '❌ Закрыть' }
-            ],
-            data: options.data || {}
+            silent: false
         });
     };
     
@@ -254,18 +179,14 @@
     if ('Notification' in window && Notification.permission === 'granted') {
         window.addEventListener('notificationclick', function(event) {
             event.notification.close();
-            
             if (event.action === 'open') {
                 if (event.notification.data?.url) {
                     window.open(event.notification.data.url, '_blank');
                 } else {
                     if (self.clients && self.clients.matchAll) {
                         self.clients.matchAll().then(function(clients) {
-                            if (clients.length > 0) {
-                                clients[0].focus();
-                            } else {
-                                window.open('./', '_blank');
-                            }
+                            if (clients.length > 0) clients[0].focus();
+                            else window.open('./', '_blank');
                         });
                     }
                 }
@@ -275,9 +196,7 @@
     
     // ========== ОБНОВЛЕНИЕ ТОКЕНА ПРИ АВТОРИЗАЦИИ ==========
     window.addEventListener('authStateChanged', function() {
-        if (window.auth.currentUser) {
-            initFCM();
-        }
+        if (window.auth.currentUser) initFCM();
     });
     
     // ========== ОЧИСТКА СТАРЫХ ТОКЕНОВ ==========
@@ -295,12 +214,9 @@
             
             for (const tokenKey in data) {
                 const tokenData = data[tokenKey];
-                if (tokenData.lastUpdated) {
-                    const lastUpdated = new Date(tokenData.lastUpdated);
-                    if (lastUpdated < thirtyDaysAgo) {
-                        await window.fbSet(window.fbRef(window.db, 'fcm_tokens/' + user.uid + '/' + tokenKey), null);
-                        console.log('[FCM] Удалён старый токен:', tokenKey);
-                    }
+                if (tokenData.lastUpdated && new Date(tokenData.lastUpdated) < thirtyDaysAgo) {
+                    await window.fbSet(window.fbRef(window.db, 'fcm_tokens/' + user.uid + '/' + tokenKey), null);
+                    console.log('[FCM] Удалён старый токен:', tokenKey);
                 }
             }
         } catch (error) {

@@ -155,11 +155,21 @@
 </div>
 
 <script>
-  // Базовая функция закрытия модалки (переопределяется в module скрипте)
-  window.closeAuthModal = () => {
-    const modal = document.getElementById('authModal');
-    if (modal) modal.classList.remove('active');
-  };
+  // ========== ПРИ ЗАГРУЗКЕ СТРАНИЦЫ ==========
+  // Гарантируем правильное начальное состояние
+  window.addEventListener('DOMContentLoaded', function() {
+    const loginScreen = document.getElementById('loginScreen');
+    const appContent = document.getElementById('appContent');
+    const authModal = document.getElementById('authModal');
+    
+    // По умолчанию скрываем appContent и показываем loginScreen
+    if (appContent) appContent.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+    // AuthModal всегда скрыт по умолчанию (display:none в CSS)
+    if (authModal) authModal.classList.remove('active');
+    
+    console.log('[Init] Начальное состояние: loginScreen visible, appContent hidden');
+  });
 </script>
 
 <!-- PWA Push Notification Setup -->
@@ -1531,6 +1541,11 @@
   // Делаем функции глобально доступными
   window.updateAuthUI = updateAuthUI;
   window.updateRoleTabs = updateRoleTabs;
+  
+  // Инициализация состояния авторизации (вызывается после загрузки всех скриптов)
+  if (typeof window.initAuthState === 'function') {
+    window.initAuthState();
+  }
 </script>
 </div>
 </body>

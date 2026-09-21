@@ -38,8 +38,6 @@
             // DOM уже загружен и Firebase готов — выполняем инициализацию сразу
             console.log('initAppIfReady: DOM ready и Firebase подключён, инициализация...');
             loadData();
-            createSampleOrders();
-            addRegularPaymentsToCash();
             initNotifications();
             currentDate = new Date();
             selectedDate = new Date();
@@ -273,23 +271,32 @@
     }
 
     function loadData() {
-    colors = JSON.parse(localStorage.getItem('colors_data') || '[]');
-    paints = JSON.parse(localStorage.getItem('paints_data') || '[]');
-    films = JSON.parse(localStorage.getItem('films_data') || '[]');
-    extraRef = JSON.parse(localStorage.getItem('extraRef_data') || '[]');
-    rates = JSON.parse(localStorage.getItem('rates_data') || '[]');
-    ordersData = JSON.parse(localStorage.getItem('orders_data') || '[]');
-    cashOps = JSON.parse(localStorage.getItem('cash_data') || '[]');
-    bookings = JSON.parse(localStorage.getItem('calendar_bookings') || '[]');
-    materialTypes = JSON.parse(localStorage.getItem('materialTypes_data') || '[]');
-    regularExpenses = JSON.parse(localStorage.getItem('regularExpenses_data') || '[]');
-    regularIncomes = JSON.parse(localStorage.getItem('regularIncomes_data') || '[]');
-    notes = JSON.parse(localStorage.getItem('notes_data') || '[]');
+    function parseJSON(key, fallback) {
+        try {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : fallback;
+        } catch (e) {
+            console.error(`[ loadData ] Ошибка парсинга ${key}:`, e);
+            return fallback;
+        }
+    }
+    colors = parseJSON('colors_data', []);
+    paints = parseJSON('paints_data', []);
+    films = parseJSON('films_data', []);
+    extraRef = parseJSON('extraRef_data', []);
+    rates = parseJSON('rates_data', []);
+    ordersData = parseJSON('orders_data', []);
+    cashOps = parseJSON('cash_data', []);
+    bookings = parseJSON('calendar_bookings', []);
+    materialTypes = parseJSON('materialTypes_data', []);
+    regularExpenses = parseJSON('regularExpenses_data', []);
+    regularIncomes = parseJSON('regularIncomes_data', []);
+    notes = parseJSON('notes_data', []);
 
     // Очищаем старые записи о распределении (налог, помощник, материалы и т.д.)
     cleanCashOps();
 
-    budgetData = JSON.parse(localStorage.getItem('budget_data') || 'null') || getDefaultBudgetData();
+    budgetData = parseJSON('budget_data', null) || getDefaultBudgetData();
     
     // Гарантия что все поля существуют (для старых данных)
     if (!budgetData.wallets) budgetData.wallets = getDefaultBudgetData().wallets;
@@ -1737,7 +1744,7 @@ window.localChangesPending = false;
             }
             
             // Просим ввести UID
-            const uid = prompt('Помощник не найден в базе. Введите UID из Firebase Auth:\n\nUID для daud_yt_play@yandex.ru: Bs1XCI7wBpZA6l8HoUKIMqBibSN2');
+            const uid = prompt('Помощник не найден в базе. Введите UID из Firebase Auth:');
             if (!uid) return;
             
             // Создаём запись в Realtime Database
@@ -3508,6 +3515,7 @@ window.localChangesPending = false;
             return item;
         };
         ordersData.forEach(order => {
+            if (!order.services || !Array.isArray(order.services)) return;
             order.services.forEach(inst => {
                 const svc = rates.find(r => r.service === inst.serviceName);
                 if (!svc) return;

@@ -34,42 +34,29 @@ let lastSyncTime = 0;
 let syncInProgress = false;
 
 // ========== ФЛАГ ГОТОВНОСТИ FIREBASE ==========
-// Устанавливается сразу после инициализации (до авторизации)
 window.firebaseReady = true;
 console.log('[Firebase] Инициализация завершена, window.firebaseReady = true');
 
-// ========== ОБРАБОТКА СОСТОЯНИЯ АВТОРИЗАЦИИ ==========
+// ========== ОБРАБОТКА СОСТОЯНИЯ АВТОРИЗАЦИИ (только флаг) ==========
 onAuthStateChanged(window.auth, (user) => {
   if (user) {
     console.log("[Firebase] Пользователь авторизован, uid:", user.uid);
     firebaseConnected = true;
-    // НЕ вызываем initRealtimeSync() здесь — это делает initAuthState()
-    // initRealtimeSync();
   } else {
-    console.log("[Firebase] Пользователь не авторизован — синхронизация не активна");
+    console.log("[Firebase] Пользователь не авторизован");
     firebaseConnected = false;
-    // Показываем экран входа
-    const loginScreen = document.getElementById('loginScreen');
-    const appContent = document.getElementById('appContent');
-    if (loginScreen) loginScreen.style.display = 'flex';
-    if (appContent) appContent.style.display = 'none';
   }
 });
 
-// Список email админов — используем глобальный из index.html (window.ADMIN_EMAILS)
-// НЕ ДУБЛИРУЙ список здесь, если меняешь — меняй только в index.html
-
-// ========== ГЛОБАЛЬНАЯ ПРОВЕРКА АВТОРИЗАЦИИ (вызывается ПОСЛЕ загрузки app.js) ==========
+// ========== ГЛОБАЛЬНАЯ ПРОВЕРКА АВТОРИЗАЦИИ ==========
 window.initAuthState = function() {
   console.log('[Auth] initAuthState вызван');
   
   onAuthStateChanged(window.auth, (user) => {
     console.log('onAuthStateChanged: user есть, uid =', user ? user.uid : 'null');
     if (user) {
-      // Пользователь авторизован - показываем приложение
       console.log('Пользователь авторизован:', user.email);
       
-      // Проверяем, является ли пользователь админом по email (глобальный список)
       const isAdminByEmail = window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(user.email.toLowerCase());
       if (isAdminByEmail) {
         console.log('>>> ✅ Email админа в списке, принудительно устанавливаем роль admin');
@@ -78,7 +65,6 @@ window.initAuthState = function() {
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appContent').style.display = 'block';
       
-      // Создаём запись пользователя в базе, если её нет, затем загружаем данные
       console.log('Проверяю запись пользователя в базе...');
       window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
         console.log('Пользователь найден в базе:', snapshot.exists());
@@ -87,7 +73,7 @@ window.initAuthState = function() {
           return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-            role: isAdminByEmail ? 'admin' : 'admin',
+            role: isAdminByEmail ? 'admin' : 'helper',
             createdAt: new Date().toISOString()
           }).then(() => {
             console.log('Запись пользователя создана успешно');
@@ -95,7 +81,6 @@ window.initAuthState = function() {
             console.error('Ошибка создания записи пользователя:', err);
           });
         } else {
-          // Если пользователь уже есть в базе, но роль helper, а email админа — исправляем
           return window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snap) => {
             if (snap.exists() && snap.val().role === 'helper' && isAdminByEmail) {
               console.log('>>> Исправляю роль в базе с helper на admin при авторизации');
@@ -110,11 +95,9 @@ window.initAuthState = function() {
         }
       }).then(async () => {
         console.log('Вызываю getUserDataForAuth...');
-        // Сначала синхронизируем пользователей из облака
         if (typeof window.syncUsersToCloud === 'function') {
           await window.syncUsersToCloud();
         }
-        // Дождаемся синхронизации перед чтением
         setTimeout(() => {
           if (typeof window.getUserDataForAuth === 'function') {
             window.getUserDataForAuth(user);
@@ -124,7 +107,6 @@ window.initAuthState = function() {
         }, 500);
       }).catch(err => {
         console.error('Ошибка работы с пользователем:', err);
-        // Даже если ошибка — пробуем войти
         setTimeout(() => {
           if (typeof window.getUserDataForAuth === 'function') {
             window.getUserDataForAuth(user);
@@ -132,7 +114,6 @@ window.initAuthState = function() {
         }, 500);
       });
     } else {
-      // Пользователь не авторизован - показываем экран входа
       console.log('Пользователь не авторизован');
       window.currentUserData = null;
       
@@ -149,20 +130,16 @@ window.initAuthState = function() {
 function initRealtimeSync() {
   const dataRef = ref(window.db, 'atelier_data');
   
-  // Слушаем изменения в облаке
   onValue(dataRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
       cloudDataLoaded = true;
       console.log("[Firebase] Данные загружены из облака, ключей:", Object.keys(data));
       
-      // Проверяем, что функция updateCloudData доступна
       if (typeof window.updateCloudData === 'function') {
-        // Устанавливаем флаг, что данные пришли из облака
         window.localChangesPending = true;
         window.updateCloudData(data);
         
-        // Сбрасываем флаг через 1 секунду
         setTimeout(() => {
           if (window.localChangesPending !== undefined) {
             window.localChangesPending = false;
@@ -179,7 +156,6 @@ function initRealtimeSync() {
     showConnectionStatus(false);
   });
   
-  // Отмечаем пользователя как "онлайн"
   const statusRef = ref(window.db, 'status/' + (window.currentUserData?.email || 'anonymous'));
   onDisconnect(statusRef).set({
     online: false,
@@ -192,13 +168,12 @@ function initRealtimeSync() {
   });
 }
 
-// ========== ФУНКЦИЯ СИНХРОНИЗАЦИИ (вызывается из app.js) ==========
+// ========== ФУНКЦИЯ СИНХРОНИЗАЦИИ ==========
 window.syncToCloud = function() {
   if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef) {
     return;
   }
   
-  // Debounce — не чаще 1 раза в 2 секунды
   const now = Date.now();
   if (now - lastSyncTime < 2000) return;
   if (syncInProgress) return;
@@ -207,7 +182,6 @@ window.syncToCloud = function() {
   syncInProgress = true;
   
   try {
-    // Очищаем от undefined/null значений
     function cleanForFirebase(obj) {
       if (obj === null || obj === undefined) return null;
       if (Array.isArray(obj)) return obj.map(cleanForFirebase);
@@ -265,15 +239,12 @@ window.syncUsersToCloud = async function() {
   }
   
   try {
-    // 1. Читаем из /atelier_data/users (там могли быть старые синхронизированные пользователи)
     const cloudSnapshot = await window.fbGet(window.child(window.fbRef(window.db), 'atelier_data/users'));
     const cloudUsers = cloudSnapshot.exists() ? cloudSnapshot.val() : {};
     
-    // 2. Читаем из /users (корень БД — новые пользователи создаются здесь)
     const rootSnapshot = await window.fbGet(window.child(window.fbRef(window.db), 'users'));
     const rootUsers = rootSnapshot.exists() ? rootSnapshot.val() : {};
     
-    // 3. Объединяем: приоритет у /users (корень), но добавляем отсутствующих из облака
     const mergedUsers = {};
     for (const uid in rootUsers) {
       mergedUsers[uid] = rootUsers[uid];
@@ -287,16 +258,13 @@ window.syncUsersToCloud = async function() {
     console.log('[Firebase] 📊 Из /users:', Object.keys(rootUsers).length);
     console.log('[Firebase] 📊 Из /atelier_data/users:', Object.keys(cloudUsers).length);
     console.log('[Firebase] 📊 Объединено:', Object.keys(mergedUsers).length);
-    console.log('[Firebase] 📋 UID пользователей:', Object.keys(mergedUsers));
     
     if (Object.keys(mergedUsers).length === 0) return null;
     
-    // 4. Записываем в оба места
     await window.fbSet(window.fbRef(window.db, 'users'), mergedUsers);
     await window.fbSet(window.fbRef(window.db, 'atelier_data/users'), mergedUsers);
     
-    console.log('[Firebase] ✅ Пользователи синхронизированы в оба места:', Object.keys(mergedUsers).length);
-    console.log('[Firebase] 👤 Детали:', Object.values(mergedUsers).map(u => `${u.email} (${u.role})`));
+    console.log('[Firebase] ✅ Пользователи синхронизированы:', Object.keys(mergedUsers).length);
     
     return mergedUsers;
   } catch (error) {
@@ -314,23 +282,18 @@ function showConnectionStatus(connected) {
     statusEl.style.display = 'block';
     statusEl.style.background = '#28a745';
     statusEl.textContent = '🟢 Онлайн — синхронизировано';
-    setTimeout(() => {
-      statusEl.style.display = 'none';
-    }, 3000);
+    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
   } else {
     statusEl.style.display = 'block';
     statusEl.style.background = '#dc3545';
     statusEl.textContent = '🔴 Офлайн — данные не синхронизированы';
-    setTimeout(() => {
-      statusEl.style.display = 'none';
-    }, 5000);
+    setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
   }
 }
 
 // ========== ПЕРИОДИЧЕСКАЯ СИНХРОНИЗАЦИЯ ==========
 setInterval(() => {
   if (firebaseConnected && typeof window.syncToCloud === 'function') {
-    console.log("[Firebase] Периодическая синхронизация...");
     window.syncToCloud();
   }
 }, 15000);
@@ -338,29 +301,19 @@ setInterval(() => {
 // ========== СИНХРОНИЗАЦИЯ ПРИ ВОЗВРАТЕ НА ВКЛАДКУ ==========
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && firebaseConnected) {
-    console.log("[Firebase] Вкладка активна — синхронизация");
-    if (typeof window.syncToCloud === 'function') {
-      window.syncToCloud();
-    }
+    if (typeof window.syncToCloud === 'function') window.syncToCloud();
   }
 });
 
-// ========== СИНХРОНИЗАЦИЯ ПРИ ВОЗВРАТЕ ФОКУСА ==========
 window.addEventListener('focus', () => {
-  if (firebaseConnected) {
-    console.log("[Firebase] Окно в фокусе — синхронизация");
-    if (typeof window.syncToCloud === 'function') {
-      window.syncToCloud();
-    }
-  }
-});
-
-// ========== ОБРАБОТКА ОТСУТСТВИЯ ИНТЕРНЕТА ==========
-window.addEventListener('online', () => {
-  console.log("[Firebase] Подключение восстановлено — синхронизация...");
-  if (typeof window.syncToCloud === 'function') {
+  if (firebaseConnected && typeof window.syncToCloud === 'function') {
     window.syncToCloud();
   }
+});
+
+window.addEventListener('online', () => {
+  console.log("[Firebase] Подключение восстановлено");
+  if (typeof window.syncToCloud === 'function') window.syncToCloud();
 });
 
 window.addEventListener('offline', () => {
