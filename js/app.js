@@ -3421,11 +3421,20 @@ window.localChangesPending = false;
     }
 
     function formatPhone(input) {
+        const cursorPos = input.selectionStart;
+        const oldVal = input.value;
         let val = input.value.replace(/\D/g,'');
         if (val.startsWith('8')) val = '7'+val.slice(1);
         if (!val.startsWith('7')) val = '7'+val;
         if (val.length > 11) val = val.slice(0,11);
-        input.value = '+'+val;
+        const newVal = '+'+val;
+        // Не перезаписываем если значение не изменилось - важно для iOS
+        if (newVal !== oldVal) {
+            input.value = newVal;
+            // Восстанавливаем позицию курсора
+            const newPos = cursorPos + (newVal.length - oldVal.length);
+            input.setSelectionRange(Math.max(0, newPos), Math.max(0, newPos));
+        }
     }
 
     function serviceUsesMarker(svc, markerName) {
@@ -5990,7 +5999,18 @@ function deleteOrder(orderId) {
     function renderOrders() {
         const list = document.getElementById('ordersList');
         list.innerHTML = '';
-        ordersData.forEach(order => {
+        
+        // Сортируем: новые заказы сверху (по дате создания/номеру)
+        const sortedOrders = [...ordersData].sort((a, b) => {
+            // Сначала по дате (новые сверху)
+            if (a.date && b.date) {
+                if (a.date !== b.date) return b.date.localeCompare(a.date);
+            }
+            // Если даты равны - по ID (новые сверху)
+            return (b.id || '').localeCompare(a.id || '');
+        });
+        
+        sortedOrders.forEach(order => {
             const color = getOrderColorObj(order);
             const show = filterCheck(order, currentFilter);
             if (!show) return;
@@ -6886,6 +6906,17 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         window.initAuthState();
     } else {
         console.error('[App] initAuthState не определена!');
+    }
+    
+    // Инициализация real-time синхронизации ПОСЛЕ auth
+    console.log('[App] Инициализация real-time sync...');
+    if (typeof window.initRealtimeSync === 'function') {
+        setTimeout(() => {
+            window.initRealtimeSync();
+            console.log('[App] Real-time sync инициализирована');
+        }, 1000);
+    } else {
+        console.error('[App] initRealtimeSync не определена!');
     }
     
     // Инициализация FCM push-уведомлений

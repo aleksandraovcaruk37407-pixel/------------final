@@ -97,6 +97,8 @@
         if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') renderCalendar();
         if (tabId === 'tab-ref' && typeof renderRefs === 'function') renderRefs();
         if (tabId === 'tab-purchase' && typeof renderPurchaseOrdersList === 'function') renderPurchaseOrdersList();
+        if (tabId === 'tab-stock' && typeof renderStock === 'function') renderStock();
+        if (tabId === 'tab-cash' && typeof renderCash === 'function') renderCash();
         if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
         if (tabId === 'tab-helper-admin') {
@@ -244,8 +246,13 @@
     }
 
     function preventZoom() {
+        // Отключаем двойной тап для зума - но только для элементов кроме input
         var lastTouchEnd = 0;
         document.addEventListener('touchend', function(e) {
+            // Не блокируем если клик по input/select/textarea
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
             var now = Date.now();
             if (now - lastTouchEnd <= 300) {
                 e.preventDefault();

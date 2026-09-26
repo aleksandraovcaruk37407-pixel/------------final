@@ -230,12 +230,12 @@
         <button class="bottom-nav-item" data-tab="tab-calendar">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="tab-purchase">📄<br><small>Закупка</small></button>
         <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Задачи</small></button>
-        <button class="bottom-nav-item" data-tab="tab-stock">📦<br><small>Склад</small></button>
         <button class="bottom-nav-more">⚙️<br><small>Ещё</small></button>
     </div>
     
     <!-- Дополнительное меню для мобильных -->
     <div class="bottom-nav-more-menu" id="bottomNavMoreMenu">
+        <button class="bottom-nav-more-item" data-tab="tab-stock">📦 Склад</button>
         <button class="bottom-nav-more-item" data-tab="tab-cash">💰 Деньги</button>
         <button class="bottom-nav-more-item" data-tab="tab-summary">📊 Итоги</button>
         <button class="bottom-nav-more-item" data-tab="tab-ref">📚 Справочники</button>
@@ -531,7 +531,7 @@
                 <div class="form-group"><label>Имя клиента</label><input type="text" id="orderClient" placeholder="Введите имя"></div>
             </div>
             <div class="form-row">
-                <div class="form-group"><label>Телефон</label><input type="text" id="orderPhone" placeholder="+7 900 000-00-00" onblur="formatPhone(this)"></div>
+                <div class="form-group"><label>Телефон</label><input type="tel" id="orderPhone" placeholder="+7 900 000-00-00" oninput="formatPhone(this)"></div>
                 <div class="form-group"></div>
             </div>
             <div class="form-group">
@@ -603,7 +603,7 @@
             <h3>Новая запись в календаре</h3>
             <div class="form-group"><label>Дата</label><input type="date" id="modalDate"></div>
             <div class="form-group"><label>Имя клиента</label><input type="text" id="modalName"></div>
-            <div class="form-group"><label>Телефон</label><input type="text" id="modalPhone" onblur="formatPhone(this)"></div>
+            <div class="form-group"><label>Телефон</label><input type="tel" id="modalPhone" oninput="formatPhone(this)"></div>
             <div class="form-group"><label>Услуга</label><select id="modalService"></select></div>
             <div class="form-group"><label>Срок (дней)</label><input type="number" id="modalDurationDays" min="1" max="30" value="1"></div>
             <div class="form-actions">
