@@ -32,28 +32,22 @@ let firebaseConnected = false;
 let cloudDataLoaded = false;
 let lastSyncTime = 0;
 let syncInProgress = false;
+let hasUnsavedChanges = false;
 
 // ========== ФЛАГ ГОТОВНОСТИ FIREBASE ==========
 window.firebaseReady = true;
 console.log('[Firebase] Инициализация завершена, window.firebaseReady = true');
 
-// ========== ОБРАБОТКА СОСТОЯНИЯ АВТОРИЗАЦИИ (только флаг) ==========
-onAuthStateChanged(window.auth, (user) => {
-  if (user) {
-    console.log("[Firebase] Пользователь авторизован, uid:", user.uid);
-    firebaseConnected = true;
-  } else {
-    console.log("[Firebase] Пользователь не авторизован");
-    firebaseConnected = false;
-  }
-});
-
-// ========== ГЛОБАЛЬНАЯ ПРОВЕРКА АВТОРИЗАЦИИ ==========
+// ========== ОБЪЕДИНЁННАЯ ОБРАБОТКА АВТОРИЗАЦИИ (ОДИН onAuthStateChanged) ==========
 window.initAuthState = function() {
   console.log('[Auth] initAuthState вызван');
   
   onAuthStateChanged(window.auth, (user) => {
-    console.log('onAuthStateChanged: user есть, uid =', user ? user.uid : 'null');
+    console.log('onAuthStateChanged: user =', user ? user.uid : 'null');
+    
+    // Устанавливаем флаг подключения сразу
+    firebaseConnected = !!user;
+    
     if (user) {
       console.log('Пользователь авторизован:', user.email);
       
@@ -127,14 +121,23 @@ window.initAuthState = function() {
 };
 
 // ========== REAL-TIME СИНХРОНИЗАЦИЯ ==========
+let realtimeSyncListener = null; // Сохраняем ссылку для cleanup
+
 function initRealtimeSync() {
+  // Удаляем старый listener если есть
+  if (realtimeSyncListener) {
+    const dataRef = ref(window.db, 'atelier_data');
+    off(dataRef, 'value', realtimeSyncListener);
+    console.log('[Firebase] Старый listener удалён');
+  }
+  
   const dataRef = ref(window.db, 'atelier_data');
   
-  onValue(dataRef, (snapshot) => {
+  realtimeSyncListener = (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.val();
       cloudDataLoaded = true;
-      console.log("[Firebase] Данные загружены из облака, ключей:", Object.keys(data));
+      console.log("[Firebase] Данные обновлены из облака, ключей:", Object.keys(data));
       
       if (typeof window.updateCloudData === 'function') {
         window.localChangesPending = true;
@@ -150,12 +153,15 @@ function initRealtimeSync() {
       console.log("[Firebase] Облако пусто — используем localStorage");
       cloudDataLoaded = true;
     }
-  }, (error) => {
+  };
+  
+  onValue(dataRef, realtimeSyncListener, (error) => {
     console.error("[Firebase] Ошибка real-time listener:", error);
     cloudDataLoaded = true;
     showConnectionStatus(false);
   });
   
+  // Статус онлайн/оффлайн
   const statusRef = ref(window.db, 'status/' + (window.currentUserData?.email || 'anonymous'));
   onDisconnect(statusRef).set({
     online: false,
@@ -175,11 +181,13 @@ window.syncToCloud = function() {
   }
   
   const now = Date.now();
-  if (now - lastSyncTime < 2000) return;
+  if (now - lastSyncTime < 5000) return; // 5 сек вместо 2
   if (syncInProgress) return;
+  if (!hasUnsavedChanges) return; // Нет изменений — не отправляем
   
   lastSyncTime = now;
   syncInProgress = true;
+  hasUnsavedChanges = false; // Сбрасываем флаг
   
   try {
     function cleanForFirebase(obj) {
@@ -197,26 +205,53 @@ window.syncToCloud = function() {
       return cleaned;
     }
     
+    // Отправляем ТОЛЬКО изменённые данные
     const syncPayload = {
-      colors: cleanForFirebase(window.colors || []),
-      paints: cleanForFirebase(window.paints || []),
-      films: cleanForFirebase(window.films || []),
-      extraRef: cleanForFirebase(window.extraRef || []),
-      rates: cleanForFirebase(window.rates || []),
-      ordersData: cleanForFirebase(window.ordersData || []),
-      cashOps: cleanForFirebase(window.cashOps || []),
-      bookings: cleanForFirebase(window.bookings || []),
-      materialTypes: cleanForFirebase(window.materialTypes || []),
-      regularExpenses: cleanForFirebase(window.regularExpenses || []),
-      regularIncomes: cleanForFirebase(window.regularIncomes || []),
-      notes: cleanForFirebase(window.notes || []),
-      users: cleanForFirebase(window._syncedUsers || {}),
       updatedAt: new Date().toISOString()
     };
     
+    // Если есть полные данные (первая синхронизация или после перезагрузки)
+    if (window._fullSyncPending) {
+      syncPayload.colors = cleanForFirebase(window.colors || []);
+      syncPayload.paints = cleanForFirebase(window.paints || []);
+      syncPayload.films = cleanForFirebase(window.films || []);
+      syncPayload.extraRef = cleanForFirebase(window.extraRef || []);
+      syncPayload.rates = cleanForFirebase(window.rates || []);
+      syncPayload.ordersData = cleanForFirebase(window.ordersData || []);
+      syncPayload.cashOps = cleanForFirebase(window.cashOps || []);
+      syncPayload.bookings = cleanForFirebase(window.bookings || []);
+      syncPayload.materialTypes = cleanForFirebase(window.materialTypes || []);
+      syncPayload.regularExpenses = cleanForFirebase(window.regularExpenses || []);
+      syncPayload.regularIncomes = cleanForFirebase(window.regularIncomes || []);
+      syncPayload.notes = cleanForFirebase(window.notes || []);
+      syncPayload.users = cleanForFirebase(window._syncedUsers || {});
+      window._fullSyncPending = false;
+    } else {
+      // Отправляем только то что изменилось
+      if (window._changedOrders) {
+        syncPayload.ordersData = cleanForFirebase(window._changedOrders);
+        window._changedOrders = null;
+      }
+      if (window._changedRates) {
+        syncPayload.rates = cleanForFirebase(window._changedRates);
+        window._changedRates = null;
+      }
+      if (window._changedMaterialTypes) {
+        syncPayload.materialTypes = cleanForFirebase(window._changedMaterialTypes);
+        window._changedMaterialTypes = null;
+      }
+    }
+    
+    // Если ничего не изменилось — не отправляем
+    const keys = Object.keys(syncPayload);
+    if (keys.length <= 1) { // Только updatedAt
+      syncInProgress = false;
+      return;
+    }
+    
     window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
       .then(() => {
-        console.log("[Firebase] Данные отправлены в облако");
+        console.log("[Firebase] Данные отправлены в облако, ключей:", keys.length - 1);
         showConnectionStatus(true);
       })
       .catch((error) => {
@@ -229,6 +264,25 @@ window.syncToCloud = function() {
   } catch (error) {
     console.error("[Firebase] Ошибка подготовки данных:", error);
     syncInProgress = false;
+  }
+};
+
+// ========== ПОМЕТИТЬ ИЗМЕНЕНИЯ ==========
+window.markChanged = function(type) {
+  hasUnsavedChanges = true;
+  
+  // Если это конкретный тип данных — сохраняем для отправки
+  if (type === 'orders' && window.ordersData) {
+    window._changedOrders = window.ordersData;
+  } else if (type === 'rates' && window.rates) {
+    window._changedRates = window.rates;
+  } else if (type === 'materialTypes' && window.materialTypes) {
+    window._changedMaterialTypes = window.materialTypes;
+  }
+  
+  // Полная синхронизация при первом запуске
+  if (!window._fullSyncPending) {
+    window._fullSyncPending = true;
   }
 };
 
@@ -291,12 +345,12 @@ function showConnectionStatus(connected) {
   }
 }
 
-// ========== ПЕРИОДИЧЕСКАЯ СИНХРОНИЗАЦИЯ ==========
+// ========== ПЕРИОДИЧЕСКАЯ СИНХРОНИЗАЦИЯ (только если есть изменения) ==========
 setInterval(() => {
-  if (firebaseConnected && typeof window.syncToCloud === 'function') {
+  if (firebaseConnected && hasUnsavedChanges && typeof window.syncToCloud === 'function') {
     window.syncToCloud();
   }
-}, 15000);
+}, 30000); // 30 секунд вместо 15
 
 // ========== СИНХРОНИЗАЦИЯ ПРИ ВОЗВРАТЕ НА ВКЛАДКУ ==========
 document.addEventListener('visibilitychange', () => {

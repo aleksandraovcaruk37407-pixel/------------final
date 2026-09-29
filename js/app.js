@@ -1,27 +1,57 @@
 
     /* ==========================================================================
-    AUTOATELIER PRO — СИСТЕМА УПРАВЛЕНИЯ АВТО-АТЕЛЬЕ
-    Версия: 2.1 | Исправление для iOS/Android (defer скрипты)
-    
-    Структура модулей:
-    1. XSS ЗАЩИТА и утилиты
-    2. ГЛОБАЛЬНЫЕ ДАННЫЕ и хранилище
-    3. БЮДЖЕТ и финансы
-    4. АВТОРИЗАЦИЯ и пользователи
-    5. СИСТЕМА ПОМОЩНИКОВ (задачи, штрафы, выплаты)
-    6. УПРАВЛЕНИЕ ЗАКАЗАМИ (CRUD, услуги, расходники)
-    7. СПРАВОЧНИКИ (ткани, краски, плёнки, расходники)
-    8. СКЛАД и материалы
-    9. ДЕНЬГИ и операции
-    10. КАЛЕНДАРЬ и заметки
-    11. ИТОГИ и отчёты
-    12. ЗАКУПКА материалов
-    13. ЭКСПОРТ/ИМПОРТ
-    14. UI и МОДАЛЬНЫЕ ОКНА
-    15. МОБИЛЬНАЯ НАВИГАЦИЯ
-    16. ИНИЦИАЛИЗАЦИЯ и обработчики
-    ========================================================================== */
+     AUTOATELIER PRO — СИСТЕМА УПРАВЛЕНИЯ АВТО-АТЕЛЬЕ
+     ========================================================================== */
 
+    // ========== TOAST УВЕДОМЛЕНИЯ (вместо alert) ==========
+    function showToast(message, type = 'info') {
+      // Удаляем старые тосты
+      document.querySelectorAll('.toast-notification').forEach(t => t.remove());
+      
+      const colors = {
+        success: '#28a745',
+        error: '#dc3545',
+        warning: '#ffc107',
+        info: '#007bff'
+      };
+      
+      const toast = document.createElement('div');
+      toast.className = 'toast-notification';
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(-100px);
+        background: ${colors[type] || colors.info};
+        color: #fff;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 100000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        max-width: 90%;
+        text-align: center;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+        opacity: 0;
+      `;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      
+      // Анимация появления
+      requestAnimationFrame(() => {
+        toast.style.transform = 'translateX(-50%) translateY(0)';
+        toast.style.opacity = '1';
+      });
+      
+      // Удаляем через 3 секунды
+      setTimeout(() => {
+        toast.style.transform = 'translateX(-50%) translateY(-100px)';
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+    
     // ========== iOS/Android FIX: Инициализация независимо от DOMContentLoaded ==========
     // defer скрипты выполняются ПОСЛЕ DOMContentLoaded, поэтому проверяем readyState
     function initAppIfReady() {
@@ -557,25 +587,53 @@ if (!films.length) {
     saveAll();
 }
     function saveAll() {
-    localStorage.setItem('colors_data', JSON.stringify(colors));
-    localStorage.setItem('paints_data', JSON.stringify(paints));
-    localStorage.setItem('films_data', JSON.stringify(films));
-    localStorage.setItem('extraRef_data', JSON.stringify(extraRef));
-    localStorage.setItem('rates_data', JSON.stringify(rates));
-    localStorage.setItem('orders_data', JSON.stringify(ordersData));
-    localStorage.setItem('cash_data', JSON.stringify(cashOps));
-    localStorage.setItem('calendar_bookings', JSON.stringify(bookings));
-    localStorage.setItem('materialTypes_data', JSON.stringify(materialTypes));
-    localStorage.setItem('regularExpenses_data', JSON.stringify(regularExpenses));
-    localStorage.setItem('regularIncomes_data', JSON.stringify(regularIncomes));
-    localStorage.setItem('notes_data', JSON.stringify(notes));
-    localStorage.setItem('budget_data', JSON.stringify(budgetData));
+      // Безопасное сохранение с try-catch
+      const dataToSave = {
+        colors: colors,
+        paints: paints,
+        films: films,
+        extraRef: extraRef,
+        rates: rates,
+        ordersData: ordersData,
+        cashOps: cashOps,
+        bookings: bookings,
+        materialTypes: materialTypes,
+        regularExpenses: regularExpenses,
+        regularIncomes: regularIncomes,
+        notes: notes,
+        budgetData: budgetData
+      };
+      
+      for (const key in dataToSave) {
+        try {
+          localStorage.setItem(key + '_data', JSON.stringify(dataToSave[key]));
+        } catch (e) {
+          if (e.name === 'QuotaExceededError') {
+            console.warn('[Save] Хранилище переполнено, очищаем старые данные...');
+            // Удаляем самые старые заказы (оставляем 50 последних)
+            if (key === 'ordersData' && ordersData.length > 50) {
+              ordersData = ordersData.slice(-50);
+              localStorage.setItem('orders_data', JSON.stringify(ordersData));
+            }
+          }
+        }
+      }
 
-    // Отправка в Firebase (используем новую функцию syncToCloud)
-    if (window.syncToCloud) {
-        window.syncToCloud();
+      // Отправка в Firebase (используем новую функцию syncToCloud)
+      if (window.syncToCloud) {
+        window.markChanged(); // Помечаем что есть изменения
+      }
     }
-}
+    
+    // Debounced save — не сохраняем чаще чем раз в 1 секунду
+    let _saveTimeout = null;
+    window.debouncedSaveAll = function() {
+      if (_saveTimeout) clearTimeout(_saveTimeout);
+      _saveTimeout = setTimeout(() => {
+        saveAll();
+        _saveTimeout = null;
+      }, 1000);
+    };
 
 // ========== ГЛОБАЛЬНЫЙ ФЛАГ ИЗМЕНЕНИЙ ==========
 // localChangesPending = true означает, что локальные данные важнее облачных
@@ -2745,7 +2803,11 @@ window.localChangesPending = false;
         updateNotificationBadges();
     }
     // Универсальная функция загрузки помощников для селектов
-    function loadHelpersForSelect(selectEl, includeExisting = true) {
+    function loadHelpersForSelect(selectEl, includeExisting = true, maxRetries = 5) {
+        return _loadHelpersForSelect(selectEl, includeExisting, 0, maxRetries);
+    }
+    
+    function _loadHelpersForSelect(selectEl, includeExisting, retry, maxRetries) {
         if (!selectEl) return Promise.resolve([]);
         
         const existingHelpers = [];
@@ -2764,6 +2826,7 @@ window.localChangesPending = false;
         }
         
         // Заполняем базовый список из существующих помощников
+        selectEl.innerHTML = '<option value="">-- Выбери помощника --</option>';
         existingHelpers.forEach(h => {
             const option = document.createElement('option');
             option.value = h.email;
@@ -2773,12 +2836,16 @@ window.localChangesPending = false;
         
         console.log('loadHelpersForSelect: базовых помощников:', existingHelpers.length);
         
-        // ИСПРАВЛЕНО: Ждём готовности Firebase
+        // ИСПРАВЛЕНО: Ждём готовности Firebase с ограничением retries
         if (!window.firebaseReady) {
-            console.log('[loadHelpersForSelect] Firebase не готов, retry через 500мс...');
+            if (retry >= maxRetries) {
+              console.warn('[loadHelpersForSelect] Firebase не загрузился, используем локальные данные');
+              return Promise.resolve(existingHelpers);
+            }
+            console.log(`[loadHelpersForSelect] Firebase не готов, retry ${retry + 1}/${maxRetries} через 500мс...`);
             return new Promise((resolve) => {
                 setTimeout(() => {
-                    loadHelpersForSelect(selectEl, includeExisting).then(resolve);
+                    _loadHelpersForSelect(selectEl, includeExisting, retry + 1, maxRetries).then(resolve);
                 }, 500);
             });
         }
@@ -2823,10 +2890,14 @@ window.localChangesPending = false;
             return loadedHelpers;
         }).catch(err => {
             console.error('❌ loadHelpersForSelect: ошибка загрузки из Firebase:', err);
+            if (retry >= maxRetries) {
+              console.warn('[loadHelpersForSelect] Максимум retries достигнут, используем локальные данные');
+              return Promise.resolve(existingHelpers);
+            }
             // Retry через 2 секунды
             return new Promise((resolve) => {
                 setTimeout(() => {
-                    loadHelpersForSelect(selectEl, includeExisting).then(resolve);
+                    _loadHelpersForSelect(selectEl, includeExisting, retry + 1, maxRetries).then(resolve);
                 }, 2000);
             });
         });
