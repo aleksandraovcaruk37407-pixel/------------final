@@ -6638,21 +6638,58 @@ function applyCloudVersion(data) {
     notes = syncToArray(data.notes);
 }
 
-// Сливает локальные данные с облачными без потерь
-function applyMergedVersion(data) {
+// ========== РЕЖИМ ВОССТАНОВЛЕНИЯ (временный) ==========
+// При загрузке из облака записи на устройстве НЕ удаляются — только объединяются с облачными.
+// Минус режима: удаление записи на одном устройстве может вернуться с другого.
+// Отключить (false), когда данные будут восстановлены.
+const RECOVERY_MERGE_ONLY = true;
+
+// Тестовые заказы (createSampleOrders), случайно попавшие в облако при проверке 25.10.2026.
+// Узнаются по имени «Тест … N» и телефону «+7 900 000-00-0N» одновременно.
+function isSampleOrder(order) {
+    return !!order &&
+        /^Тест (выполнен|срочный|очень срочный|новый) \d+$/.test(order.client || '') &&
+        /^\+7 900 000-00-0\d{1,2}$/.test(order.phone || '');
+}
+
+// Есть ли в списке записи, которых нет в облачном списке
+function hasRecordsMissingInCloud(list, cloudList) {
+    return mergeSyncLists(cloudList, list).length > syncToArray(cloudList).length;
+}
+
+// Резервная копия данных устройства перед слиянием (3 последние, в localStorage)
+function backupLocalData(reason) {
     const local = window.getSyncData();
-    colors = mergeSyncLists(local.colors, data.colors);
-    paints = mergeSyncLists(local.paints, data.paints);
-    films = mergeSyncLists(local.films, data.films);
-    extraRef = mergeSyncLists(local.extraRef, data.extraRef);
-    rates = mergeSyncLists(local.rates, data.rates);
-    ordersData = mergeSyncLists(local.ordersData, data.ordersData);
-    cashOps = mergeSyncLists(local.cashOps, data.cashOps);
-    bookings = mergeSyncLists(local.bookings, data.bookings);
-    materialTypes = mergeSyncLists(local.materialTypes, data.materialTypes);
-    regularExpenses = mergeSyncLists(local.regularExpenses, data.regularExpenses);
-    regularIncomes = mergeSyncLists(local.regularIncomes, data.regularIncomes);
-    notes = mergeSyncLists(local.notes, data.notes);
+    if (!syncToArray(local.ordersData).length && !syncToArray(local.cashOps).length) return; // пустое не храним
+    try {
+        for (let i = 3; i > 1; i--) {
+            const prev = localStorage.getItem('sync_backup_' + (i - 1));
+            if (prev !== null) localStorage.setItem('sync_backup_' + i, prev);
+        }
+        localStorage.setItem('sync_backup_1', JSON.stringify({ savedAt: new Date().toISOString(), reason, data: local }));
+    } catch (e) {
+        console.warn('[Sync] Не удалось сохранить резервную копию:', e);
+    }
+}
+
+// Сливает локальные данные с облачными без потерь.
+// preferLocal: при совпадении записи берётся версия устройства (у него неотправленные правки),
+// иначе — облачная (чтобы правки с других устройств доходили).
+function applyMergedVersion(data, preferLocal) {
+    const local = window.getSyncData();
+    const merge = (localList, cloudList) => preferLocal ? mergeSyncLists(localList, cloudList) : mergeSyncLists(cloudList, localList);
+    colors = merge(local.colors, data.colors);
+    paints = merge(local.paints, data.paints);
+    films = merge(local.films, data.films);
+    extraRef = merge(local.extraRef, data.extraRef);
+    rates = merge(local.rates, data.rates);
+    ordersData = merge(local.ordersData, data.ordersData);
+    cashOps = merge(local.cashOps, data.cashOps);
+    bookings = merge(local.bookings, data.bookings);
+    materialTypes = merge(local.materialTypes, data.materialTypes);
+    regularExpenses = merge(local.regularExpenses, data.regularExpenses);
+    regularIncomes = merge(local.regularIncomes, data.regularIncomes);
+    notes = merge(local.notes, data.notes);
 }
 
 window.updateCloudData = function(data) {
@@ -6677,16 +6714,24 @@ window.updateCloudData = function(data) {
     }
 
     let needUpload = false;
-    if ((everSynced && !dirty && cloudRev > localRev) || !localHasData) {
+    const canReplace = !RECOVERY_MERGE_ONLY && everSynced && !dirty && cloudRev > localRev;
+    if (canReplace || !localHasData) {
         // Устройство ничего не меняло (или пустое) — берём облачную версию целиком
         console.log('[Sync] Загружаю версию', cloudRev, 'из облака');
         applyCloudVersion(data);
     } else {
-        // Новое устройство, неотправленные изменения или облако откатилось — сливаем без потерь
+        // Сливаем без потерь: записи устройства сохраняются
         console.log('[Sync] Сливаю локальные данные с облачной версией', cloudRev);
-        applyMergedVersion(data);
-        needUpload = true;
+        backupLocalData('перед слиянием с версией ' + cloudRev);
+        applyMergedVersion(data, dirty || !everSynced);
+        // Отправляем, только если у устройства есть записи, которых нет в облаке
+        // (иначе устройства бесконечно перекладывали бы одно и то же)
+        needUpload = SYNC_KEYS.some(key => hasRecordsMissingInCloud(window.getSyncData()[key], data[key]));
     }
+
+    // Убираем тестовые заказы; если они были в облаке — облако нужно обновить
+    if (syncToArray(data.ordersData).some(isSampleOrder)) needUpload = true;
+    ordersData = ordersData.filter(order => !isSampleOrder(order));
     rates.forEach(r => { if (!r.items) r.items = []; });
     ordersData.forEach(order => (order.services || []).forEach(inst => { inst.manualItems = inst.manualItems || {}; }));
 
