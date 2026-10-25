@@ -57,9 +57,9 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202610260400" defer></script>
+    <script src="js/finance.js?v=202610260500" defer></script>
     
-    <script src="js/app.js?v=202610260300" defer></script>
+    <script src="js/app.js?v=202610260500" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610250500" defer></script>
@@ -460,12 +460,13 @@
                 <div class="form-group"><label>Себестоимость (₽)</label><input type="text" id="orderMaterialCost" readonly></div>
                 <div class="form-group"><label>Прибыль (₽)</label><input type="text" id="orderGrossProfit" readonly></div>
             </div>
-            <div class="form-group" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                <label style="margin:0;">Выполнен</label><input type="checkbox" id="orderDone">
-                <label style="margin:0;">Оплачено</label><input type="checkbox" id="orderPaid" onchange="handlePaidChange()">
+            <div class="form-group order-flags">
+                <label class="order-check"><input type="checkbox" id="orderDone"> ✅ Выполнен</label>
+                <label class="order-check"><input type="checkbox" id="orderPaid" onchange="handlePaidChange()"> 💳 Оплачено</label>
+            </div>
+            <div class="form-group order-extra">
                 <button class="btn-extra" onclick="openExtraModalFromOrder()">📦 Доп. расходники</button>
-                <span style="font-size:12px; color:#6c757d; margin-left:10px;" id="extraInfo">(не указаны)</span>
-                <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
+                <span style="font-size:12px; color:#6c757d;" id="extraInfo">(не указаны)</span>
             </div>
             
             <!-- Блок задания помощнику -->
@@ -503,6 +504,9 @@
                 <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟡</button>
                 <button class="color-btn critical" onclick="setOrderColor('critical')" title="Очень срочный">🔴</button>
                 <button class="color-btn done" onclick="setOrderColor('done')" title="Выполнен">⬜</button>
+            </div>
+            <div class="order-delete" id="orderDeleteRow">
+                <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
             </div>
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeOrderModal()">Отмена</button>

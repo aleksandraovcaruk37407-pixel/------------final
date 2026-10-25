@@ -415,19 +415,9 @@
                 position: relative !important;
                 overflow: visible !important;
             }
-            /* Fix iOS scroll in modal */
-            .modal > * {
-                overflow-y: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-                overscroll-behavior: contain !important;
-            }
-            .modal > *:first-child {
-                overflow-y: auto !important;
-                -webkit-overflow-scrolling: touch !important;
-                overscroll-behavior: contain !important;
-                flex: 1;
-                min-height: 0;
-            }
+            /* Прокручивается только само окно. Раньше здесь каждый блок внутри окна
+               получал overflow-y: auto, и в окне заказа появлялось несколько вложенных
+               прокруток (услуги, галочки, цвет) */
             .modal h3 {
                 padding-bottom: 10px;
                 border-bottom: 1px solid #dee2e6;

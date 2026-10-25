@@ -79,6 +79,47 @@ function finHelperCost(order) {
     return hasTasks ? sum : finNum(order.helperPay);
 }
 
+// ========== НОМЕРА ЗАКАЗОВ ==========
+// Следующий номер — по всем заказам (они синхронизируются), а не по счётчику устройства:
+// раньше телефон и компьютер выдавали одинаковые номера, а новое устройство начинало с №1.
+function finNextOrderNumber(orders, localLast) {
+    const max = (orders || []).reduce((m, o) => Math.max(m, parseInt(o.orderNumber) || 0), 0);
+    return Math.max(max, parseInt(localLast) || 0) + 1;
+}
+
+// Порядок создания: id — метка времени (число или строка из цифр)
+function finOrderCreatedKey(order) {
+    const n = Number(order.id);
+    return isNaN(n) ? Infinity : n;
+}
+
+// Исправляет одинаковые номера: номер остаётся у заказа, созданного раньше,
+// остальные получают следующие свободные номера. Правило однозначное — все устройства
+// приходят к одной и той же нумерации. Возвращает список {id, from, to} изменённых.
+function finFixDuplicateOrderNumbers(orders) {
+    const byNumber = new Map();
+    (orders || []).forEach(o => {
+        const n = parseInt(o.orderNumber) || 0;
+        if (!byNumber.has(n)) byNumber.set(n, []);
+        byNumber.get(n).push(o);
+    });
+    const toRenumber = [];
+    byNumber.forEach((list, n) => {
+        if (list.length < 2 && n > 0) return;
+        list.sort((a, b) => finOrderCreatedKey(a) - finOrderCreatedKey(b) || String(a.id).localeCompare(String(b.id)));
+        // У номера 0 / без номера переназначаем всех, у остальных — всех, кроме первого
+        toRenumber.push(...(n > 0 ? list.slice(1) : list));
+    });
+    if (!toRenumber.length) return [];
+    toRenumber.sort((a, b) => finOrderCreatedKey(a) - finOrderCreatedKey(b) || String(a.id).localeCompare(String(b.id)));
+    let next = finNextOrderNumber(orders, 0);
+    return toRenumber.map(o => {
+        const change = { id: o.id, from: o.orderNumber, to: next };
+        o.orderNumber = next++;
+        return change;
+    });
+}
+
 // ========== НАЧИСЛЕНИЯ ПОМОЩНИКАМ ==========
 // Начислено — оплата выполненных задач; штраф — за просроченные; выплачено — расходы кассы
 // «Помощникам» с этим помощником (синхронизируются) + старые выплаты, записанные только
@@ -94,7 +135,7 @@ function finHelperPaidData(email, cash, budget) {
 function finHelperAccrualsData(orders, cash, budget, mk) {
     const byHelper = new Map();
     const get = email => {
-        if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, monthEarned: 0, monthDone: 0 });
+        if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, review: 0, reviewPay: 0, monthEarned: 0, monthDone: 0 });
         return byHelper.get(email);
     };
     (orders || []).forEach(order => (order.services || []).forEach(s => (s.tasks || []).forEach(t => {
@@ -105,6 +146,9 @@ function finHelperAccrualsData(orders, cash, budget, mk) {
             if (mk && finMonthKey(t.completedAt) === mk) { h.monthEarned += finNum(t.helperPay); h.monthDone++; }
         } else if (t.status === 'overdue') {
             h.penalties += finNum(t.penalty); h.overdue++;
+        } else if (t.status === 'review') {
+            // Помощник отметил выполненной, ждёт подтверждения админа — ещё не начислено
+            h.review++; h.reviewPay += finNum(t.helperPay);
         } else {
             h.pending++; h.pendingPay += finNum(t.helperPay);
         }
@@ -439,6 +483,7 @@ function renderFinance() {
                     <span>
                         за ${finMonthTitle(mk).toLowerCase()}: ${formatMoney(h.monthEarned)} (задач ${h.monthDone})<br>
                         всего начислено ${formatMoney(h.earned)} (задач ${h.done})${h.penalties ? ` − штрафы ${formatMoney(h.penalties)} (${h.overdue})` : ''} · выплачено ${formatMoney(h.paid)}
+                        ${h.review ? `<br>🕓 на проверке: задач ${h.review} на ${formatMoney(h.reviewPay)} — подтвердите во вкладке «Задачи»` : ''}
                         ${h.pending ? `<br>в работе: задач ${h.pending} на ${formatMoney(h.pendingPay)}` : ''}
                     </span>
                     <span class="fin-pay-actions">

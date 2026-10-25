@@ -1298,8 +1298,9 @@ window.localChangesPending = false;
         container.innerHTML = allTasks.map((task, idx) => {
             const isOverdue = task.status === 'overdue';
             const isCompleted = task.status === 'completed';
-            const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
-            const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+            const isReview = task.status === 'review';
+            const statusText = isCompleted ? '✅ Выполнена' : isReview ? '🕓 На проверке' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+            const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
             
             return `
                 <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
@@ -1317,10 +1318,10 @@ window.localChangesPending = false;
                         <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
                         ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                     </div>
-                    ${!isCompleted ? `
+                    ${isReview ? `<div style="font-size:13px;color:#3498db;">Ждёт подтверждения администратора — оплата начислится после проверки</div>` : ''}
+                    ${!isCompleted && !isReview ? `
                         <div style="display:flex;gap:8px;">
-                            <button class="btn-add" onclick="completeTask('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">✅ Отметить выполненной</button>
-                            ${!isOverdue ? `<button class="btn-del" onclick="markOverdue('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">❌ Отметить просроченной</button>` : ''}
+                            <button class="btn-add" onclick="completeTask('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">✅ Выполнил — на проверку</button>
                         </div>
                     ` : ''}
                 </div>
@@ -1644,20 +1645,28 @@ window.localChangesPending = false;
         }
     };
 
+    // Задача по её id во всех заказах (номера заказов на разных устройствах раньше совпадали)
+    function findTaskById(taskId) {
+        for (const order of ordersData) {
+            for (const service of (order.services || [])) {
+                const task = (service.tasks || []).find(t => String(t.id) === String(taskId));
+                if (task) return { order, task };
+            }
+        }
+        return null;
+    }
+
+    // Помощник отметил задачу выполненной — она уходит админу на проверку,
+    // оплата начисляется только после подтверждения (adminChangeTaskStatus → completed)
     function completeTask(orderNumber, taskId) {
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) return;
-        
-        let taskDescription = '';
-        order.services.forEach(service => {
-            (service.tasks || []).forEach(task => {
-                if (String(task.id) === String(taskId)) {
-                    task.status = 'completed';
-                    task.completedAt = new Date().toISOString();
-                    taskDescription = task.description;
-                }
-            });
-        });
+        const found = findTaskById(taskId);
+        if (!found) return;
+        const { order, task } = found;
+        if (task.status === 'completed') return;
+        task.status = 'review';
+        task.submittedAt = new Date().toISOString();
+        const taskDescription = task.description;
+        orderNumber = order.orderNumber;
         
         // Уведомляем админа о завершении задачи
         if (window.currentUserData) {
@@ -1878,6 +1887,8 @@ window.localChangesPending = false;
         
         // Сортируем: сначала просроченные, затем по сроку
         allTasks.sort((a, b) => {
+            if (a.status === 'review' && b.status !== 'review') return -1;
+            if (a.status !== 'review' && b.status === 'review') return 1;
             if (a.status === 'overdue' && b.status !== 'overdue') return -1;
             if (a.status !== 'overdue' && b.status === 'overdue') return 1;
             if (a.status === 'completed' && b.status !== 'completed') return 1;
@@ -1888,6 +1899,7 @@ window.localChangesPending = false;
         // Статистика
         const totalTasks = allTasks.length;
         const pendingTasks = allTasks.filter(t => t.status === 'pending').length;
+        const reviewTasks = allTasks.filter(t => t.status === 'review').length;
         const completedTasks = allTasks.filter(t => t.status === 'completed').length;
         const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
         const totalEarned = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
@@ -1941,6 +1953,10 @@ window.localChangesPending = false;
                 <div class="helper-stat-item">
                     <div class="helper-stat-label">⏳ В процессе</div>
                     <div class="helper-stat-value" style="color:#f39c12;">${pendingTasks}</div>
+                </div>
+                <div class="helper-stat-item">
+                    <div class="helper-stat-label">🕓 На проверке</div>
+                    <div class="helper-stat-value" style="color:#3498db;">${reviewTasks}</div>
                 </div>
                 <div class="helper-stat-item">
                     <div class="helper-stat-label">✅ Выполнено</div>
@@ -1999,8 +2015,9 @@ window.localChangesPending = false;
             ${allTasks.map(task => {
                 const isOverdue = task.status === 'overdue';
                 const isCompleted = task.status === 'completed';
-                const statusText = isCompleted ? '✅ Выполнена' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
-                const statusColor = isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12');
+                const isReview = task.status === 'review';
+                const statusText = isCompleted ? '✅ Выполнена' : isReview ? '🕓 На проверке' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+                const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
                 const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
                 
                 return `
@@ -2029,6 +2046,12 @@ window.localChangesPending = false;
                             ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
                             ${task.completedAt ? `<span>✅ Выполнена: ${new Date(task.completedAt).toLocaleDateString('ru-RU')}</span>` : ''}
                         </div>
+                        ${isReview ? `
+                        <div style="background:#e8f4fd;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <span>🕓 Помощник отметил выполненной${task.submittedAt ? ' ' + new Date(task.submittedAt).toLocaleDateString('ru-RU') : ''}</span>
+                            <button class="btn-add" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Подтвердить</button>
+                            <button class="btn-extra" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'pending')" style="padding:6px 12px;font-size:12px;">↩️ Вернуть в работу</button>
+                        </div>` : ''}
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
                             <button class="btn-add" onclick="openEditTaskModal('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#007bff;">✏️ Редактировать</button>
                             ${!isCompleted ? `<button class="btn-add" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Завершить</button>` : ''}
@@ -2971,24 +2994,19 @@ window.localChangesPending = false;
     }
 
     function adminChangeTaskStatus(orderNumber, taskId, newStatus) {
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) return;
-        
-        let statusText = '';
-        if (newStatus === 'completed') statusText = 'завершена';
-        else if (newStatus === 'overdue') statusText = 'просрочена';
-        else statusText = 'изменена';
-        
-        order.services.forEach(service => {
-            (service.tasks || []).forEach(task => {
-                if (String(task.id) === String(taskId)) {
-                    task.status = newStatus;
-                    if (newStatus === 'completed') {
-                        task.completedAt = new Date().toISOString();
-                    }
-                }
-            });
-        });
+        const found = findTaskById(taskId);
+        if (!found) return;
+        const { task } = found;
+        task.status = newStatus;
+        if (newStatus === 'completed') {
+            // Подтверждено админом — с этого момента оплата начислена
+            task.completedAt = new Date().toISOString();
+            task.confirmedBy = window.currentUserData ? window.currentUserData.email : null;
+        } else if (newStatus === 'pending') {
+            // Вернули в работу
+            delete task.submittedAt;
+            delete task.completedAt;
+        }
         
         saveAll();
         renderAll();
@@ -4139,10 +4157,11 @@ window.localChangesPending = false;
         }
         
         orderModal.classList.add('active');
-        // НЕ блокируем скролл body на мобильных — модалка скроллится внутри
-        if (window.innerWidth > 768) {
-            document.body.classList.add('modal-open');
-        }
+        // Фон под окном не прокручивается (как у остальных окон); окно прокручивается само
+        document.body.classList.add('modal-open');
+        orderModal.querySelector('.modal').scrollTop = 0;
+        const deleteRow = document.getElementById('orderDeleteRow');
+        if (deleteRow) deleteRow.style.display = order ? '' : 'none'; // у нового заказа удалять нечего
         
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
@@ -4228,10 +4247,8 @@ window.localChangesPending = false;
         orderModal.classList.remove('active');
         orderEditId = null;
         currentServices = [];
-        // Разблокировать скролл body (только на десктопе)
-        if (window.innerWidth > 768) {
-            document.body.classList.remove('modal-open');
-        }
+        // Разблокировать прокрутку фона
+        document.body.classList.remove('modal-open');
     }
     
     // ========== iOS/Android: СВАЙП ВНИЗ ДЛЯ ЗАКРЫТИЯ ORDER MODAL ==========
@@ -4726,7 +4743,7 @@ window.localChangesPending = false;
         
         const orderData = {
             id: orderEditId || Date.now(),
-            orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : (parseInt(localStorage.getItem('lastOrderNumber')||'0')+1),
+            orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : finNextOrderNumber(ordersData, localStorage.getItem('lastOrderNumber')),
             date, client, phone, services: servicesCopy, clientPrice, durationDays,
             extraData, done, paid, manualColor: currentManualColor,
             // Данные задания помощнику
@@ -5065,7 +5082,7 @@ function deleteOrder(orderId) {
         const service = document.getElementById('modalService').value;
         const duration = parseInt(document.getElementById('modalDurationDays').value)||1;
         if (!date || !name || !service) { alert('Заполните все поля'); return; }
-        const orderNumber = parseInt(localStorage.getItem('lastOrderNumber')||'0')+1;
+        const orderNumber = finNextOrderNumber(ordersData, localStorage.getItem('lastOrderNumber'));
         localStorage.setItem('lastOrderNumber', orderNumber);
         const svc = rates.find(r => r.service === service);
         const orderData = {
@@ -6302,7 +6319,8 @@ window.updateCloudData = function(data) {
             window.markChanged();
         }
         // Перенос старых финансовых записей на уже синхронизированном устройстве
-        if (finMigrate(true) && typeof window.markChanged === 'function') {
+        const renumbered = finFixDuplicateOrderNumbers(ordersData).length > 0;
+        if ((finMigrate(true) || renumbered) && typeof window.markChanged === 'function') {
             saveAll(true);
             window.markChanged();
             renderAll();
@@ -6356,6 +6374,8 @@ window.updateCloudData = function(data) {
     recalculateStockFromAllOrders(); // «расход» склада — из полученных заказов
     // Перенос старых финансовых записей; если что-то изменилось — облако нужно обновить
     if (finMigrate(true)) needUpload = true;
+    // Одинаковые номера заказов с разных устройств — исправляем однозначно (js/finance.js)
+    if (finFixDuplicateOrderNumbers(ordersData).length) needUpload = true;
 
     localStorage.setItem('cloud_rev', String(cloudRev));
     window.setSyncBase(data); // база для следующего слияния — эта облачная версия
