@@ -3560,23 +3560,12 @@ window.localChangesPending = false;
         const totalHelper = ordersData.reduce((sum, o) => sum + (parseFloat(o.helperPay) || 0), 0);
         const netProfit = totalIncome - totalCost - totalHelper;
         
-        // Считаем кошельки бюджета
-        const taxWallet = budgetData.wallets.tax?.target || 0;
-        const personalWallet = budgetData.wallets.personal?.target || 0;
-        const businessWallet = budgetData.wallets.business?.target || 0;
-        const investmentWallet = budgetData.wallets.investments?.target || 0;
-        
         container.innerHTML = `
             <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${formatMoney(totalIncome)}</span></div>
             <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalCost)}</span></div>
             <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalHelper)}</span></div>
             <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${formatMoney(netProfit)}</span></div>
-            <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
-                <div class="budget-result-row tax"><span class="label">💰 Налог (копилка):</span><span class="value">${formatMoney(taxWallet)}</span></div>
-                <div class="budget-result-row personal"><span class="label">👤 Личные (копилка):</span><span class="value">${formatMoney(personalWallet)}</span></div>
-                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (копилка):</span><span class="value">${formatMoney(businessWallet)}</span></div>
-                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (копилка):</span><span class="value">${formatMoney(investmentWallet)}</span></div>
-            </div>
+            <div style="font-size:12px;color:#6c757d;margin-top:8px;">Накопления по копилкам — в блоке «Кошельки» ниже</div>
         `;
     }
 
@@ -5025,7 +5014,8 @@ function cleanCashOps() {
 }
 
 function togglePaid(id, checked) {
-    const order = ordersData.find(o => o.id === id);
+    // id бывает и числом, и строкой (новые заказы) — сравниваем как строки
+    const order = ordersData.find(o => String(o.id) === String(id));
     if (order) {
         order.paid = checked;
         if (checked) distributePayment(order);
@@ -5840,7 +5830,7 @@ function deleteOrder(orderId) {
                     <span class="order-phone">${safeHTML(order.phone||'')}</span>
                     <span class="order-service">${safeHTML(order.services.map(s => s.serviceName).join(', '))}</span>
                     <span class="order-sum ${order.paid?'paid':'unpaid'}">${formatMoney((parseFloat(order.clientPrice)||0))}</span>
-                    <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${order.id}, this.checked)"> Оплачено</span>
+                    <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${escAttr(JSON.stringify(String(order.id)))}, this.checked)"> Оплачено</span>
                     <span class="color-indicator ${color}"></span>
                     <button class="btn-extra" onclick="event.stopPropagation(); openHelperTaskModal(${safeHTML(order.orderNumber)})" title="Добавить задачу">📝 Задача${taskCount > 0 ? ' (' + taskCount + ')' : ''}</button>
                 </div>`;
@@ -5880,26 +5870,34 @@ function deleteOrder(orderId) {
             const item = stock.find(s => s.name === name) || {name, unit:'шт', price:0, income:0, used:0, remain:0};
             const tr = document.createElement('tr');
             const totalSum = (parseFloat(item.price)||0) * (parseFloat(item.income)||0);
+            // data-label — подписи ячеек для вида карточками на телефоне
             tr.innerHTML = `
-                <td>${name}</td>
-                <td>${item.unit}</td>
-                <td>${parseFloat(item.price)||0}</td>
-                <td><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${name}"></td>
-                <td><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${name}"></td>
-                <td>${((parseFloat(item.income)||0) - (parseFloat(item.used)||0)).toFixed(2)}</td>
-                <td style="font-weight:600;color:#27ae60;">${formatMoney(totalSum)}</td>
-                <td><button class="btn-del" onclick="deleteStockItem('${name.replace(/'/g, "\\'")}')" title="Удалить">🗑️</button></td>`;
+                <td class="stock-name" data-label="Материал">${safeHTML(name)}</td>
+                <td data-label="Ед.">${safeHTML(item.unit)}</td>
+                <td data-label="Цена">${formatNumber(item.price)}</td>
+                <td data-label="Приход"><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${escAttr(name)}"></td>
+                <td data-label="Расход"><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${escAttr(name)}"></td>
+                <td data-label="Остаток">${formatNumber((parseFloat(item.income)||0) - (parseFloat(item.used)||0))}</td>
+                <td data-label="Сумма" style="font-weight:600;color:#27ae60;">${formatMoney(totalSum)}</td>
+                <td class="stock-del"><button class="btn-del" onclick="deleteStockItem(${escAttr(JSON.stringify(name))})" title="Удалить">🗑️</button></td>`;
             tbody.appendChild(tr);
         });
-        // Используем делегирование событий для избежания дублирования слушателей
+        applyStockSearch();
+        // Делегирование: обработчик вешаем один раз (раньше он добавлялся при каждой перерисовке)
+        if (tbody.dataset.bound) return;
+        tbody.dataset.bound = '1';
         tbody.addEventListener('change', (e) => {
             const input = e.target;
             if (!input || !input.dataset.name) return;
             const name = input.dataset.name;
             const val = parseFloat(input.value) || 0;
             const stock = loadStock();
-            const item = stock.find(s => s.name === name);
-            if (!item) return;
+            let item = stock.find(s => s.name === name);
+            if (!item) {
+                // Материала ещё нет в учёте склада — заводим, иначе введённое значение терялось
+                item = {name, unit:'шт', price:0, income:0, used:0, remain:0};
+                stock.push(item);
+            }
             if (input.classList.contains('stock-income')) {
                 item.income = val;
             } else if (input.classList.contains('stock-used')) {
@@ -5909,6 +5907,18 @@ function deleteOrder(orderId) {
             renderStock();
         });
     }
+
+    // Поиск по складу: скрываем строки, где название не содержит запрос
+    function applyStockSearch() {
+        const input = document.getElementById('stockSearch');
+        const query = (input ? input.value : '').trim().toLowerCase();
+        document.querySelectorAll('#stockBody tr').forEach(tr => {
+            const nameCell = tr.querySelector('.stock-name');
+            const name = nameCell ? nameCell.textContent.toLowerCase() : '';
+            tr.style.display = !query || name.includes(query) ? '' : 'none';
+        });
+    }
+    window.applyStockSearch = applyStockSearch;
 
     function deleteStockItem(name) {
         if (!confirm(`Удалить позицию "${name}" из склада?`)) return;
