@@ -657,34 +657,21 @@ window.localChangesPending = false;
         localStorage.setItem('budget_data', JSON.stringify(budgetData));
     }
 
+    // Единый формат сумм: «117 105 ₽»; копейки показываем только у мелких цен (например, 2,5 ₽ за мл)
+    function formatNumber(value) {
+        const n = Number(value) || 0;
+        return n.toLocaleString('ru-RU', { maximumFractionDigits: Math.abs(n) < 100 ? 2 : 0 });
+    }
+    function formatMoney(value) {
+        return formatNumber(value) + ' ₽';
+    }
+
+    // Себестоимость заказа по текущим ценам — та же полная формула, что при сохранении заказа
+    // (ткань, краска, плёнка, расходники услуги, маркеры, доп. расходники)
     function getOrderCost(order) {
-        let cost = 0;
-        (order.services || []).forEach(inst => {
-            const svc = rates.find(r => r.service === inst.serviceName);
-            if (!svc) return;
-            svc.items.forEach(item => {
-                if (item.enabled === false) return;
-                if (item.customMarker) return;
-                if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-                if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
-                if (item.name === 'Ткань' && svc.usesFabric) return;
-                let qty = 0;
-                if ((inst.manualItems || {})[item.name] !== undefined) qty = parseFloat((inst.manualItems || {})[item.name])||0;
-                else if (!item.manual) qty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
-                cost += qty * (parseFloat(item.price)||0);
-            });
-            materialTypes.forEach(mt => {
-                const markerItem = svc.items.find(item => item.enabled !== false && item.name === mt.name);
-                if (markerItem) {
-                    const markerData = inst[mt.name];
-                    if (markerData && markerData.code) {
-                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
-                        cost += qty * (parseFloat(markerData.price)||0);
-                    }
-                }
-            });
-        });
-        return cost;
+        const copy = JSON.parse(JSON.stringify(order));
+        copy.services = copy.services || [];
+        return recalcOrder(copy).materialCost || 0;
     }
 
     function populateBudgetOrderSelect() {
@@ -695,7 +682,7 @@ window.localChangesPending = false;
         ordersData.forEach(order => {
             const opt = document.createElement('option');
             opt.value = order.orderNumber;
-            opt.textContent = `№${order.orderNumber} — ${order.client || 'Без клиента'} — ${parseFloat(order.clientPrice || 0).toLocaleString()} ₽`;
+            opt.textContent = `№${order.orderNumber} — ${order.client || 'Без клиента'} — ${formatMoney(parseFloat(order.clientPrice || 0))}`;
             select.appendChild(opt);
         });
         if (currentValue) select.value = currentValue;
@@ -808,22 +795,22 @@ window.localChangesPending = false;
         resultDiv.innerHTML = `
             <div class="budget-result">
                 <div style="font-weight:700;margin-bottom:8px;font-size:15px;">✅ Распределение выполнено:</div>
-                <div class="budget-result-row"><span class="label">Оплата от клиента:</span><span class="value">${dist.clientPrice.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row"><span class="label">Расходы на заказ:</span><span class="value" style="color:#e74c3c;">-${dist.orderCost.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row"><span class="label">Помощник:</span><span class="value" style="color:#e74c3c;">-${dist.helperPay.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row highlight"><span class="label">Чистая прибыль:</span><span class="value" style="color:#27ae60;">${dist.netProfit.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row"><span class="label">Оплата от клиента:</span><span class="value">${formatMoney(dist.clientPrice)}</span></div>
+                <div class="budget-result-row"><span class="label">Расходы на заказ:</span><span class="value" style="color:#e74c3c;">-${formatMoney(dist.orderCost)}</span></div>
+                <div class="budget-result-row"><span class="label">Помощник:</span><span class="value" style="color:#e74c3c;">-${formatMoney(dist.helperPay)}</span></div>
+                <div class="budget-result-row highlight"><span class="label">Чистая прибыль:</span><span class="value" style="color:#27ae60;">${formatMoney(dist.netProfit)}</span></div>
                 <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
-                    <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${dist.tax.toFixed(2)} ₽</span></div>
-                    <div class="budget-result-row personal"><span class="label">👤 Личные (10%):</span><span class="value">${dist.personal.toFixed(2)} ₽</span></div>
-                    <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#e67e22;">${dist.business.toFixed(2)} ₽</span></div>
-                    <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции/Активы (5%):</span><span class="value" style="color:#9b59b6;">${dist.investments.toFixed(2)} ₽</span></div>
-                    <div class="budget-result-row mandatory"><span class="label">📌 Обязательные платежи:</span><span class="value">${dist.mandatory.toFixed(2)} ₽</span></div>
+                    <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(dist.tax)}</span></div>
+                    <div class="budget-result-row personal"><span class="label">👤 Личные (10%):</span><span class="value">${formatMoney(dist.personal)}</span></div>
+                    <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#e67e22;">${formatMoney(dist.business)}</span></div>
+                    <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции/Активы (5%):</span><span class="value" style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
+                    <div class="budget-result-row mandatory"><span class="label">📌 Обязательные платежи:</span><span class="value">${formatMoney(dist.mandatory)}</span></div>
                 </div>
-                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#fff3cd;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#e67e22;">${extraDebt.toFixed(2)} ₽</span></div>` : ''}
+                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#fff3cd;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#e67e22;">${formatMoney(extraDebt)}</span></div>` : ''}
                 <div style="margin-top:8px;font-size:13px;color:#666;">
                     <b>Куда пошло:</b><br>
-                    ${distributions.map(d => `${d.name}: +${d.amount.toFixed(2)} ₽`).join('<br>')}
-                    ${extraDebt > 0 ? `<br>Досрочное погашение: +${extraDebt.toFixed(2)} ₽` : ''}
+                    ${distributions.map(d => `${d.name}: +${formatMoney(d.amount)}`).join('<br>')}
+                    ${extraDebt > 0 ? `<br>Досрочное погашение: +${formatMoney(extraDebt)}` : ''}
                 </div>
             </div>
         `;
@@ -931,7 +918,7 @@ window.localChangesPending = false;
                         <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(0)}%</div>
                     </div>
                     <div class="budget-progress-meta">
-                        <span>Накоплено: ${mp.saved.toLocaleString()} ₽ из ${mp.target.toLocaleString()} ₽</span>
+                        <span>Накоплено: ${formatMoney(mp.saved)} из ${formatMoney(mp.target)}</span>
                         <span>День: ${mp.day}</span>
                     </div>
                     <div style="margin-top:6px;display:flex;gap:6px;">
@@ -956,13 +943,13 @@ window.localChangesPending = false;
                 <div class="budget-progress-item">
                     <div class="budget-progress-header">
                         <span class="name">${debt.icon} ${debt.name}</span>
-                        <span class="amount">${remaining.toLocaleString()} ₽ осталось</span>
+                        <span class="amount">${formatMoney(remaining)} осталось</span>
                     </div>
                     <div class="progress-bar-budget">
                         <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(1)}%</div>
                     </div>
                     <div class="budget-progress-meta">
-                        <span>Оплачено: ${debt.paid.toLocaleString()} ₽ из ${debt.total.toLocaleString()} ₽</span>
+                        <span>Оплачено: ${formatMoney(debt.paid)} из ${formatMoney(debt.total)}</span>
                         <span>~${monthsLeft} мес. осталось</span>
                     </div>
                 </div>
@@ -977,7 +964,7 @@ window.localChangesPending = false;
         container.innerHTML = Object.entries(budgetData.wallets).map(([key, wallet]) => `
             <div class="wallet-item">
                 <span class="wallet-name" style="color:${wallet.color}">${wallet.icon || '💰'} ${wallet.name}</span>
-                <span class="wallet-amount">${wallet.target.toLocaleString()} ₽</span>
+                <span class="wallet-amount">${formatMoney(wallet.target)}</span>
             </div>
         `).join('');
     }
@@ -994,13 +981,13 @@ window.localChangesPending = false;
         container.innerHTML = budgetData.distributionHistory.map(dist => `
             <div class="dist-history-item">
                 <div class="dist-history-date">${dist.date} — №${dist.orderNumber} (${dist.client || 'Без клиента'})</div>
-                <div class="dist-history-row"><span>Чистая прибыль:</span><span style="color:#27ae60;font-weight:600;">${dist.netProfit.toLocaleString()} ₽</span></div>
-                <div class="dist-history-row"><span>Налог:</span><span style="color:#ffc107;">${dist.tax.toFixed(2)} ₽</span></div>
-                <div class="dist-history-row"><span>Личные:</span><span style="color:#17a2b8;">${dist.personal.toFixed(2)} ₽</span></div>
-                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#e67e22;">${dist.business.toFixed(2)} ₽</span></div>
-                <div class="dist-history-row"><span>Инвестиции:</span><span style="color:#9b59b6;">${dist.investments.toFixed(2)} ₽</span></div>
-                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#e67e22;">${dist.mandatory.toFixed(2)} ₽</span></div>
-                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#e67e22;font-weight:600;">+${dist.extraDebt.toFixed(2)} ₽</span></div>` : ''}
+                <div class="dist-history-row"><span>Чистая прибыль:</span><span style="color:#27ae60;font-weight:600;">${formatMoney(dist.netProfit)}</span></div>
+                <div class="dist-history-row"><span>Налог:</span><span style="color:#ffc107;">${formatMoney(dist.tax)}</span></div>
+                <div class="dist-history-row"><span>Личные:</span><span style="color:#17a2b8;">${formatMoney(dist.personal)}</span></div>
+                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#e67e22;">${formatMoney(dist.business)}</span></div>
+                <div class="dist-history-row"><span>Инвестиции:</span><span style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
+                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#e67e22;">${formatMoney(dist.mandatory)}</span></div>
+                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#e67e22;font-weight:600;">+${formatMoney(dist.extraDebt)}</span></div>` : ''}
             </div>
         `).join('');
     }
@@ -1162,17 +1149,17 @@ window.localChangesPending = false;
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
                     <div>
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Требуемый доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${plan.minIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${formatMoney(plan.minIncome)}</div>
                         <div style="font-size:11px;color:#888;">в месяц</div>
                     </div>
                     <div>
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">📈 Фактический доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${plan.actualIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${formatMoney(plan.actualIncome)}</div>
                         <div style="font-size:11px;color:#888;">за период</div>
                     </div>
                     <div>
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">🔮 Прогноз</div>
-                        <div style="font-size:20px;font-weight:700;color:#3498db;">${Math.round(plan.projectedIncome).toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#3498db;">${formatMoney(Math.round(plan.projectedIncome))}</div>
                         <div style="font-size:11px;color:#888;">на конец периода</div>
                     </div>
                 </div>
@@ -1188,18 +1175,18 @@ window.localChangesPending = false;
                             ${plan.progressPercent.toFixed(0)}%
                         </div>
                     </div>
-                    ${plan.progressPercent < 100 ? `<div style="margin-top:8px;font-size:13px;color:#e74c3c;">⚠️ Не хватает ${Math.round(plan.minIncome - plan.actualIncome).toLocaleString()} ₽ для выполнения плана</div>` : '<div style="margin-top:8px;font-size:13px;color:#27ae60;">🎉 План выполнен! Можно досрочно гасить долги.</div>'}
+                    ${plan.progressPercent < 100 ? `<div style="margin-top:8px;font-size:13px;color:#e74c3c;">⚠️ Не хватает ${formatMoney(Math.round(plan.minIncome - plan.actualIncome))} для выполнения плана</div>` : '<div style="margin-top:8px;font-size:13px;color:#27ae60;">🎉 План выполнен! Можно досрочно гасить долги.</div>'}
                 </div>
             </div>
             
             <!-- Распределение дохода -->
             <div class="plan-breakdown" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
-                <h4 style="margin:0 0 10px 0;">📊 Распределение при доходе ${Math.round(plan.minIncome).toLocaleString()} ₽</h4>
-                <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${plan.mandatoryTotal.toLocaleString()} ₽ (76%)</span></div>
-                <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${Math.round(plan.taxAmount).toLocaleString()} ₽</span></div>
-                <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${Math.round(plan.personalAmount).toLocaleString()} ₽</span></div>
-                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${Math.round(plan.businessAmount).toLocaleString()} ₽</span></div>
-                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${Math.round(plan.investmentAmount).toLocaleString()} ₽</span></div>
+                <h4 style="margin:0 0 10px 0;">📊 Распределение при доходе ${formatMoney(Math.round(plan.minIncome))}</h4>
+                <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${formatMoney(plan.mandatoryTotal)} (76%)</span></div>
+                <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(Math.round(plan.taxAmount))}</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${formatMoney(Math.round(plan.personalAmount))}</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${formatMoney(Math.round(plan.businessAmount))}</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${formatMoney(Math.round(plan.investmentAmount))}</span></div>
             </div>
             
             <!-- Чистая зарплата администратора -->
@@ -1208,19 +1195,19 @@ window.localChangesPending = false;
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Общий доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${plan.actualIncome.toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${formatMoney(plan.actualIncome)}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">📦 Расходы</div>
-                        <div style="font-size:20px;font-weight:700;color:#e74c3c;">-${(plan.totalMaterialCost + plan.totalHelperPay).toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#e74c3c;">-${formatMoney((plan.totalMaterialCost + plan.totalHelperPay))}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">✨ Валовая прибыль</div>
-                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${plan.grossProfit.toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${formatMoney(plan.grossProfit)}</div>
                     </div>
                     <div style="background:#e3f2fd;padding:15px;border-radius:6px;text-align:center;border:2px solid #2196f3;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">👤 Личные расходы</div>
-                        <div style="font-size:20px;font-weight:700;color:#2196f3;">${plan.personalAmount.toLocaleString()} ₽</div>
+                        <div style="font-size:20px;font-weight:700;color:#2196f3;">${formatMoney(plan.personalAmount)}</div>
                         <div style="font-size:11px;color:#888;margin-top:4px;">(${plan.personalPercent}% от дохода)</div>
                     </div>
                 </div>
@@ -1237,7 +1224,7 @@ window.localChangesPending = false;
                 <div class="budget-progress-item" style="margin-bottom:10px;">
                     <div class="budget-progress-header">
                         <span class="name">${goal.icon} ${goal.name}</span>
-                        <span class="amount">${goal.saved.toLocaleString()} / ${goal.target.toLocaleString()} ₽</span>
+                        <span class="amount">${goal.saved.toLocaleString()} / ${formatMoney(goal.target)}</span>
                     </div>
                     <div class="progress-bar-budget">
                         <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
@@ -1265,7 +1252,7 @@ window.localChangesPending = false;
         const goals = budgetData.incomePlan?.additionalGoals || [];
         const goal = goals[goalIdx];
         if (!goal) return;
-        const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${goal.saved.toLocaleString()} ₽):`, '0');
+        const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${formatMoney(goal.saved)}):`, '0');
         if (!amount || isNaN(amount)) return;
         goal.saved += parseFloat(amount) || 0;
         saveBudgetData();
@@ -1405,19 +1392,19 @@ window.localChangesPending = false;
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено</div>
                         <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
-                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ Штрафы: -${totalPenalties.toLocaleString()} ₽</div>
+                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ Штрафы: -${formatMoney(totalPenalties)}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
-                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${formatMoney(totalEarned)}</div>
                     </div>
                     <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
-                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${netEarned.toLocaleString()} ₽</div>
+                        <div style="font-size:28px;font-weight:700;color:#27ae60;">${formatMoney(netEarned)}</div>
                     </div>
                     <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${totalLost.toLocaleString()} ₽</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${formatMoney(totalLost)}</div>
                     </div>
                 </div>
             </div>
@@ -1427,11 +1414,11 @@ window.localChangesPending = false;
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выплачено</div>
-                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${totalPaid.toLocaleString()} ₽</div>
+                        <div style="font-size:24px;font-weight:700;color:#27ae60;">${formatMoney(totalPaid)}</div>
                     </div>
                     <div style="background:#fff3cd;padding:15px;border-radius:6px;text-align:center;border:2px solid #ffc107;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">⏳ Не выплачено</div>
-                        <div style="font-size:24px;font-weight:700;color:#e67e22;">${totalUnpaid.toLocaleString()} ₽</div>
+                        <div style="font-size:24px;font-weight:700;color:#e67e22;">${formatMoney(totalUnpaid)}</div>
                     </div>
                 </div>
             </div>
@@ -1591,115 +1578,6 @@ window.localChangesPending = false;
         }
     };
 
-    // Ручное создание записи помощника в Realtime Database
-    window.registerHelperToDB = async function() {
-        const email = prompt('Введите email помощника:');
-        if (!email) return;
-        
-        const name = prompt('Введите имя помощника:') || email;
-        
-        // Проверка доступности Firebase
-        if (!window.db || !window.set || !window.fbRef) {
-            alert('❌ Firebase не подключён! Проверьте подключение к интернету.');
-            return;
-        }
-        
-        try {
-            console.log('Регистрация помощника в Firebase:', email);
-            
-            // Создаём запись в Realtime Database напрямую — ИСПРАВЛЕНО: правильный путь
-            const uid = 'helper_' + email.replace(/[@.]/g, '_');
-            await window.set(window.fbRef(window.db, 'users/' + uid), {
-                email: email,
-                displayName: name,
-                role: 'helper',
-                createdAt: new Date().toISOString(),
-                createdBy: window.currentUserData ? window.currentUserData.email : 'system',
-                manualRegistration: true
-            });
-            
-            console.log('✅ Помощник зарегистрирован в базе, UID:', uid);
-            
-            // Обновляем фильтры с небольшой задержкой для синхронизации
-            setTimeout(() => {
-                updateHelperFilter();
-                updatePaymentHelperFilter();
-            }, 500);
-            
-            alert('✅ Помощник ' + email + ' зарегистрирован в базе!\nUID: ' + uid);
-        } catch (error) {
-            console.error('Ошибка регистрации в базе:', error);
-            alert('❌ Ошибка: ' + error.message);
-        }
-    };
-
-    // Проверка помощника в базе данных
-    window.checkHelperInDB = async function() {
-        const email = prompt('Введите email помощника для проверки:');
-        if (!email) return;
-        
-        const resultDiv = document.getElementById('helperDbCheckResult');
-        if (!resultDiv) return;
-        
-        if (!window.db || !window.get || !window.child || !window.fbRef) {
-            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;">❌ Firebase не подключён</div>';
-            return;
-        }
-        
-        resultDiv.innerHTML = '<div style="background:#e3f2fd;padding:10px;border-radius:6px;font-size:13px;">⏳ Проверка...</div>';
-        
-        try {
-            const ref = window.fbRef(window.db);
-            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
-            
-            if (!snapshot.exists()) {
-                console.log('🔍 checkHelperInDB: atelier_data/users пусто, читаем из /users');
-                snapshot = await window.get(window.child(ref, 'users'));
-            }
-            
-            if (!snapshot.exists()) {
-                resultDiv.innerHTML = `
-                    <div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">
-                        ❌ База пользователей пуста!<br>
-                        <small>Все помощники будут добавлены через "Зарегистрировать в базе"</small>
-                    </div>
-                `;
-                return;
-            }
-            
-            const users = snapshot.val();
-            let found = false;
-            let html = '<div style="background:#e3f2fd;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;"><b>Проверка email: ' + email + '</b><br><br>';
-            
-            for (const uid in users) {
-                const user = users[uid];
-                if (user.email === email) {
-                    html += '✅ <b>Помощник НАЙДЕН в базе!</b><br>';
-                    html += 'Имя: ' + (user.displayName || '—') + '<br>';
-                    html += 'Роль: ' + (user.role || '—') + '<br>';
-                    html += 'UID: ' + uid + '<br>';
-                    html += 'Зарегистрирован: ' + (user.createdAt || '—');
-                    found = true;
-                }
-            }
-            
-            if (!found) {
-                html += '❌ <b>Помощник НЕ НАЙДЕН в базе пользователей</b><br>';
-                html += '<br>Все пользователи в базе:<br>';
-                for (const uid in users) {
-                    html += '• ' + users[uid].email + ' (' + (users[uid].displayName || '—') + ') — ' + (users[uid].role || '—') + '<br>';
-                }
-                html += '<br><b>Решение:</b> Нажмите "🔧 Зарегистрировать в базе"';
-            }
-            
-            html += '</div>';
-            resultDiv.innerHTML = html;
-        } catch (error) {
-            console.error('Ошибка проверки:', error);
-            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ Ошибка: ' + error.message + '</div>';
-        }
-    };
-    
     // Список всех помощников в базе
     window.listAllHelpersInDB = async function() {
         const resultDiv = document.getElementById('helperDbCheckResult');
@@ -1768,75 +1646,6 @@ window.localChangesPending = false;
             resultDiv.innerHTML = html;
         } catch (error) {
             console.error('Ошибка загрузки списка:', error);
-            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ Ошибка: ' + error.message + '</div>';
-        }
-    };
-
-    // ========== РЕГИСТРАЦИЯ ПОМОЩНИКА В БАЗЕ ДАННЫХ ==========
-    window.registerHelperInDB = async function() {
-        const email = prompt('Введите email помощника для регистрации в базе:\n(Помощник должен быть зарегистрирован в Firebase Auth)');
-        if (!email) return;
-        
-        const resultDiv = document.getElementById('helperDbCheckResult');
-        if (!resultDiv) return;
-        
-        if (!window.db || !window.set || !window.child || !window.fbRef) {
-            resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;">❌ Firebase не подключён</div>';
-            return;
-        }
-        
-        resultDiv.innerHTML = '<div style="background:#e3f2fd;padding:10px;border-radius:6px;font-size:13px;">⏳ Регистрация в базе...</div>';
-        
-        try {
-            const ref = window.fbRef(window.db);
-            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
-            if (!snapshot.exists()) {
-                console.log('🔍 registerHelperInDB: atelier_data/users пусто, читаем из /users');
-                snapshot = await window.get(window.child(ref, 'users'));
-            }
-            if (snapshot.exists()) {
-                const users = snapshot.val();
-                for (const uid in users) {
-                    if (users[uid].email === email) {
-                        resultDiv.innerHTML = `
-                            <div style="background:#fff3cd;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">
-                                ⚠️ Пользователь с email <b>${email}</b> уже существует в базе!<br>
-                                UID: ${uid}<br>
-                                Имя: ${users[uid].displayName || '—'}<br>
-                                Роль: ${users[uid].role || '—'}
-                            </div>
-                        `;
-                        return;
-                    }
-                }
-            }
-            
-            // Просим ввести UID
-            const uid = prompt('Помощник не найден в базе. Введите UID из Firebase Auth:');
-            if (!uid) return;
-            
-            // Создаём запись в Realtime Database
-            await window.set(window.fbRef(window.db, 'users/' + uid), {
-                email: email,
-                displayName: email.split('@')[0],
-                role: 'helper',
-                createdAt: new Date().toISOString(),
-                createdBy: window.currentUserData ? window.currentUserData.email : 'system'
-            });
-            
-            resultDiv.innerHTML = `
-                <div style="background:#d4edda;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">
-                    ✅ <b>Помощник успешно зарегистрирован в базе!</b><br>
-                    Email: ${email}<br>
-                    UID: ${uid}<br>
-                    Роль: helper
-                </div>
-            `;
-            
-            // Обновляем список помощников
-            updateHelperFilter();
-        } catch (error) {
-            console.error('Ошибка регистрации:', error);
             resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ Ошибка: ' + error.message + '</div>';
         }
     };
@@ -2014,7 +1823,7 @@ window.localChangesPending = false;
         
         return `
             <div style="background:#fff3cd;padding:10px;border-radius:6px;margin-bottom:15px;">
-                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:16px;">${totalPenalties.toLocaleString()} ₽</span></div>
+                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:16px;">${formatMoney(totalPenalties)}</span></div>
             </div>
             ${filtered.map(p => {
                 const helperName = p.helperEmail;
@@ -2022,7 +1831,7 @@ window.localChangesPending = false;
                     <div style="background:#fff;padding:12px;border-radius:6px;margin-bottom:8px;border-left:3px solid #dc3545;">
                         <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:6px;">
                             <div>
-                                <div style="font-weight:600;color:#dc3545;">-${p.amount.toLocaleString()} ₽</div>
+                                <div style="font-weight:600;color:#dc3545;">-${formatMoney(p.amount)}</div>
                                 <div style="font-size:12px;color:#888;">
                                     ${new Date(p.createdAt).toLocaleDateString('ru-RU')} в ${new Date(p.createdAt).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
                                 </div>
@@ -2150,11 +1959,11 @@ window.localChangesPending = false;
                 </div>
                 <div class="helper-stat-item highlight">
                     <div class="helper-stat-label">💰 Заработано</div>
-                    <div class="helper-stat-value" style="color:#27ae60;">${totalEarned.toLocaleString()} ₽</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${formatMoney(totalEarned)}</div>
                 </div>
                 <div class="helper-stat-item warning">
                     <div class="helper-stat-label">⚠️ Штрафы</div>
-                    <div class="helper-stat-value" style="color:#e74c3c;">${totalPenalties.toLocaleString()} ₽</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">${formatMoney(totalPenalties)}</div>
                 </div>
             </div>
             
@@ -2168,17 +1977,17 @@ window.localChangesPending = false;
                                 <div>
                                     <div style="font-weight:700;font-size:16px;">${email}</div>
                                     <div style="font-size:13px;color:#666;margin-top:4px;">
-                                        Заработано: <b style="color:#27ae60;">${stats.earned.toLocaleString()} ₽</b> | 
-                                        Штрафы: <b style="color:#e74c3c;">-${stats.penalties.toLocaleString()} ₽</b> | 
-                                        Итого: <b style="color:#1a3c5e;">${stats.net.toLocaleString()} ₽</b>
+                                        Заработано: <b style="color:#27ae60;">${formatMoney(stats.earned)}</b> | 
+                                        Штрафы: <b style="color:#e74c3c;">-${formatMoney(stats.penalties)}</b> | 
+                                        Итого: <b style="color:#1a3c5e;">${formatMoney(stats.net)}</b>
                                     </div>
                                     <div style="font-size:13px;color:#666;margin-top:2px;">
-                                        Выплачено: <b style="color:#27ae60;">${stats.paid.toLocaleString()} ₽</b> | 
-                                        Должно быть: <b style="color:#e67e22;">${stats.unpaid.toLocaleString()} ₽</b>
+                                        Выплачено: <b style="color:#27ae60;">${formatMoney(stats.paid)}</b> | 
+                                        Должно быть: <b style="color:#e67e22;">${formatMoney(stats.unpaid)}</b>
                                     </div>
                                 </div>
                                 <button class="btn-add" onclick="payHelper('${email}')" style="padding:8px 16px;font-size:13px;white-space:nowrap;">
-                                    💳 Выплатить ${stats.unpaid > 0 ? '(' + stats.unpaid.toLocaleString() + ' ₽)' : '(0 ₽)'}
+                                    💳 Выплатить ${stats.unpaid > 0 ? '(' + formatMoney(stats.unpaid) + ')' : '(0 ₽)'}
                                 </button>
                             </div>
                         </div>
@@ -2344,12 +2153,12 @@ window.localChangesPending = false;
             return;
         }
         
-        const amount = prompt(`Введите сумму выплаты для ${helperEmail}:\n\nДолжно быть выплачено: ${unpaid.toLocaleString()} ₽`, unpaid.toString());
+        const amount = prompt(`Введите сумму выплаты для ${helperEmail}:\n\nДолжно быть выплачено: ${formatMoney(unpaid)}`, unpaid.toString());
         if (!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
         
         const paymentAmount = parseFloat(amount);
         if (paymentAmount > unpaid) {
-            if (!confirm(`Вы платите ${paymentAmount.toLocaleString()} ₽, но должно быть только ${unpaid.toLocaleString()} ₽. Переплата будет учтена в будущем.`)) return;
+            if (!confirm(`Вы платите ${formatMoney(paymentAmount)}, но должно быть только ${formatMoney(unpaid)}. Переплата будет учтена в будущем.`)) return;
         }
         
         const paymentDate = new Date().toISOString();
@@ -2381,7 +2190,7 @@ window.localChangesPending = false;
         // Уведомляем помощника о выплате
         notifyHelperAboutPayment(helperEmail, paymentAmount);
         
-        alert(`✅ Выплата ${paymentAmount.toLocaleString()} ₽ для ${helperEmail} отмечена!\n📬 Помощник получит уведомление!`);
+        alert(`✅ Выплата ${formatMoney(paymentAmount)} для ${helperEmail} отмечена!\n📬 Помощник получит уведомление!`);
     };
 
     // ========== МОДУЛЬ 5.4: ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
@@ -2486,7 +2295,7 @@ window.localChangesPending = false;
                         <span style="color:#666;margin-left:10px;">(${filteredPayments.length} выплат)</span>
                     </div>
                     <div style="font-size:18px;font-weight:700;color:#27ae60;">
-                        💰 Всего: ${totalAll.toLocaleString()} ₽
+                        💰 Всего: ${formatMoney(totalAll)}
                     </div>
                 </div>
             </div>
@@ -2503,7 +2312,7 @@ window.localChangesPending = false;
                                 <span style="color:#666;font-size:13px;margin-left:8px;">(${safeHTML(email)})</span>
                             </div>
                             <div style="font-size:16px;font-weight:700;color:#27ae60;">
-                                💰 ${total.toLocaleString()} ₽
+                                💰 ${formatMoney(total)}
                             </div>
                         </div>
                         <div style="border-top:1px solid #eee;padding-top:8px;">
@@ -2519,7 +2328,7 @@ window.localChangesPending = false;
                                             <span style="margin-left:8px;">${safeHTML(p.description)}</span>
                                             <span style="margin-left:8px;color:#999;font-size:12px;">от ${safeHTML(paidBy)}</span>
                                         </div>
-                                        <span style="font-weight:600;color:#27ae60;">+${p.amount.toLocaleString()} ₽</span>
+                                        <span style="font-weight:600;color:#27ae60;">+${formatMoney(p.amount)}</span>
                                     </div>
                                 `;
                             }).join('')}
@@ -2707,12 +2516,12 @@ window.localChangesPending = false;
     
     // Уведомление о штрафе
     function notifyHelperAboutPenalty(helperEmail, amount, reason) {
-        addHelperNotification(helperEmail, 'penalty_issued', `⚠️ Штраф: ${amount.toLocaleString()} ₽. Причина: ${reason}`, null);
+        addHelperNotification(helperEmail, 'penalty_issued', `⚠️ Штраф: ${formatMoney(amount)}. Причина: ${reason}`, null);
     }
     
     // Уведомление о выплате
     function notifyHelperAboutPayment(helperEmail, amount) {
-        addHelperNotification(helperEmail, 'payment_made', `💳 Выплата: ${amount.toLocaleString()} ₽ зачислена!`, null);
+        addHelperNotification(helperEmail, 'payment_made', `💳 Выплата: ${formatMoney(amount)} зачислена!`, null);
     }
     
     // ========== МОДУЛЬ 5.7: ОБНОВЛЁННОЕ УПРАВЛЕНИЕ ЗАДАЧАМИ С УВЕДОМЛЕНИЯМИ ==========
@@ -2995,7 +2804,7 @@ window.localChangesPending = false;
         renderHelperPenalties();
         
         closePenaltyModal();
-        alert(`✅ Штраф ${amount.toLocaleString()} ₽ для ${helperEmail} выписан!\n📬 Помощник получит уведомление!`);
+        alert(`✅ Штраф ${formatMoney(amount)} для ${helperEmail} выписан!\n📬 Помощник получит уведомление!`);
     }
     
     function renderHelperPenalties() {
@@ -3025,13 +2834,13 @@ window.localChangesPending = false;
         
         container.innerHTML = `
             <div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
-                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:18px;">${totalPenalties.toLocaleString()} ₽</span></div>
+                <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:18px;">${formatMoney(totalPenalties)}</span></div>
             </div>
             ${filteredPenalties.map(p => `
                 <div style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid #dc3543;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
                         <div>
-                            <div style="font-weight:600;color:#dc3545;font-size:16px;">-${p.amount.toLocaleString()} ₽</div>
+                            <div style="font-weight:600;color:#dc3545;font-size:16px;">-${formatMoney(p.amount)}</div>
                             <div style="font-size:12px;color:#888;margin-top:4px;">
                                 ${new Date(p.createdAt).toLocaleDateString('ru-RU')} в ${new Date(p.createdAt).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'})}
                             </div>
@@ -3686,9 +3495,9 @@ window.localChangesPending = false;
             tr.innerHTML = `
                 <td style="white-space:nowrap;">${safeHTML(op.date)}</td>
                 <td style="text-align:left;max-width:200px;">${safeHTML(op.desc)}</td>
-                <td style="${incomeClass}">${parseFloat(op.income) > 0 ? (parseFloat(op.income)||0).toFixed(2) : '—'}</td>
-                <td style="${expenseClass}">${parseFloat(op.expense) > 0 ? (parseFloat(op.expense)||0).toFixed(2) : '—'}</td>
-                <td style="font-weight:600;${balanceColor}">${balance.toFixed(2)}</td>
+                <td style="${incomeClass}">${parseFloat(op.income) > 0 ? formatNumber(op.income) : '—'}</td>
+                <td style="${expenseClass}">${parseFloat(op.expense) > 0 ? formatNumber(op.expense) : '—'}</td>
+                <td style="font-weight:600;${balanceColor}">${formatNumber(balance)}</td>
                 <td><button class="btn-del" onclick="deleteCashOp(${idx})" title="Удалить">🗑️</button></td>
             `;
             tbody.appendChild(tr);
@@ -3696,7 +3505,7 @@ window.localChangesPending = false;
         
         const balEl = document.getElementById('cashBalance');
         if (balEl) {
-            balEl.textContent = balance.toFixed(2);
+            balEl.textContent = formatNumber(balance);
             balEl.style.color = balance >= 0 ? '#28a745' : '#dc3545';
         }
         
@@ -3713,7 +3522,7 @@ window.localChangesPending = false;
                     <span style="font-size:16px;">💸</span>
                     <div>
                         <div style="font-weight:600;font-size:14px;">${safeHTML(exp.desc)}</div>
-                        <div style="font-size:12px;color:#6c757d;">📅 ${exp.day} числа · 💰 ${exp.amount.toLocaleString()} ₽</div>
+                        <div style="font-size:12px;color:#6c757d;">📅 ${exp.day} числа · 💰 ${formatMoney(exp.amount)}</div>
                     </div>
                 </div>
                 <div style="display:flex;gap:4px;">
@@ -3734,7 +3543,7 @@ window.localChangesPending = false;
                     <span style="font-size:16px;">💵</span>
                     <div>
                         <div style="font-weight:600;font-size:14px;">${safeHTML(income.desc)}</div>
-                        <div style="font-size:12px;color:#6c757d;">📅 ${income.day} числа · 💰 ${income.amount.toLocaleString()} ₽</div>
+                        <div style="font-size:12px;color:#6c757d;">📅 ${income.day} числа · 💰 ${formatMoney(income.amount)}</div>
                     </div>
                 </div>
                 <div style="display:flex;gap:4px;">
@@ -3763,15 +3572,15 @@ window.localChangesPending = false;
         const investmentWallet = budgetData.wallets.investments?.target || 0;
         
         container.innerHTML = `
-            <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${totalIncome.toLocaleString()} ₽</span></div>
-            <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${totalCost.toLocaleString()} ₽</span></div>
-            <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${totalHelper.toLocaleString()} ₽</span></div>
-            <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${netProfit.toLocaleString()} ₽</span></div>
+            <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${formatMoney(totalIncome)}</span></div>
+            <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalCost)}</span></div>
+            <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalHelper)}</span></div>
+            <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${formatMoney(netProfit)}</span></div>
             <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
-                <div class="budget-result-row tax"><span class="label">💰 Налог (копилка):</span><span class="value">${taxWallet.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row personal"><span class="label">👤 Личные (копилка):</span><span class="value">${personalWallet.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (копилка):</span><span class="value">${businessWallet.toLocaleString()} ₽</span></div>
-                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (копилка):</span><span class="value">${investmentWallet.toLocaleString()} ₽</span></div>
+                <div class="budget-result-row tax"><span class="label">💰 Налог (копилка):</span><span class="value">${formatMoney(taxWallet)}</span></div>
+                <div class="budget-result-row personal"><span class="label">👤 Личные (копилка):</span><span class="value">${formatMoney(personalWallet)}</span></div>
+                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (копилка):</span><span class="value">${formatMoney(businessWallet)}</span></div>
+                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (копилка):</span><span class="value">${formatMoney(investmentWallet)}</span></div>
             </div>
         `;
     }
@@ -3955,10 +3764,10 @@ window.localChangesPending = false;
         const diff = income - expense;
         const preview = document.getElementById('cashOpPreview');
         if (diff >= 0) {
-            preview.textContent = `+${diff.toFixed(2)} ₽`;
+            preview.textContent = `+${formatMoney(diff)}`;
             preview.style.color = '#28a745';
         } else {
-            preview.textContent = `${diff.toFixed(2)} ₽`;
+            preview.textContent = `${formatMoney(diff)}`;
             preview.style.color = '#dc3545';
         }
     }
@@ -4230,7 +4039,6 @@ window.localChangesPending = false;
         saveAll(); renderRefs();
     }
     function deleteService(idx) { rates.splice(idx,1); saveAll(); renderRefs(); }
-    function resetRates() { if(confirm('Сбросить услуги?')) { rates = []; saveAll(); renderRefs(); } }
     function fillServiceSelects() {
         const sel = document.getElementById('modalService');
         if (sel) {
@@ -5375,13 +5183,13 @@ function deleteOrder(orderId) {
                     sectionTotal += itemSum;
                     totalPurchaseSum += itemSum;
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${art}</td><td>${g.name}</td><td>${g.price.toFixed(2)} ₽</td><td>${g.qty.toFixed(2)}</td><td>${g.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${itemSum.toFixed(2)} ₽</td>`;
+                    tr.innerHTML = `<td>${art}</td><td>${g.name}</td><td>${formatMoney(g.price)}</td><td>${g.qty.toFixed(2)}</td><td>${g.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${formatMoney(itemSum)}</td>`;
                     table.appendChild(tr);
                 }
                 // Итого по секции
                 const totalRow = document.createElement('tr');
                 totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
-                totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по ${markerName}:</td><td style="color:#dc3545;">${sectionTotal.toFixed(2)} ₽</td>`;
+                totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по ${markerName}:</td><td style="color:#dc3545;">${formatMoney(sectionTotal)}</td>`;
                 table.appendChild(totalRow);
                 docContainer.appendChild(table);
             }
@@ -5406,13 +5214,13 @@ function deleteOrder(orderId) {
                 sectionTotal += itemSum;
                 totalPurchaseSum += itemSum;
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${name}</td><td>${(data.price || ref.price || 0).toFixed(2)} ₽</td><td>${data.qty.toFixed(2)}</td><td>${ref.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${itemSum.toFixed(2)} ₽</td>`;
+                tr.innerHTML = `<td>${name}</td><td>${formatMoney((data.price || ref.price || 0))}</td><td>${data.qty.toFixed(2)}</td><td>${ref.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${formatMoney(itemSum)}</td>`;
                 table.appendChild(tr);
             }
             // Итого по секции
             const totalRow = document.createElement('tr');
             totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
-            totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по прочим расходникам:</td><td style="color:#dc3545;">${sectionTotal.toFixed(2)} ₽</td>`;
+            totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по прочим расходникам:</td><td style="color:#dc3545;">${formatMoney(sectionTotal)}</td>`;
             table.appendChild(totalRow);
             docContainer.appendChild(table);
         }
@@ -5421,7 +5229,7 @@ function deleteOrder(orderId) {
         if (totalPurchaseSum > 0) {
             const totalDiv = document.createElement('div');
             totalDiv.style.cssText = 'background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;';
-            totalDiv.innerHTML = `💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${totalPurchaseSum.toFixed(2)} ₽</span>`;
+            totalDiv.innerHTML = `💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(totalPurchaseSum)}</span>`;
             docContainer.appendChild(totalDiv);
         }
     }
@@ -5446,60 +5254,7 @@ function deleteOrder(orderId) {
         a.download = `backup_${formatDate(new Date())}.json`;
         a.click();
     }
-    function importData(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            let data;
-            try {
-                data = JSON.parse(e.target.result);
-            } catch(err) {
-                alert('Ошибка: файл не является валидным JSON.');
-                return;
-            }
-            if (data.colors) colors = data.colors;
-            if (data.paints) paints = data.paints;
-            if (data.films) films = data.films;
-            if (data.extraRef) extraRef = data.extraRef;
-            if (data.rates) rates = data.rates;
-            if (data.ordersData) ordersData = data.ordersData;
-            if (data.cashOps) cashOps = data.cashOps;
-            if (data.bookings) bookings = data.bookings;
-            if (data.materialTypes) materialTypes = data.materialTypes;
-            if (data.regularExpenses) regularExpenses = data.regularExpenses;
-            if (data.regularIncomes) regularIncomes = data.regularIncomes;
-            if (data.notes) notes = data.notes;
-            if (data.stock) saveStock(data.stock);
-            if (data.lastOrderNumber) localStorage.setItem('lastOrderNumber', data.lastOrderNumber);
-            // Нормализация после импорта
-            colors.forEach(c => c.price = parseFloat(c.price) || 0);
-            paints.forEach(p => p.price = parseFloat(p.price) || 0);
-            films.forEach(f => f.price = parseFloat(f.price) || 0);
-            extraRef.forEach(r => r.price = parseFloat(r.price) || 0);
-            materialTypes.forEach(mt => mt.articles.forEach(a => a.price = parseFloat(a.price) || 0));
-            ordersData.forEach(o => {
-                o.clientPrice = parseFloat(o.clientPrice) || 0;
-                o.helperPay = parseFloat(o.helperPay) || 0;
-            });
-            saveAll();
-            recalculateStockFromAllOrders();
-            renderAll();
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    }
 
-    // ========== МОДУЛЬ 14.1: ПРОЧИЕ ФУНКЦИИ ==========
-    function clearAllOrders() {
-        if (confirm('Удалить все заказы?')) {
-            ordersData = [];
-            localStorage.setItem('lastOrderNumber','0');
-            recalculateStockFromAllOrders();
-            saveAll();
-            renderAll();
-        }
-    }
     function deleteOrderFromModal() { if (orderEditId) { deleteOrder(orderEditId); closeOrderModal(); } }
     function setOrderColor(color) {
         currentManualColor = color;
@@ -5692,7 +5447,7 @@ function deleteOrder(orderId) {
         dayPayments.forEach(p => {
             const div = document.createElement('div');
             div.className = 'schedule-slot payment-slot';
-            div.innerHTML = `<div>💰 ${safeHTML(p.desc)} – ${(parseFloat(p.expense)||0).toFixed(2)}₽</div>`;
+            div.innerHTML = `<div>💰 ${safeHTML(p.desc)} – ${formatMoney((parseFloat(p.expense)||0))}</div>`;
             grid.appendChild(div);
         });
         dayIncomes.forEach(income => {
@@ -5700,7 +5455,7 @@ function deleteOrder(orderId) {
             div.className = 'schedule-slot';
             div.style.background = '#d4edda';
             div.style.borderColor = '#28a745';
-            div.innerHTML = `<div>💵 ${safeHTML(income.desc)} – ${(parseFloat(income.income)||0).toFixed(2)}₽</div>`;
+            div.innerHTML = `<div>💵 ${safeHTML(income.desc)} – ${formatMoney((parseFloat(income.income)||0))}</div>`;
             grid.appendChild(div);
         });
         dayNotes.forEach(n => {
@@ -5713,7 +5468,7 @@ function deleteOrder(orderId) {
             const color = getOrderColorObj(order);
             const div = document.createElement('div');
             div.className = `schedule-slot color-${color}`;
-            div.innerHTML = `<div>№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML(order.services.map(s=>s.serviceName).join(', '))}</div><div>${(parseFloat(order.clientPrice)||0).toFixed(2)}₽</div>`;
+            div.innerHTML = `<div>№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML(order.services.map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>`;
             div.addEventListener('click', () => openOrderModal(order.id));
             grid.appendChild(div);
         });
@@ -5795,7 +5550,7 @@ function deleteOrder(orderId) {
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
         document.getElementById('calendarSummary').innerHTML = `
             <span style="color:#007bff;">📋 Заказов: ${summary.orders}</span>
-            <span style="color:#28a745;">💰 Прогноз: ${summary.sum.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}₽</span>
+            <span style="color:#28a745;">💰 Прогноз: ${formatMoney(summary.sum)}</span>
             <span style="color:#6c757d;">📅 ${months[currentDate.getMonth()]} ${currentDate.getFullYear()}</span>
         `;
     }
@@ -5893,45 +5648,6 @@ function deleteOrder(orderId) {
         }
     }
     
-    // ========== ЭКСПОРТ КАЛЕНДАРЯ ==========
-    function exportCalendar() {
-        const year = currentDate.getFullYear(), month = currentDate.getMonth();
-        const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-        const daysInMonth = new Date(year, month+1, 0).getDate();
-        
-        let text = `📅 КАЛЕНДАРЬ: ${months[month]} ${year}\n`;
-        text += `${'='.repeat(50)}\n\n`;
-        
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dateObj = new Date(year, month, d);
-            const dayOrders = ordersData.filter(o => o.date === dateStr);
-            const dayNotes = notes.filter(n => n.date === dateStr);
-            
-            if (dayOrders.length > 0 || dayNotes.length > 0) {
-                text += `${d} ${months[month]}:\n`;
-                dayOrders.forEach(order => {
-                    if (currentServiceFilter !== 'all' && !order.services.some(s => s.serviceName === currentServiceFilter)) return;
-                    const color = getOrderColorObj(order);
-                    const colorName = color === 'critical' ? '🔴' : color === 'middle' ? '🟡' : color === 'done' ? '⬜' : '🟢';
-                    text += `  ${colorName} №${order.orderNumber} ${order.client} – ${order.services.map(s=>s.serviceName).join(', ')} – ${(parseFloat(order.clientPrice)||0).toFixed(2)}₽\n`;
-                });
-                dayNotes.forEach(note => {
-                    text += `  📝 ${note.time ? note.time + ' ' : ''}${note.text}\n`;
-                });
-                text += '\n';
-            }
-        }
-        
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `calendar_${months[month]}_${year}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-    
     // ========== УЛУЧШЕННЫЕ УВЕДОМЛЕНИЯ ==========
     function showNotificationModal(tomorrowStr, orders, notes, payments) {
         const modal = document.getElementById('notificationModal');
@@ -5968,7 +5684,7 @@ function deleteOrder(orderId) {
             html += '<div class="notification-title">💰 Регулярные платежи:</div>';
             html += '<ul class="notification-list">';
             payments.forEach(p => {
-                html += '<li>' + safeHTML(p.desc) + ' – ' + (parseFloat(p.expense)||0).toFixed(2) + '₽</li>';
+                html += '<li>' + safeHTML(p.desc) + ' – ' + formatMoney(p.expense) + '</li>';
             });
             html += '</ul></div>';
         }
@@ -6088,7 +5804,7 @@ function deleteOrder(orderId) {
                 if (a.date !== b.date) return b.date.localeCompare(a.date);
             }
             // Если даты равны - по ID (новые сверху)
-            return (b.id || '').localeCompare(a.id || '');
+            return String(b.id || '').localeCompare(String(a.id || ''), undefined, { numeric: true });
         });
         
         sortedOrders.forEach(order => {
@@ -6128,7 +5844,7 @@ function deleteOrder(orderId) {
                     <span class="order-client">${safeHTML(order.client)}</span>
                     <span class="order-phone">${safeHTML(order.phone||'')}</span>
                     <span class="order-service">${safeHTML(order.services.map(s => s.serviceName).join(', '))}</span>
-                    <span class="order-sum ${order.paid?'paid':'unpaid'}">${(parseFloat(order.clientPrice)||0).toFixed(2)}₽</span>
+                    <span class="order-sum ${order.paid?'paid':'unpaid'}">${formatMoney((parseFloat(order.clientPrice)||0))}</span>
                     <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${order.id}, this.checked)"> Оплачено</span>
                     <span class="color-indicator ${color}"></span>
                     <button class="btn-extra" onclick="event.stopPropagation(); openHelperTaskModal(${safeHTML(order.orderNumber)})" title="Добавить задачу">📝 Задача${taskCount > 0 ? ' (' + taskCount + ')' : ''}</button>
@@ -6154,7 +5870,7 @@ function deleteOrder(orderId) {
     function updateUnpaidSummary() {
         const unpaid = ordersData.filter(o => !o.paid);
         document.getElementById('unpaidCount').textContent = unpaid.length;
-        document.getElementById('unpaidSum').textContent = unpaid.reduce((s,o)=>s+(parseFloat(o.clientPrice)||0),0).toFixed(2);
+        document.getElementById('unpaidSum').textContent = formatNumber(unpaid.reduce((s,o)=>s+(parseFloat(o.clientPrice)||0),0));
     }
     function renderStock() {
         const tbody = document.getElementById('stockBody');
@@ -6176,7 +5892,7 @@ function deleteOrder(orderId) {
                 <td><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${name}"></td>
                 <td><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${name}"></td>
                 <td>${((parseFloat(item.income)||0) - (parseFloat(item.used)||0)).toFixed(2)}</td>
-                <td style="font-weight:600;color:#27ae60;">${totalSum.toFixed(2)} ₽</td>
+                <td style="font-weight:600;color:#27ae60;">${formatMoney(totalSum)}</td>
                 <td><button class="btn-del" onclick="deleteStockItem('${name.replace(/'/g, "\\'")}')" title="Удалить">🗑️</button></td>`;
             tbody.appendChild(tr);
         });
@@ -6282,7 +5998,7 @@ function deleteOrder(orderId) {
         let revenue=0, cost=0;
         filteredOrders.forEach(o => {
             revenue += parseFloat(o.clientPrice)||0;
-            cost += parseFloat(o.materialCost)||0;
+            cost += getOrderCost(o);
         });
         const gross = revenue - cost;
         let expenses = filteredCash.reduce((acc, op) => acc + (parseFloat(op.expense)||0), 0);
@@ -6293,11 +6009,11 @@ function deleteOrder(orderId) {
         const netClass = net >= 0 ? 'positive' : 'negative';
         
         document.getElementById('summaryBlock').innerHTML = `
-            <div class="summary-item"><label>💰 Выручка</label><span class="${revenueClass}">${revenue.toFixed(2)} ₽</span></div>
-            <div class="summary-item"><label>📦 Себестоимость</label><span class="${costClass}">${cost.toFixed(2)} ₽</span></div>
-            <div class="summary-item"><label>📈 Валовый доход</label><span>${gross.toFixed(2)} ₽</span></div>
-            <div class="summary-item"><label>💸 Расходы</label><span class="${costClass}">${expenses.toFixed(2)} ₽</span></div>
-            <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${net.toFixed(2)} ₽</span></div>
+            <div class="summary-item"><label>💰 Выручка</label><span class="${revenueClass}">${formatMoney(revenue)}</span></div>
+            <div class="summary-item"><label>📦 Себестоимость</label><span class="${costClass}">${formatMoney(cost)}</span></div>
+            <div class="summary-item"><label>📈 Валовый доход</label><span>${formatMoney(gross)}</span></div>
+            <div class="summary-item"><label>💸 Расходы</label><span class="${costClass}">${formatMoney(expenses)}</span></div>
+            <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${formatMoney(net)}</span></div>
             <div class="summary-item"><label>📊 Заказов за период</label><span>${filteredOrders.length}</span></div>
         `;
     }
@@ -6503,35 +6219,6 @@ function deleteOrder(orderId) {
         printWindow.print();
     }
     
-    function exportSummaryReport() {
-        const title = document.getElementById('summaryTitle').textContent;
-        const subtitle = document.getElementById('summarySubtitle').textContent;
-        const block = document.getElementById('summaryBlock');
-        
-        let text = `ОТЧЁТ ПО ФИНАНСОВЫМ ПОКАЗАТЕЛЯМ\n`;
-        text += `${'='.repeat(40)}\n\n`;
-        text += `${title}\n`;
-        if (subtitle) text += `${subtitle}\n\n`;
-        text += `${'-'.repeat(40)}\n\n`;
-        
-        const items = block.querySelectorAll('.summary-item');
-        items.forEach(item => {
-            const label = item.querySelector('label')?.textContent || '';
-            const value = item.querySelector('span')?.textContent || '';
-            text += `${label}: ${value}\n`;
-        });
-        
-        text += `\n${'-'.repeat(40)}\n`;
-        text += `Дата формирования: ${new Date().toLocaleDateString('ru-RU')}\n`;
-        text += `Авто-ателье\n`;
-        
-        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `Отчёт_${new Date().toISOString().slice(0,10)}.txt`;
-        a.click();
-    }
-
     function populateSummarySelects() {
         const yearSel = document.getElementById('summaryYear');
         const monthSel = document.getElementById('summaryMonth');
@@ -7125,18 +6812,6 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     } else {
         console.error('[App] initRealtimeSync не определена!');
     }
-    
-    // Инициализация FCM push-уведомлений
-    console.log('[App] Инициализация FCM...');
-    if (typeof window.initFCM === 'function') {
-        window.initFCM();
-    } else {
-        console.log('[App] FCM модуль ещё не загружен, повторю позже...');
-        setTimeout(() => {
-            if (typeof window.initFCM === 'function') {
-                window.initFCM();
-            }
-        }, 2000);
-    }
+    // Push-уведомления (js/fcm.js) отключены: не настроен ключ VAPID
 })();
 

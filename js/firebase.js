@@ -341,21 +341,19 @@ window.syncUsersToCloud = async function() {
 };
 
 // ========== ИНДИКАТОР СТАТУСА ПОДКЛЮЧЕНИЯ ==========
+// Маленькая точка возле имени: зелёная — синхронизировано, красная — нет связи
+let lastConnected = navigator.onLine;
+
+window.refreshSyncDot = function() {
+  const dot = document.getElementById('syncDot');
+  if (!dot) return;
+  dot.classList.toggle('offline', !lastConnected);
+  dot.title = lastConnected ? 'Синхронизировано' : 'Нет связи — изменения сохранены на устройстве и отправятся позже';
+};
+
 function showConnectionStatus(connected) {
-  const statusEl = document.getElementById('connectionStatus');
-  if (!statusEl) return;
-  
-  if (connected) {
-    statusEl.style.display = 'block';
-    statusEl.style.background = '#28a745';
-    statusEl.textContent = '🟢 Онлайн — синхронизировано';
-    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-  } else {
-    statusEl.style.display = 'block';
-    statusEl.style.background = '#dc3545';
-    statusEl.textContent = '🔴 Офлайн — данные не синхронизированы';
-    setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
-  }
+  lastConnected = connected;
+  window.refreshSyncDot();
 }
 
 // ========== ПЕРИОДИЧЕСКАЯ СИНХРОНИЗАЦИЯ (только если есть изменения) ==========
@@ -380,6 +378,7 @@ window.addEventListener('focus', () => {
 
 window.addEventListener('online', () => {
   console.log("[Firebase] Подключение восстановлено");
+  showConnectionStatus(true);
   if (typeof window.syncToCloud === 'function') window.syncToCloud();
 });
 

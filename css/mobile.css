@@ -249,3 +249,60 @@
         padding: 12px;
     }
 }
+
+/* ========== ОДНА НАВИГАЦИЯ НА ЭКРАН ========== */
+/* Компьютер: только вкладки сверху. Телефон: только нижняя панель.
+   !important нужен, потому что JS выставляет display прямо в style */
+@media (min-width: 769px) {
+    .bottom-nav,
+    .bottom-nav.visible,
+    .bottom-nav-more-menu,
+    .bottom-nav-more-menu.visible {
+        display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    #adminTabs,
+    #helperTabs {
+        display: none !important;
+    }
+}
+
+/* ========== ШАПКА: точка синхронизации и имя ========== */
+#authSection {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+#authSection .user-name {
+    font-size: 13px;
+    color: #666;
+}
+.sync-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #28a745;
+    flex-shrink: 0;
+}
+.sync-dot.offline {
+    background: #dc3545;
+}
+#authSection .btn-auth-logout {
+    background: none !important;
+    color: #666 !important;
+    border: 1px solid #dee2e6 !important;
+    padding: 4px 10px !important;
+    font-size: 13px !important;
+    min-height: 0;
+    min-width: 0;
+    box-shadow: none !important;
+}
+
+/* На телефоне «Выйти» — в меню «Ещё» (у помощника — в нижней панели) */
+@media (max-width: 768px) {
+    #authSection .btn-auth-logout {
+        display: none !important;
+    }
+}

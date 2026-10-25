@@ -36,14 +36,8 @@
                 });
             });
 
-            var moreBtn = adminNav.querySelector('.bottom-nav-more');
-            if (moreBtn) {
-                moreBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    var moreMenu = document.getElementById('bottomNavMoreMenu');
-                    if (moreMenu) moreMenu.classList.toggle('visible');
-                });
-            }
+            // Кнопку «Ещё» обрабатывает app.js (bindBottomNavClicks); второй обработчик
+            // переключал меню повторно, и оно сразу закрывалось
         }
 
         var helperNav = document.getElementById('helperBottomNav');
@@ -142,54 +136,6 @@
         }
     }
 
-    function initSwipeGestures() {
-        if (!isMobile) return;
-
-        var touchStartX = 0;
-        var touchStartY = 0;
-        var touchEndX = 0;
-        var touchEndY = 0;
-        var minSwipeDistance = 80;
-
-        var adminTabOrder = ['tab-orders', 'tab-calendar', 'tab-purchase', 'tab-helper-admin', 'tab-stock', 'tab-cash', 'tab-summary', 'tab-ref'];
-        var helperTabOrder = ['helper-tasks', 'helper-report'];
-
-        document.addEventListener('touchstart', function(e) {
-            if (e.target.closest('.modal') || e.target.closest('.modal-overlay')) return;
-            touchStartX = e.changedTouches[0].screenX;
-            touchStartY = e.changedTouches[0].screenY;
-        }, { passive: true });
-
-        document.addEventListener('touchend', function(e) {
-            if (e.target.closest('.modal') || e.target.closest('.modal-overlay')) return;
-            touchEndX = e.changedTouches[0].screenX;
-            touchEndY = e.changedTouches[0].screenY;
-            handleSwipe();
-        }, { passive: true });
-
-        function handleSwipe() {
-            var diffX = touchEndX - touchStartX;
-            var diffY = touchEndY - touchStartY;
-
-            if (Math.abs(diffX) < Math.abs(diffY) || Math.abs(diffX) < minSwipeDistance) return;
-
-            var currentTab = document.querySelector('.tab-content.active');
-            if (!currentTab) return;
-
-            var tabOrder = currentTab.id === 'helper-tasks' || currentTab.id === 'helper-report' 
-                ? helperTabOrder : adminTabOrder;
-
-            var currentIndex = tabOrder.indexOf(currentTab.id);
-            if (currentIndex === -1) return;
-
-            if (diffX < -minSwipeDistance && currentIndex < tabOrder.length - 1) {
-                switchToTab(tabOrder[currentIndex + 1]);
-            } else if (diffX > minSwipeDistance && currentIndex > 0) {
-                switchToTab(tabOrder[currentIndex - 1]);
-            }
-        }
-    }
-
     function initMobileModals() {
         if (!isMobile) return;
 
@@ -209,18 +155,12 @@
         var exportBtn = document.querySelector('button[onclick="exportData()"]');
         if (exportBtn) exportBtn.style.display = 'none';
 
-        var importBtn = document.querySelector('button[onclick*="fileInput"].click()');
-        if (importBtn) importBtn.style.display = 'none';
-
         var calendarExportBtns = document.querySelectorAll('#tab-calendar button[title="Экспорт"]');
         if (calendarExportBtns.length > 1) {
             for (var i = 1; i < calendarExportBtns.length; i++) {
                 calendarExportBtns[i].style.display = 'none';
             }
         }
-
-        var summaryExportBtn = document.querySelector('button[onclick="exportSummaryReport()"]');
-        if (summaryExportBtn) summaryExportBtn.style.display = 'none';
     }
 
     function initKeyboardHandling() {
@@ -278,48 +218,16 @@
         });
     }
 
-    function initOfflineHandling() {
-        window.addEventListener('offline', function() {
-            showMobileNotification('⚠️ Нет подключения к интернету', '#ffc107');
-        });
-
-        window.addEventListener('online', function() {
-            showMobileNotification('✅ Подключение восстановлено', '#28a745');
-            if (typeof window.syncToCloud === 'function') {
-                window.syncToCloud();
-            }
-        });
-    }
-
-    function showMobileNotification(message, color) {
-        var existing = document.querySelector('.mobile-notification');
-        if (existing) existing.remove();
-
-        var notification = document.createElement('div');
-        notification.className = 'mobile-notification';
-        notification.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:' + color + 
-            ';color:#fff;padding:12px 20px;border-radius:25px;font-size:14px;font-weight:600;z-index:99999;' +
-            'box-shadow:0 4px 12px rgba(0,0,0,0.3);max-width:90%;text-align:center;';
-        notification.textContent = message;
-        document.body.appendChild(notification);
-
-        setTimeout(function() {
-            if (notification.parentNode) {
-                notification.remove();
-            }
-        }, 3000);
-    }
-
     function init() {
         applySafeAreas();
         initMobileNav();
-        initSwipeGestures();
+        // Свайпы между вкладками отключены: срабатывали случайно при прокрутке таблиц вбок
         initMobileModals();
         hideMobileButtons();
         initKeyboardHandling();
         preventZoom();
         optimizePerformance();
-        initOfflineHandling();
+        // Всплывающие уведомления о сети отключены: состояние показывает точка возле имени
         observeRoleChanges();
     }
 
