@@ -53,13 +53,13 @@
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202609130100"></script>
+    <script type="module" src="js/firebase.js?v=202610250100"></script>
     
     <!-- FCM — Push-уведомления -->
     <script src="js/fcm.js?v=202609130100" defer></script>
     
     <!-- app.js загружается с defer -->
-    <script src="js/app.js?v=202609130100" defer></script>
+    <script src="js/app.js?v=202610250100" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202609150000" defer></script>
@@ -1394,10 +1394,9 @@
       const checkUpdateCloudData = () => {
         if (typeof window.updateCloudData === 'function') {
           window.fbGet(window.fbChild(window.fbRef(window.db), 'atelier_data')).then((snapshot) => {
-            if (snapshot.exists()) {
-              window.updateCloudData(snapshot.val());
-              console.log("Данные синхронизированы из облака!");
-            }
+            // Даже если облако пустое — updateCloudData отправит туда локальные данные
+            window.updateCloudData(snapshot.val() || {});
+            console.log("Данные синхронизированы из облака!");
           }).catch(err => console.error("Ошибка загрузки:", err));
         } else {
           setTimeout(checkUpdateCloudData, 100);

@@ -207,7 +207,7 @@
             populateSummarySelects();
             renderSummary();
             configureDefaultServiceMarkers();
-            saveAll();
+            saveAll(true); // только локально: запуск приложения — не изменение данных
             
             console.log('✅ App initialized (defer mode)');
         }
@@ -238,6 +238,11 @@
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
     let budgetData = null;
     let currentFilter = 'all';
+
+    // Данные для облачной синхронизации (переменные выше не видны через window)
+    window.getSyncData = function() {
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes };
+    };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
     let currentDate = new Date();
@@ -584,9 +589,9 @@ if (!films.length) {
             }
         ];
     }
-    saveAll();
+    saveAll(true); // при запуске сохраняем только локально — это не изменение данных
 }
-    function saveAll() {
+    function saveAll(fromCloud) {
       // Безопасное сохранение с try-catch
       const dataToSave = {
         colors: colors,
@@ -619,8 +624,8 @@ if (!films.length) {
         }
       }
 
-      // Отправка в Firebase (используем новую функцию syncToCloud)
-      if (window.syncToCloud) {
+      // Отправка в Firebase (данные, только что пришедшие из облака, обратно не отправляем)
+      if (window.syncToCloud && !fromCloud) {
         window.markChanged(); // Помечаем что есть изменения
       }
     }
@@ -6537,41 +6542,66 @@ function deleteOrder(orderId) {
         monthSel.value = new Date().getMonth() + 1;
     }
 
-window.updateCloudData = function(data) {
-    // Данные из облака загружаются, применяем их
-    // Флаг localChangesPending используется только для rates и materialTypes
-    
-    // Проверяем, что облако содержит реальные данные, а не только updatedAt
-    const cloudHasData = data.ordersData && data.ordersData.length > 0 ||
-                         data.colors && data.colors.length > 0 ||
-                         data.paints && data.paints.length > 0 ||
-                         data.films && data.films.length > 0 ||
-                         data.cashOps && data.cashOps.length > 0 ||
-                         data.bookings && data.bookings.length > 0 ||
-                         data.regularExpenses && data.regularExpenses.length > 0 ||
-                         data.regularIncomes && data.regularIncomes.length > 0 ||
-                         data.notes && data.notes.length > 0 ||
-                         data.rates && data.rates.length > 0 ||
-                         data.materialTypes && data.materialTypes.length > 0;
-    
-    // Если облако пустое (только updatedAt) — не перезаписываем локальные данные
-    if (!cloudHasData) {
-        console.log("[Sync] Облако пусто (только updatedAt) — оставляем локальные данные");
-        return;
+// ========== СЛИЯНИЕ ДАННЫХ С ОБЛАКОМ (БЕЗ ПОТЕРЬ) ==========
+// У облака есть номер версии (rev). Устройство помнит, с какой версией оно синхронизировано
+// (cloud_rev), и есть ли у него неотправленные изменения (cloud_dirty).
+const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes'];
+
+function syncToArray(value) {
+    if (Array.isArray(value)) return value.filter(item => item != null);
+    if (value && typeof value === 'object') return Object.values(value).filter(item => item != null);
+    return [];
+}
+
+function syncItemKey(item) {
+    if (item && typeof item === 'object') {
+        if (item.id != null) return 'id:' + item.id;
+        if (item.service != null) return 'service:' + item.service;
+        if (item.code) return 'code:' + item.code;
+        if (item.desc != null && item.day != null) return 'regular:' + String(item.desc).trim().toLowerCase();
+        if (item.name != null && item.date == null) return 'name:' + String(item.name).trim().toLowerCase();
     }
-    
-    colors = data.colors || [];
-    paints = data.paints || [];
-    films = data.films || [];
-    extraRef = data.extraRef || [];
-    
+    return 'json:' + JSON.stringify(item);
+}
+
+// Объединяет два списка: ничего не теряется, при совпадении берётся локальная версия.
+// Одинаковые записи без id (например, две одинаковые операции кассы) учитываются по количеству.
+function mergeSyncLists(localList, cloudList) {
+    const result = [];
+    const localCount = new Map();
+    syncToArray(localList).forEach(item => {
+        const key = syncItemKey(item);
+        localCount.set(key, (localCount.get(key) || 0) + 1);
+        result.push(item);
+    });
+    const cloudSeen = new Map();
+    syncToArray(cloudList).forEach(item => {
+        const key = syncItemKey(item);
+        const seen = (cloudSeen.get(key) || 0) + 1;
+        cloudSeen.set(key, seen);
+        if (seen > (localCount.get(key) || 0)) result.push(item);
+    });
+    return result;
+}
+
+window.syncHasData = function(data) {
+    return !!data && SYNC_KEYS.some(key => syncToArray(data[key]).length > 0);
+};
+
+// Полностью берёт облачную версию (устройство было синхронизировано и ничего не меняло)
+function applyCloudVersion(data) {
+    colors = syncToArray(data.colors);
+    paints = syncToArray(data.paints);
+    films = syncToArray(data.films);
+    extraRef = syncToArray(data.extraRef);
+
     // rates обновляем только если нет локальных изменений
     const localRates = JSON.parse(localStorage.getItem('rates_data') || '[]');
     if (localChangesPending) {
         // Есть локальные изменения — оставляем локальные rates
         console.log("[Sync] Пропускаем обновление rates из облака (есть локальные изменения)");
     } else {
-        rates = (data.rates || []).map(cloudService => {
+        rates = syncToArray(data.rates).map(cloudService => {
             const localService = localRates.find(service => service.service === cloudService.service);
             if (!localService) return cloudService;
             const cloudItems = cloudService.items || [];
@@ -6584,19 +6614,17 @@ window.updateCloudData = function(data) {
             if (!rates.some(service => service.service === localService.service)) rates.push(localService);
         });
     }
-    rates.forEach(r => { if (!r.items) r.items = []; });
-    
-    ordersData = data.ordersData || [];
-    ordersData.forEach(order => (order.services || []).forEach(inst => { inst.manualItems = inst.manualItems || {}; }));
-    cashOps = data.cashOps || [];
-    bookings = data.bookings || [];
-    
+
+    ordersData = syncToArray(data.ordersData);
+    cashOps = syncToArray(data.cashOps);
+    bookings = syncToArray(data.bookings);
+
     // materialTypes обновляем только если нет локальных изменений
     const localMaterialTypes = JSON.parse(localStorage.getItem('materialTypes_data') || '[]');
     if (localChangesPending) {
         console.log("[Sync] Пропускаем обновление materialTypes из облака (есть локальные изменения)");
     } else {
-        materialTypes = (data.materialTypes || []).map(cloudType => {
+        materialTypes = syncToArray(data.materialTypes).map(cloudType => {
             const localType = localMaterialTypes.find(type => String(type.name || '').trim().toLowerCase() === String(cloudType.name || '').trim().toLowerCase());
             return localType ? {...cloudType, ...localType} : cloudType;
         });
@@ -6604,17 +6632,75 @@ window.updateCloudData = function(data) {
             if (!materialTypes.some(type => String(type.name || '').trim().toLowerCase() === String(localType.name || '').trim().toLowerCase())) materialTypes.push(localType);
         });
     }
-    
-    regularExpenses = data.regularExpenses || [];
-    regularIncomes = data.regularIncomes || [];
-    notes = data.notes || [];
-    
-    // Сохраняем в localStorage
-    saveAll();
-    
+
+    regularExpenses = syncToArray(data.regularExpenses);
+    regularIncomes = syncToArray(data.regularIncomes);
+    notes = syncToArray(data.notes);
+}
+
+// Сливает локальные данные с облачными без потерь
+function applyMergedVersion(data) {
+    const local = window.getSyncData();
+    colors = mergeSyncLists(local.colors, data.colors);
+    paints = mergeSyncLists(local.paints, data.paints);
+    films = mergeSyncLists(local.films, data.films);
+    extraRef = mergeSyncLists(local.extraRef, data.extraRef);
+    rates = mergeSyncLists(local.rates, data.rates);
+    ordersData = mergeSyncLists(local.ordersData, data.ordersData);
+    cashOps = mergeSyncLists(local.cashOps, data.cashOps);
+    bookings = mergeSyncLists(local.bookings, data.bookings);
+    materialTypes = mergeSyncLists(local.materialTypes, data.materialTypes);
+    regularExpenses = mergeSyncLists(local.regularExpenses, data.regularExpenses);
+    regularIncomes = mergeSyncLists(local.regularIncomes, data.regularIncomes);
+    notes = mergeSyncLists(local.notes, data.notes);
+}
+
+window.updateCloudData = function(data) {
+    data = data || {};
+    const cloudRev = Number(data.rev) || 0;
+    const storedRev = localStorage.getItem('cloud_rev');
+    const everSynced = storedRev !== null;
+    const localRev = Number(storedRev) || 0;
+    const dirty = localStorage.getItem('cloud_dirty') === '1';
+    const localHasData = window.syncHasData(window.getSyncData());
+
+    // Облако пустое — локальные данные не трогаем, а если они есть — отправляем их в облако
+    if (!window.syncHasData(data)) {
+        console.log("[Sync] Облако пусто — оставляем локальные данные");
+        if (localHasData && typeof window.markChanged === 'function') window.markChanged();
+        return;
+    }
+
+    // Устройство уже синхронизировано с этой версией
+    if (everSynced && cloudRev === localRev) {
+        return;
+    }
+
+    let needUpload = false;
+    if ((everSynced && !dirty && cloudRev > localRev) || !localHasData) {
+        // Устройство ничего не меняло (или пустое) — берём облачную версию целиком
+        console.log('[Sync] Загружаю версию', cloudRev, 'из облака');
+        applyCloudVersion(data);
+    } else {
+        // Новое устройство, неотправленные изменения или облако откатилось — сливаем без потерь
+        console.log('[Sync] Сливаю локальные данные с облачной версией', cloudRev);
+        applyMergedVersion(data);
+        needUpload = true;
+    }
+    rates.forEach(r => { if (!r.items) r.items = []; });
+    ordersData.forEach(order => (order.services || []).forEach(inst => { inst.manualItems = inst.manualItems || {}; }));
+
+    localStorage.setItem('cloud_rev', String(cloudRev));
+
+    // Сохраняем в localStorage (без повторной отправки того, что пришло из облака)
+    saveAll(true);
+    if (needUpload && typeof window.markChanged === 'function') {
+        window.markChanged(); // отправляем объединённые данные
+    }
+
     // Перерисовываем интерфейс
     renderAll();
-    
+
     // Повторный рендер задач помощника после загрузки данных из облака
     if (window.currentUserData && window.currentUserData.role !== 'admin') {
         setTimeout(function() {
@@ -6622,7 +6708,7 @@ window.updateCloudData = function(data) {
             if (typeof renderHelperReport === 'function') renderHelperReport();
         }, 200);
     }
-    
+
     // Сбрасываем флаг локальных изменений через 1 секунду
     setTimeout(() => {
         window.localChangesPending = false;

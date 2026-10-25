@@ -1,5 +1,5 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { getDatabase, ref, set, get, child, onValue, off, onDisconnect } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
+import { getDatabase, ref, set, get, child, onValue, off, onDisconnect, runTransaction } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -48,7 +48,7 @@ let firebaseConnected = false;
 let cloudDataLoaded = false;
 let lastSyncTime = 0;
 let syncInProgress = false;
-let hasUnsavedChanges = false;
+let hasUnsavedChanges = localStorage.getItem('cloud_dirty') === '1'; // неотправленные изменения с прошлого запуска
 
 // ========== ФЛАГ ГОТОВНОСТИ FIREBASE ==========
 window.firebaseReady = true;
@@ -112,6 +112,8 @@ window.initAuthState = function() {
         if (typeof window.syncUsersToCloud === 'function') {
           await window.syncUsersToCloud();
         }
+        // Подписка на изменения в облаке (после входа)
+        initRealtimeSync();
         setTimeout(() => {
           if (typeof window.getUserDataForAuth === 'function') {
             window.getUserDataForAuth(user);
@@ -144,6 +146,9 @@ window.initAuthState = function() {
 let realtimeSyncListener = null; // Сохраняем ссылку для cleanup
 
 function initRealtimeSync() {
+  // Слушать облако можно только после входа (правила базы не пускают гостей)
+  if (!window.auth.currentUser) return;
+
   // Удаляем старый listener если есть
   if (realtimeSyncListener) {
     const dataRef = ref(window.db, 'atelier_data');
@@ -160,14 +165,7 @@ function initRealtimeSync() {
       console.log("[Firebase] Данные обновлены из облака, ключей:", Object.keys(data));
       
       if (typeof window.updateCloudData === 'function') {
-        window.localChangesPending = true;
         window.updateCloudData(data);
-        
-        setTimeout(() => {
-          if (window.localChangesPending !== undefined) {
-            window.localChangesPending = false;
-          }
-        }, 1000);
       }
     } else {
       console.log("[Firebase] Облако пусто — используем localStorage");
@@ -182,7 +180,8 @@ function initRealtimeSync() {
   });
   
   // Статус онлайн/оффлайн
-  const statusRef = ref(window.db, 'status/' + (window.currentUserData?.email || 'anonymous'));
+  const statusKey = (window.auth.currentUser.email || 'anonymous').replace(/[.#$\[\]]/g, ',');
+  const statusRef = ref(window.db, 'status/' + statusKey);
   onDisconnect(statusRef).set({
     online: false,
     lastSeen: new Date().toISOString()
@@ -194,116 +193,110 @@ function initRealtimeSync() {
   });
 }
 
+window.initRealtimeSync = initRealtimeSync;
+
 // ========== ФУНКЦИЯ СИНХРОНИЗАЦИИ ==========
+// Отправка идёт транзакцией: облако перезаписывается, только если оно всё ещё в той версии,
+// с которой синхронизировано устройство. Иначе (облако изменили с другого устройства,
+// или устройство новое) запись отменяется, данные сливаются и отправляются заново.
+const SYNC_DATA_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes'];
+let changeCounter = 0;
+let syncTimer = null;
+
+function cleanForFirebase(obj) {
+  if (obj === null || obj === undefined) return null;
+  if (Array.isArray(obj)) return obj.map(cleanForFirebase);
+  if (typeof obj !== 'object') return obj;
+
+  const cleaned = {};
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const val = cleanForFirebase(obj[key]);
+      if (val !== undefined) cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
 window.syncToCloud = function() {
-  if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef) {
+  if (!firebaseConnected || !window.db || typeof window.getSyncData !== 'function') {
     return;
   }
-  
+
   const now = Date.now();
-  if (now - lastSyncTime < 5000) return; // 5 сек вместо 2
+  if (now - lastSyncTime < 5000) return;
   if (syncInProgress) return;
   if (!hasUnsavedChanges) return; // Нет изменений — не отправляем
-  
+
   lastSyncTime = now;
   syncInProgress = true;
-  hasUnsavedChanges = false; // Сбрасываем флаг
-  
-  try {
-    function cleanForFirebase(obj) {
-      if (obj === null || obj === undefined) return null;
-      if (Array.isArray(obj)) return obj.map(cleanForFirebase);
-      if (typeof obj !== 'object') return obj;
-      
-      const cleaned = {};
-      for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-          const val = cleanForFirebase(obj[key]);
-          if (val !== undefined) cleaned[key] = val;
-        }
-      }
-      return cleaned;
+  const changesAtStart = changeCounter;
+
+  const local = window.getSyncData();
+  const storedRev = localStorage.getItem('cloud_rev');
+  const baseRev = storedRev === null ? null : Number(storedRev);
+  const payload = {};
+  SYNC_DATA_KEYS.forEach(key => { payload[key] = cleanForFirebase(local[key] || []); });
+
+  let rejectReason = null;
+  runTransaction(ref(window.db, 'atelier_data'), (current) => {
+    current = current || {};
+    const currentRev = Number(current.rev) || 0;
+    const cloudHasData = window.syncHasData ? window.syncHasData(current) : false;
+
+    // Защита: не перезаписываем облако с данными, если устройство не видело его текущую версию
+    if (cloudHasData && (baseRev === null || currentRev !== baseRev)) {
+      rejectReason = 'Облако изменено (версия ' + currentRev + ', у устройства ' + baseRev + ') — сначала сливаем';
+      return; // отмена транзакции
     }
-    
-    // Отправляем ТОЛЬКО изменённые данные
-    const syncPayload = {
-      updatedAt: new Date().toISOString()
+    rejectReason = null;
+
+    return {
+      ...payload,
+      users: current.users || null,
+      rev: currentRev + 1,
+      updatedAt: new Date().toISOString(),
+      updatedBy: window.auth.currentUser ? window.auth.currentUser.email : null
     };
-    
-    // Если есть полные данные (первая синхронизация или после перезагрузки)
-    if (window._fullSyncPending) {
-      syncPayload.colors = cleanForFirebase(window.colors || []);
-      syncPayload.paints = cleanForFirebase(window.paints || []);
-      syncPayload.films = cleanForFirebase(window.films || []);
-      syncPayload.extraRef = cleanForFirebase(window.extraRef || []);
-      syncPayload.rates = cleanForFirebase(window.rates || []);
-      syncPayload.ordersData = cleanForFirebase(window.ordersData || []);
-      syncPayload.cashOps = cleanForFirebase(window.cashOps || []);
-      syncPayload.bookings = cleanForFirebase(window.bookings || []);
-      syncPayload.materialTypes = cleanForFirebase(window.materialTypes || []);
-      syncPayload.regularExpenses = cleanForFirebase(window.regularExpenses || []);
-      syncPayload.regularIncomes = cleanForFirebase(window.regularIncomes || []);
-      syncPayload.notes = cleanForFirebase(window.notes || []);
-      syncPayload.users = cleanForFirebase(window._syncedUsers || {});
-      window._fullSyncPending = false;
-    } else {
-      // Отправляем только то что изменилось
-      if (window._changedOrders) {
-        syncPayload.ordersData = cleanForFirebase(window._changedOrders);
-        window._changedOrders = null;
-      }
-      if (window._changedRates) {
-        syncPayload.rates = cleanForFirebase(window._changedRates);
-        window._changedRates = null;
-      }
-      if (window._changedMaterialTypes) {
-        syncPayload.materialTypes = cleanForFirebase(window._changedMaterialTypes);
-        window._changedMaterialTypes = null;
-      }
-    }
-    
-    // Если ничего не изменилось — не отправляем
-    const keys = Object.keys(syncPayload);
-    if (keys.length <= 1) { // Только updatedAt
-      syncInProgress = false;
-      return;
-    }
-    
-    window.fbSet(window.fbRef(window.db, 'atelier_data'), syncPayload)
-      .then(() => {
-        console.log("[Firebase] Данные отправлены в облако, ключей:", keys.length - 1);
+  }, { applyLocally: false })
+    .then((result) => {
+      const cloudData = result.snapshot.val() || {};
+      if (result.committed) {
+        localStorage.setItem('cloud_rev', String(cloudData.rev));
+        if (changeCounter === changesAtStart) {
+          hasUnsavedChanges = false;
+          localStorage.removeItem('cloud_dirty');
+        }
+        console.log('[Firebase] Данные отправлены в облако, версия', cloudData.rev);
         showConnectionStatus(true);
-      })
-      .catch((error) => {
-        console.error("[Firebase] Ошибка отправки в облако:", error);
-        showConnectionStatus(false);
-      })
-      .finally(() => {
-        syncInProgress = false;
-      });
-  } catch (error) {
-    console.error("[Firebase] Ошибка подготовки данных:", error);
-    syncInProgress = false;
-  }
+      } else {
+        console.warn('[Firebase]', rejectReason || 'Отправка отменена');
+        // Сливаем облачную версию с локальной — updateCloudData сам пометит данные к отправке
+        if (typeof window.updateCloudData === 'function') window.updateCloudData(cloudData);
+      }
+    })
+    .catch((error) => {
+      console.error("[Firebase] Ошибка отправки в облако:", error);
+      showConnectionStatus(false);
+    })
+    .finally(() => {
+      syncInProgress = false;
+    });
 };
 
 // ========== ПОМЕТИТЬ ИЗМЕНЕНИЯ ==========
-window.markChanged = function(type) {
+// Флаг сохраняется в localStorage, чтобы неотправленные изменения не потерялись после перезапуска
+window.markChanged = function() {
   hasUnsavedChanges = true;
-  
-  // Если это конкретный тип данных — сохраняем для отправки
-  if (type === 'orders' && window.ordersData) {
-    window._changedOrders = window.ordersData;
-  } else if (type === 'rates' && window.rates) {
-    window._changedRates = window.rates;
-  } else if (type === 'materialTypes' && window.materialTypes) {
-    window._changedMaterialTypes = window.materialTypes;
-  }
-  
-  // Полная синхронизация при первом запуске
-  if (!window._fullSyncPending) {
-    window._fullSyncPending = true;
-  }
+  changeCounter++;
+  try { localStorage.setItem('cloud_dirty', '1'); } catch (e) {}
+
+  // Отправляем вскоре после изменения, не дожидаясь периодической синхронизации
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    lastSyncTime = 0;
+    window.syncToCloud();
+  }, 2000);
 };
 
 // ========== ДВУСТОРОННЯЯ СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ ==========
