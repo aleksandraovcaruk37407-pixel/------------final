@@ -231,12 +231,14 @@
 
     // ========== ГЛОБАЛЬНЫЕ ДАННЫЕ ==========
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
+    // Финансы (js/finance.js): платежи месяца и настройки распределения — синхронизируются
+    let payments = [], financeSettings = [];
     let budgetData = null;
     let currentFilter = 'all';
 
     // Данные для облачной синхронизации (переменные выше не видны через window)
     window.getSyncData = function() {
-      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, stock: loadStock() };
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, stock: loadStock() };
     };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
@@ -330,6 +332,10 @@
     regularExpenses = parseJSON('regularExpenses_data', []);
     regularIncomes = parseJSON('regularIncomes_data', []);
     notes = parseJSON('notes_data', []);
+    payments = parseJSON('payments_data', []);
+    financeSettings = parseJSON('financeSettings_data', []);
+    // Перенос старых финансовых записей: касса = реальные деньги (js/finance.js)
+    finMigrate(false);
 
     // cleanCashOps() больше не вызываем при запуске: он удалял любые операции со словами
     // «Материалы», «Оплата заказа», «Бизнес» и т. п. в описании — в том числе внесённые вручную
@@ -595,6 +601,8 @@ if (!films.length) {
     saveAll(true); // при запуске сохраняем только локально — это не изменение данных
 }
     function saveAll(fromCloud) {
+      // Касса всегда соответствует отметкам «Оплачено» (приход по каждому оплаченному заказу)
+      finReconcile();
       // Безопасное сохранение с try-catch
       const dataToSave = {
         colors: colors,
@@ -609,6 +617,8 @@ if (!films.length) {
         regularExpenses: regularExpenses,
         regularIncomes: regularIncomes,
         notes: notes,
+        payments: payments,
+        financeSettings: financeSettings,
         budgetData: budgetData
       };
       
@@ -873,19 +883,8 @@ window.localChangesPending = false;
         renderBudget();
     }
 
+    // Старые блоки бюджета (кошельки, обязательные платежи, план) заменены js/finance.js
     function renderBudget() {
-        if (!budgetData) return;
-        renderMandatoryPayments();
-        renderWallets();
-        renderDistributionHistory();
-        populateBudgetOrderSelect();
-        renderCashBudgetSummary();
-        // Рендерим план дохода и личные расходы
-        const now = new Date();
-        const startDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-        const endDate = formatDate(now);
-        renderIncomePlan(startDate, endDate);
-        // Рендерим историю выплат
         renderPaymentHistory();
     }
 
@@ -2177,7 +2176,14 @@ window.localChangesPending = false;
             paidBy: window.currentUserData ? window.currentUserData.email : 'admin',
             description: `Выплата помощнику ${helperEmail}`
         });
-        
+
+        // Реальный расход кассы (в прибыли работа помощника уже учтена по заказам)
+        cashOps.push({
+            id: 'hp-' + Date.now(), date: formatDate(new Date()), desc: `Выплата помощнику ${helperEmail}`,
+            income: 0, expense: paymentAmount, category: 'helpers'
+        });
+        saveAll();
+
         saveBudgetData();
         renderAdminHelperTasks();
         renderPaymentHistory();
@@ -3477,77 +3483,9 @@ window.localChangesPending = false;
     }
 
     // ========== МОДУЛЬ 9: ДЕНЬГИ И ОПЕРАЦИИ ==========
+    // Вкладка «Деньги» — js/finance.js
     function renderCash() {
-        const tbody = document.getElementById('cashBody');
-        tbody.innerHTML = '';
-        let balance = 0;
-        cashOps.forEach((op, idx) => {
-            balance += parseFloat(op.income)||0 - parseFloat(op.expense)||0;
-            const tr = document.createElement('tr');
-            const incomeClass = parseFloat(op.income) > 0 ? 'color:#28a745;font-weight:600;' : '';
-            const expenseClass = parseFloat(op.expense) > 0 ? 'color:#dc3545;font-weight:600;' : '';
-            const balanceColor = balance >= 0 ? 'color:#28a745;' : 'color:#dc3545;';
-            tr.innerHTML = `
-                <td style="white-space:nowrap;">${safeHTML(op.date)}</td>
-                <td style="text-align:left;max-width:200px;">${safeHTML(op.desc)}</td>
-                <td style="${incomeClass}">${parseFloat(op.income) > 0 ? formatNumber(op.income) : '—'}</td>
-                <td style="${expenseClass}">${parseFloat(op.expense) > 0 ? formatNumber(op.expense) : '—'}</td>
-                <td style="font-weight:600;${balanceColor}">${formatNumber(balance)}</td>
-                <td><button class="btn-del" onclick="deleteCashOp(${idx})" title="Удалить">🗑️</button></td>
-            `;
-            tbody.appendChild(tr);
-        });
-        
-        const balEl = document.getElementById('cashBalance');
-        if (balEl) {
-            balEl.textContent = formatNumber(balance);
-            balEl.style.color = balance >= 0 ? '#28a745' : '#dc3545';
-        }
-        
-        // Вызываем все функции бюджета
-        renderBudget();
-        
-        const regDiv = document.getElementById('regularExpensesList');
-        regDiv.innerHTML = '';
-        regularExpenses.forEach((exp, idx) => {
-            const div = document.createElement('div');
-            div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f8f9fa;border-radius:6px;margin-bottom:6px;border:1px solid #dee2e6;';
-            div.innerHTML = `
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:16px;">💸</span>
-                    <div>
-                        <div style="font-weight:600;font-size:14px;">${safeHTML(exp.desc)}</div>
-                        <div style="font-size:12px;color:#6c757d;">📅 ${exp.day} числа · 💰 ${formatMoney(exp.amount)}</div>
-                    </div>
-                </div>
-                <div style="display:flex;gap:4px;">
-                    <button onclick="openAddRegularExpenseModal(${idx})" style="padding:4px 8px;border:1px solid #007bff;border-radius:4px;background:#fff;color:#007bff;cursor:pointer;font-size:12px;" title="Редактировать">✏️</button>
-                    <button onclick="deleteRegularExpense(${idx})" style="padding:4px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">🗑️</button>
-                </div>
-            `;
-            regDiv.appendChild(div);
-        });
-        
-        const incomeDiv = document.getElementById('regularIncomesList');
-        incomeDiv.innerHTML = '';
-        regularIncomes.forEach((income, idx) => {
-            const div = document.createElement('div');
-            div.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#f0fff4;border-radius:6px;margin-bottom:6px;border:1px solid #c3e6cb;';
-            div.innerHTML = `
-                <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:16px;">💵</span>
-                    <div>
-                        <div style="font-weight:600;font-size:14px;">${safeHTML(income.desc)}</div>
-                        <div style="font-size:12px;color:#6c757d;">📅 ${income.day} числа · 💰 ${formatMoney(income.amount)}</div>
-                    </div>
-                </div>
-                <div style="display:flex;gap:4px;">
-                    <button onclick="openAddRegularIncomeModal(${idx})" style="padding:4px 8px;border:1px solid #007bff;border-radius:4px;background:#fff;color:#007bff;cursor:pointer;font-size:12px;" title="Редактировать">✏️</button>
-                    <button onclick="deleteRegularIncome(${idx})" style="padding:4px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">🗑️</button>
-                </div>
-            `;
-            incomeDiv.appendChild(div);
-        });
+        renderFinance();
     }
 
     function renderCashBudgetSummary() {
@@ -3624,12 +3562,17 @@ window.localChangesPending = false;
     }
 
     // ========== МОДАЛКИ ОПЕРАЦИЙ И РЕГУЛЯРНЫХ ПЛАТЕЖЕЙ ==========
-    function openAddCashModal() {
-        document.getElementById('addCashModalTitle').textContent = '➕ Новая операция';
+    // opts.fund — сразу «потратить из копилки»
+    function openAddCashModal(opts) {
+        const fund = opts && opts.fund ? opts.fund : '';
+        const fundCategory = { tax: 'tax', reserve: 'business', dev: 'business', savings: 'personal', invest: 'personal' };
+        document.getElementById('addCashModalTitle').textContent = fund ? '− Трата из копилки' : '➕ Новая операция';
         document.getElementById('cashOpDate').value = formatDate(new Date());
         document.getElementById('cashOpDesc').value = '';
         document.getElementById('cashOpIncome').value = '0';
         document.getElementById('cashOpExpense').value = '0';
+        document.getElementById('cashOpCategory').value = fundCategory[fund] || 'business';
+        document.getElementById('cashOpFund').value = fund;
         updateCashOpPreview();
         document.getElementById('addCashModal').classList.add('active');
         document.body.classList.add('modal-open');
@@ -3650,7 +3593,12 @@ window.localChangesPending = false;
         if (!desc) { alert('❌ Введите описание'); return; }
         if (income <= 0 && expense <= 0) { alert('❌ Укажите приход или расход'); return; }
         
-        cashOps.push({date, desc, income, expense});
+        // Приход вручную (не оплата заказа) — «Прочее»; выручкой считаются только оплаты заказов
+        const category = income > 0 && expense <= 0 ? 'other' : (document.getElementById('cashOpCategory').value || 'other');
+        const fund = document.getElementById('cashOpFund').value;
+        const op = { id: 'op-' + Date.now(), date, desc, income, expense, category };
+        if (fund && expense > 0) op.fund = fund; // трата из копилки не уменьшает прибыль второй раз
+        cashOps.push(op);
         saveAll();
         closeAddCashModal();
         renderAll();
@@ -4914,87 +4862,13 @@ window.localChangesPending = false;
         closeOrderModal();
     }
 
-function removePaymentDistribution(orderNumber) {
-    cashOps = cashOps.filter(op => !new RegExp(`№${orderNumber}(\\s|$)`).test(op.desc));
-}
+// Приход по неоплаченному/удалённому заказу убирает finReconcile() (js/finance.js).
+// Раньше здесь удалялись все операции кассы с «№N» в описании — в том числе внесённые вручную.
+function removePaymentDistribution(orderNumber) {}
 
-function distributePayment(order) {
-    const dist = calculateDistribution(order);
-    if (dist.error) return;
-    
-    // Создаём записи в cashOps для каждого направления распределения
-    const orderTag = ` №${order.orderNumber} (${order.client || 'Без клиента'})`;
-    
-    // Налог
-    if (dist.tax > 0) {
-        cashOps.push({
-            date: order.date || formatDate(new Date()),
-            desc: `Налог 4%${orderTag}`,
-            income: 0,
-            expense: dist.tax
-        });
-    }
-    
-    // Личные расходы
-    if (dist.personal > 0) {
-        cashOps.push({
-            date: order.date || formatDate(new Date()),
-            desc: `Личные расходы${orderTag}`,
-            income: 0,
-            expense: dist.personal
-        });
-    }
-    
-    // Бизнес
-    if (dist.business > 0) {
-        cashOps.push({
-            date: order.date || formatDate(new Date()),
-            desc: `Бизнес${orderTag}`,
-            income: 0,
-            expense: dist.business
-        });
-    }
-    
-    // Инвестиции
-    if (dist.investments > 0) {
-        cashOps.push({
-            date: order.date || formatDate(new Date()),
-            desc: `Инвестиции${orderTag}`,
-            income: 0,
-            expense: dist.investments
-        });
-    }
-    
-    // Обязательные платежи — распределяем по конкретным платежам
-    let remaining = dist.mandatory;
-    const sortedPayments = budgetData.mandatoryPayments
-        .filter(mp => !mp.paid)
-        .sort((a, b) => a.day - b.day);
-    
-    sortedPayments.forEach(mp => {
-        if (remaining <= 0) return;
-        const needed = mp.target - mp.saved;
-        const toAdd = Math.min(remaining, needed);
-        if (toAdd > 0) {
-            cashOps.push({
-                date: order.date || formatDate(new Date()),
-                desc: `Обязательный платёж: ${mp.name}${orderTag}`,
-                income: 0,
-                expense: toAdd
-            });
-            mp.saved += toAdd;
-            remaining -= toAdd;
-        }
-    });
-    
-    // Обновляем кошельки бюджета
-    budgetData.wallets.tax.target += dist.tax;
-    budgetData.wallets.personal.target += dist.personal;
-    budgetData.wallets.business.target += dist.business;
-    budgetData.wallets.investments.target += dist.investments;
-    
-    saveBudgetData();
-}
+// Оплата заказа теперь — приход в кассу, который создаёт finReconcile() (js/finance.js)
+// при каждом сохранении. Распределение по копилкам считается из заказов и не пишется в кассу.
+function distributePayment(order) {}
 
 // ========== ОЧИСТКА СТАРЫХ ЗАПИСЕЙ ИЗ CASHOPS ==========
 function cleanCashOps() {
@@ -5355,16 +5229,20 @@ function deleteOrder(orderId) {
             
             const criticalOrder = dayOrders.some(o => getOrderColorObj(o)==='critical');
             const dayNotes = notes.filter(n => n.date === dateStr);
-            const cashPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0);
+            // Оплаченные обязательные платежи показываются как платежи (💳), а не как расходы
+            const cashPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId);
+            const dayDuePayments = finPaymentsForDate(dateStr);
             
             // Определяем цвет дня по приоритету
             let classes = `day-cell${isSelected?' selected':''}`;
-            let dayBadge = { orders: 0, notes: 0, expenses: 0 };
+            let dayBadge = { orders: 0, notes: 0, expenses: 0, payments: 0 };
             
             // Считаем количество записей
             dayBadge.orders = dayOrders.length;
             dayBadge.notes = dayNotes.length;
             dayBadge.expenses = cashPayments.length;
+            dayBadge.payments = dayDuePayments.length;
+            if (dayDuePayments.some(x => x.status.state === 'overdue')) classes += ' pay-overdue';
             
             // Определяем цвет дня (приоритет: красный > жёлтый > зелёный > синий)
             if (criticalOrder) {
@@ -5393,6 +5271,7 @@ function deleteOrder(orderId) {
             if (dayBadge.orders > 0) badgeText.push(`📋${dayBadge.orders}`);
             if (dayBadge.notes > 0) badgeText.push(`📝${dayBadge.notes}`);
             if (dayBadge.expenses > 0) badgeText.push(`💰${dayBadge.expenses}`);
+            if (dayBadge.payments > 0) badgeText.push(`💳${dayBadge.payments}`);
             
             if (badgeText.length > 0) {
                 const badge = document.createElement('span');
@@ -5402,7 +5281,8 @@ function deleteOrder(orderId) {
                 div.appendChild(badge);
             }
             
-            div.title = `${dateStr}\nЗаказов: ${dayBadge.orders}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}`;
+            div.title = `${dateStr}\nЗаказов: ${dayBadge.orders}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}` +
+                dayDuePayments.map(x => `\n💳 ${x.p.name}: ${formatMoney(x.p.amount)}${x.status.state === 'paid' ? ' ✅' : x.status.state === 'overdue' ? ' — просрочен' : ''}`).join('');
             div.addEventListener('click', () => { selectedDate = dateObj; renderCalendar(); renderSchedule(); });
             grid.appendChild(div);
         }
@@ -5426,7 +5306,18 @@ function deleteOrder(orderId) {
         const dateStr = formatDate(selectedDate);
         grid.innerHTML = '';
         const dayOrders = ordersData.filter(o => o.date === dateStr);
-        const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.desc.includes('Оплата заказа'));
+        const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId && !op.desc.includes('Оплата заказа'));
+        const dayDuePayments = finPaymentsForDate(dateStr);
+        // Обязательные платежи по плану на этот день
+        dayDuePayments.forEach(({ p, status }) => {
+            const div = document.createElement('div');
+            div.className = `schedule-slot payment-slot due-${status.state}`;
+            const label = status.state === 'paid' ? `✅ оплачено ${formatDateDDMMYYYY(status.op.date)}`
+                : status.state === 'overdue' ? '🔴 просрочен' : '🕒 к оплате';
+            div.innerHTML = `<div>💳 ${safeHTML(p.name)} – ${formatMoney(p.amount)} · ${label}</div>` +
+                (status.state === 'paid' ? '' : `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Оплатил</button>`);
+            grid.appendChild(div);
+        });
         const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !op.desc.includes('Оплата заказа'));
         const dayNotes = notes.filter(n => n.date === dateStr);
         dayPayments.forEach(p => {
@@ -5457,7 +5348,7 @@ function deleteOrder(orderId) {
             div.addEventListener('click', () => openOrderModal(order.id));
             grid.appendChild(div);
         });
-        if (dayOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0) {
+        if (dayOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0 && dayDuePayments.length === 0) {
             grid.innerHTML = '<div>Нет записей</div>';
         }
     }
@@ -5611,6 +5502,15 @@ function deleteOrder(orderId) {
                 div.appendChild(badge);
             });
             
+            // Показываем обязательные платежи этого дня
+            finPaymentsForDate(dateStr).forEach(({ p, status }) => {
+                const payBadge = document.createElement('div');
+                const colors = { paid: '#d4edda;color:#155724', overdue: '#f8d7da;color:#721c24', due: '#e2e3f5;color:#383d7c' };
+                payBadge.style.cssText = `font-size:10px; margin-top:2px; padding:2px 4px; border-radius:4px; background:${colors[status.state]};`;
+                payBadge.textContent = `💳 ${p.name}${status.state === 'paid' ? ' ✅' : ''}`;
+                div.appendChild(payBadge);
+            });
+
             // Показываем заметки
             const dayNotes = notes.filter(n => n.date === dateStr);
             if (dayNotes.length > 0) {
@@ -5974,8 +5874,6 @@ function deleteOrder(orderId) {
         
         const { startDate, endDate } = calculateSummaryPeriodDates();
         
-        let filteredOrders = ordersData.filter(o => o.date && o.date >= startDate && o.date <= endDate);
-        let filteredCash = cashOps.filter(op => op.date && op.date >= startDate && op.date <= endDate);
         
         // Формируем заголовок
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -6002,27 +5900,8 @@ function deleteOrder(orderId) {
         document.getElementById('summaryTitle').textContent = titleText;
         document.getElementById('summarySubtitle').textContent = subtitleText;
         
-        let revenue=0, cost=0;
-        filteredOrders.forEach(o => {
-            revenue += parseFloat(o.clientPrice)||0;
-            cost += getOrderCost(o);
-        });
-        const gross = revenue - cost;
-        let expenses = filteredCash.reduce((acc, op) => acc + (parseFloat(op.expense)||0), 0);
-        const net = gross - expenses;
-        
-        const revenueClass = revenue > 0 ? 'positive' : '';
-        const costClass = 'negative';
-        const netClass = net >= 0 ? 'positive' : 'negative';
-        
-        document.getElementById('summaryBlock').innerHTML = `
-            <div class="summary-item"><label>💰 Выручка</label><span class="${revenueClass}">${formatMoney(revenue)}</span></div>
-            <div class="summary-item"><label>📦 Себестоимость</label><span class="${costClass}">${formatMoney(cost)}</span></div>
-            <div class="summary-item"><label>📈 Валовый доход</label><span>${formatMoney(gross)}</span></div>
-            <div class="summary-item"><label>💸 Расходы</label><span class="${costClass}">${formatMoney(expenses)}</span></div>
-            <div class="summary-item"><label>✨ Чистая прибыль</label><span class="${netClass}">${formatMoney(net)}</span></div>
-            <div class="summary-item"><label>📊 Заказов за период</label><span>${filteredOrders.length}</span></div>
-        `;
+        // Отчёт-«водопад» и план месяца — js/finance.js
+        renderFinanceSummary(startDate, endDate);
     }
 
     function createSampleOrders() {
@@ -6247,7 +6126,7 @@ function deleteOrder(orderId) {
 // ========== СЛИЯНИЕ ДАННЫХ С ОБЛАКОМ (БЕЗ ПОТЕРЬ) ==========
 // У облака есть номер версии (rev). Устройство помнит, с какой версией оно синхронизировано
 // (cloud_rev), и есть ли у него неотправленные изменения (cloud_dirty).
-const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes'];
+const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings'];
 
 function syncToArray(value) {
     if (Array.isArray(value)) return value.filter(item => item != null);
@@ -6406,6 +6285,8 @@ function applyCloudVersion(data) {
     regularExpenses = syncToArray(data.regularExpenses);
     regularIncomes = syncToArray(data.regularIncomes);
     notes = syncToArray(data.notes);
+    payments = syncToArray(data.payments);
+    financeSettings = syncToArray(data.financeSettings);
 }
 
 // ========== РЕЖИМ ВОССТАНОВЛЕНИЯ ==========
@@ -6464,6 +6345,8 @@ function applyMergedVersion(data, preferLocal) {
     regularExpenses = merge('regularExpenses');
     regularIncomes = merge('regularIncomes');
     notes = merge('notes');
+    payments = merge('payments');
+    financeSettings = merge('financeSettings');
 }
 
 window.updateCloudData = function(data) {
@@ -6489,6 +6372,12 @@ window.updateCloudData = function(data) {
             loadStock().some(s => (parseFloat(s.income) || 0) > 0) && typeof window.markChanged === 'function') {
             localStorage.setItem('stock_synced', '1');
             window.markChanged();
+        }
+        // Перенос старых финансовых записей на уже синхронизированном устройстве
+        if (finMigrate(true) && typeof window.markChanged === 'function') {
+            saveAll(true);
+            window.markChanged();
+            renderAll();
         }
         return;
     }
@@ -6537,6 +6426,8 @@ window.updateCloudData = function(data) {
     rates.forEach(r => { if (!r.items) r.items = []; });
     ordersData.forEach(order => (order.services || []).forEach(inst => { inst.manualItems = inst.manualItems || {}; }));
     recalculateStockFromAllOrders(); // «расход» склада — из полученных заказов
+    // Перенос старых финансовых записей; если что-то изменилось — облако нужно обновить
+    if (finMigrate(true)) needUpload = true;
 
     localStorage.setItem('cloud_rev', String(cloudRev));
     window.setSyncBase(data); // база для следующего слияния — эта облачная версия

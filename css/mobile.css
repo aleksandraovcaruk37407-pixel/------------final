@@ -531,3 +531,62 @@
     padding-left: 2px;
     padding-right: 2px;
 }
+
+/* ========== ФИНАНСЫ (js/finance.js) ========== */
+#financeRoot .pos, .fin-waterfall .pos td:last-child { color: #28a745; }
+#financeRoot .neg, .fin-waterfall .neg td:last-child { color: #dc3545; }
+.fin-muted { font-size: 12px; color: #6c757d; }
+.fin-h { margin: 22px 0 10px; color: #1a3c5e; font-size: 17px; }
+.fin-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.fin-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px; padding: 12px; }
+.fin-card-label { font-size: 13px; color: #6c757d; }
+.fin-card-value { font-size: 22px; font-weight: 700; color: #1a3c5e; margin-top: 4px; }
+.fin-warn { background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
+.fin-info { background: #e8f4fd; border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 14px; }
+.fin-note { font-size: 12px; color: #6c757d; margin-top: 8px; }
+.fin-ok { color: #28a745; font-weight: 600; margin: 6px 0; }
+.fin-funds { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.fin-fund { border: 1px solid #dee2e6; border-radius: 10px; padding: 10px 12px; background: #fff; }
+.fin-fund-head { display: flex; justify-content: space-between; gap: 8px; font-size: 15px; }
+.fin-link { background: none !important; border: none !important; color: #1a3c5e !important; padding: 4px 0 !important;
+    font-size: 13px !important; cursor: pointer; text-decoration: underline; min-height: 0 !important; min-width: 0 !important; }
+.fin-progress { height: 8px; background: #e9ecef; border-radius: 4px; overflow: hidden; margin: 6px 0 4px; }
+.fin-progress > div { height: 100%; background: #28a745; }
+.fin-progress.big { height: 14px; }
+.fin-month-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.fin-month-nav button:not(.fin-add) { padding: 4px 12px; border: 1px solid #dee2e6; background: #fff; border-radius: 6px; cursor: pointer; }
+.fin-add { margin-left: auto; }
+.fin-group { border: 1px solid #dee2e6; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.fin-group-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 14px; }
+.fin-pay { border-top: 1px solid #f1f3f5; padding: 8px 0; }
+.fin-pay-main { display: flex; justify-content: space-between; gap: 8px; }
+.fin-pay-sub { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: #6c757d; margin-top: 2px; }
+.fin-overdue .fin-pay-sub > span:first-child { color: #dc3545; font-weight: 600; }
+.fin-paid .fin-pay-name { color: #6c757d; }
+.fin-pay-actions { display: flex; gap: 6px; }
+.fin-pay-actions button { padding: 4px 10px; border: 1px solid #dee2e6; background: #fff; border-radius: 6px; cursor: pointer;
+    font-size: 13px; min-height: 0 !important; min-width: 0 !important; }
+.fin-pay-btn { background: #28a745 !important; color: #fff !important; border-color: #28a745 !important; }
+.fin-ops { margin-top: 8px; }
+.fin-op { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f3f5; font-size: 14px; }
+.fin-settings { margin-top: 20px; border: 1px solid #dee2e6; border-radius: 10px; padding: 10px 12px; }
+.fin-settings summary { cursor: pointer; font-weight: 600; color: #1a3c5e; }
+.fin-set { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 8px 0; font-size: 14px; }
+.fin-set input { width: 90px; padding: 6px; border: 1px solid #ced4da; border-radius: 6px; }
+#summaryBlock { display: block !important; }
+.fin-waterfall { width: 100%; border-collapse: collapse; font-size: 15px; }
+.fin-waterfall td { padding: 7px 10px; border-bottom: 1px solid #f1f3f5; }
+.fin-waterfall td:last-child { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fin-waterfall tr.sub td { font-weight: 700; background: #f8f9fa; }
+.fin-waterfall tr.total td { font-weight: 700; font-size: 16px; background: #eef3f8; }
+.fin-plan { border: 1px solid #dee2e6; border-radius: 10px; padding: 12px; }
+.fin-plan-row { display: flex; justify-content: space-between; gap: 10px; margin: 6px 0; font-size: 15px; }
+.day-cell.pay-overdue { box-shadow: inset 0 0 0 2px #dc3545; }
+.schedule-slot.due-overdue { border-color: #dc3545 !important; background: #fff5f5 !important; }
+.schedule-slot.due-paid { opacity: 0.7; }
+.schedule-slot .fin-pay-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid; cursor: pointer; font-size: 13px; }
+@media (max-width: 768px) {
+    .fin-cards { grid-template-columns: 1fr; }
+    .fin-card-value { font-size: 20px; }
+    .fin-waterfall { font-size: 14px; }
+}

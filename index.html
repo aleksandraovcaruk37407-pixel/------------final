@@ -56,7 +56,10 @@
     <script type="module" src="js/firebase.js?v=202610260100"></script>
     
     <!-- app.js загружается с defer -->
-    <script src="js/app.js?v=202610260100" defer></script>
+    <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
+    <script src="js/finance.js?v=202610260200" defer></script>
+    
+    <script src="js/app.js?v=202610260200" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610250500" defer></script>
@@ -235,70 +238,9 @@
 
     <!-- Вкладка Деньги и Бюджет -->
     <div id="tab-cash" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">💰 Финансы и бюджет</h2>
-        
-        <!-- Сводка по бюджету -->
-        <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
-            <h3 style="margin:0 0 10px 0;">📊 Сводка по бюджету</h3>
-            <div id="cashBudgetSummary"></div>
-        </div>
-
-        <!-- Кошельки (накопительные счета) -->
-        <div class="budget-card" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #6c757d;">
-            <h3 style="margin:0 0 10px 0;">💰 Кошельки (накопления)</h3>
-            <div id="walletsOverview"></div>
-        </div>
-
-        <!-- Обязательные платежи (накопление) -->
-        <div class="budget-card" style="background:#e8f4f8;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #17a2b8;">
-            <h3 style="margin:0 0 10px 0;">📌 Обязательные платежи (накопление)</h3>
-            <div id="mandatoryPaymentsProgress"></div>
-        </div>
-
-        <!-- История распределений -->
-        <div class="budget-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
-            <h3 style="margin:0 0 10px 0;">📜 История распределений</h3>
-            <div id="distributionHistory"></div>
-        </div>
-
-        <!-- Операции -->
-        <div style="margin-top:30px;">
-            <h3 style="color:#1a3c5e; margin-bottom:10px;">💵 Операции</h3>
-            
-            <!-- Баланс -->
-            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-                <div>
-                    <span style="font-size:14px;color:#6c757d;">💰 Баланс:</span>
-                    <span id="cashBalance" style="font-size:24px;font-weight:700;color:#1a3c5e;margin-left:8px;">0</span>
-                    <span style="font-size:18px;font-weight:600;color:#1a3c5e;"> ₽</span>
-                </div>
-                <button class="btn-add" onclick="openAddCashModal()" style="background:#28a745;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:600;cursor:pointer;">➕ Добавить операцию</button>
-            </div>
-            
-            <div class="scroll-wrap">
-                <table>
-                    <thead><tr><th>📅 Дата</th><th>📝 Описание</th><th>📈 Приход</th><th>📉 Расход</th><th>💰 Баланс</th><th></th></tr></thead>
-                    <tbody id="cashBody"></tbody>
-                </table>
-            </div>
-            
-            <!-- Регулярные платежи -->
-            <div style="margin-top:25px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <h3 style="margin:0;">📌 Регулярные расходы</h3>
-                    <button class="btn-add" onclick="openAddRegularExpenseModal()" style="background:#dc3545;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">➕ Добавить расход</button>
-                </div>
-                <div id="regularExpensesList"></div>
-            </div>
-            
-            <div style="margin-top:20px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <h3 style="margin:0;">💵 Регулярные доходы</h3>
-                    <button class="btn-add" onclick="openAddRegularIncomeModal()" style="background:#28a745;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">➕ Добавить доход</button>
-                </div>
-                <div id="regularIncomesList"></div>
-            </div>
-        </div>
+        <h2 style="margin-bottom:12px;">💰 Деньги</h2>
+        <!-- Касса, копилки, платежи месяца, операции, настройки — js/finance.js -->
+        <div id="financeRoot"></div>
     </div>
 
     <!-- Вкладка Итоги -->
@@ -709,6 +651,30 @@
             </div>
             <div class="form-row">
                 <div class="form-group">
+                    <label>🏷 Категория</label>
+                    <select id="cashOpCategory">
+                        <option value="business">Бизнес (аренда, реклама, связь…)</option>
+                        <option value="purchase">Закупка материалов</option>
+                        <option value="helpers">Помощникам</option>
+                        <option value="personal">Личное</option>
+                        <option value="tax">Налог</option>
+                        <option value="other">Прочее</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>🐷 Из копилки</label>
+                    <select id="cashOpFund">
+                        <option value="">— нет —</option>
+                        <option value="tax">💰 Налог</option>
+                        <option value="reserve">🛟 Резерв бизнеса</option>
+                        <option value="dev">🚀 Развитие бизнеса</option>
+                        <option value="savings">👤 Личные накопления</option>
+                        <option value="invest">📈 Инвестиции</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
                     <label>📈 Приход (₽)</label>
                     <input type="number" id="cashOpIncome" placeholder="0" step="0.01" value="0">
                 </div>
@@ -724,6 +690,45 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeAddCashModal()">Отмена</button>
                 <button class="btn-save" onclick="saveCashOp()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Окно платежа месяца (js/finance.js) -->
+    <div class="modal-overlay" id="paymentModal">
+        <div class="modal">
+            <h3 id="paymentModalTitle">➕ Новый платёж</h3>
+            <input type="hidden" id="paymentId">
+            <div class="form-group">
+                <label>📝 Название</label>
+                <input type="text" id="paymentName" placeholder="Например: Аренда помещения">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>💵 Сумма в месяц (₽)</label>
+                    <input type="number" id="paymentAmount" min="0" step="1">
+                </div>
+                <div class="form-group">
+                    <label>📅 День месяца</label>
+                    <input type="number" id="paymentDay" min="1" max="31" value="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>🏷 Тип</label>
+                    <select id="paymentType">
+                        <option value="business">🏢 Бизнес</option>
+                        <option value="personal">🏠 Личное</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>🏦 Весь долг, если это кредит (₽)</label>
+                    <input type="number" id="paymentDebt" min="0" step="1" placeholder="необязательно">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closePaymentModal()">Отмена</button>
+                <button class="btn-save" onclick="savePaymentModal()">Сохранить</button>
             </div>
         </div>
     </div>
