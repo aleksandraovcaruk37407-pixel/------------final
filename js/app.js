@@ -1529,13 +1529,10 @@ window.localChangesPending = false;
         saveBtn.disabled = true;
         
         try {
-            // Регистрация пользователя через Firebase Auth
-            const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
-            const user = userCredential.user;
-            
-            // Обновление имени пользователя
-            await window.updateProfile(user, { displayName: name });
-            
+            // Регистрация пользователя через Firebase Auth (админ остаётся в своём аккаунте)
+            const uid = await window.createHelperAuthUser(email, password, name);
+            const user = { uid: uid };
+
             // Сохранение данных пользователя в Realtime Database
             await window.set(window.fbRef(window.db, 'users/' + user.uid), {
                 email: email,

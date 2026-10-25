@@ -1,14 +1,35 @@
 {
   "rules": {
     "users": {
+      ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && data.exists() && newData.exists()",
+        ".validate": "(auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com') || newData.child('role').val() === data.child('role').val()"
       }
     },
     "atelier_data": {
-      ".read": "auth != null",
-      ".write": "auth != null"
+      ".read": "auth != null && (root.child('users').child(auth.uid).exists() || auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).exists() || auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      "users": {
+        "$uid": {
+          ".validate": "(auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com') || newData.child('role').val() === data.child('role').val()"
+        }
+      }
+    },
+    "fcm_tokens": {
+      ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "status": {
+      "$key": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
     }
   }
 }

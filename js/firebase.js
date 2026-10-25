@@ -1,4 +1,4 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { getDatabase, ref, set, get, child, onValue, off, onDisconnect } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
 import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
@@ -27,6 +27,22 @@ window.signOut = signOut;
 window.signInWithEmailAndPassword = signInWithEmailAndPassword;
 window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
 window.updateProfile = updateProfile;
+
+// ========== СОЗДАНИЕ АККАУНТА ПОМОЩНИКА БЕЗ ВЫХОДА АДМИНА ==========
+// createUserWithEmailAndPassword сразу входит под новым пользователем,
+// поэтому создаём аккаунт через отдельный экземпляр приложения
+window.createHelperAuthUser = async function(email, password, displayName) {
+  const secondaryApp = initializeApp(firebaseConfig, 'helper-creator-' + Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    await updateProfile(cred.user, { displayName: displayName });
+    return cred.user.uid;
+  } finally {
+    await signOut(secondaryAuth).catch(() => {});
+    await deleteApp(secondaryApp).catch(() => {});
+  }
+};
 
 let firebaseConnected = false;
 let cloudDataLoaded = false;
@@ -62,7 +78,11 @@ window.initAuthState = function() {
       console.log('Проверяю запись пользователя в базе...');
       window.fbGet(window.fbChild(window.fbRef(window.db), 'users/' + user.uid)).then((snapshot) => {
         console.log('Пользователь найден в базе:', snapshot.exists());
-        if (!snapshot.exists()) {
+        if (!snapshot.exists() && !isAdminByEmail) {
+          // Запись помощника создаёт только админ — правила базы не дадут создать её самому
+          console.log('Записи пользователя нет в базе — доступ к данным закрыт до добавления админом');
+          return null;
+        } else if (!snapshot.exists()) {
           console.log('Создаю запись пользователя...');
           return window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
             email: user.email,

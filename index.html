@@ -1063,7 +1063,7 @@
           const userData = snapshot.val();
           console.log('[Auth] Роль пользователя из БД:', userData.role);
           // Если email в списке админов — принудительно ставим admin
-          const role = isAdminByEmail ? 'admin' : (userData.role || 'admin');
+          const role = isAdminByEmail ? 'admin' : 'helper';
           console.log('[Auth] Определяемая роль (с учётом email):', role);
           window.currentUserData = {
             uid: user.uid,
@@ -1081,29 +1081,32 @@
             });
           }
         } else {
-          // Если пользователь не найден в БД — даём роль администратора
-          console.log('[Auth] Пользователь не найден в БД, роль: admin');
+          // Если пользователь не найден в БД — админ только по ADMIN_EMAILS, иначе помощник
+          const role = isAdminByEmail ? 'admin' : 'helper';
+          console.log('[Auth] Пользователь не найден в БД, роль:', role);
           window.currentUserData = {
             uid: user.uid,
             email: user.email,
             displayName: user.displayName || user.email.split('@')[0],
-            role: 'admin'
+            role: role
           };
-          // Создаём запись в БД
-          await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
-            email: user.email,
-            displayName: user.displayName || user.email.split('@')[0],
-            role: 'admin',
-            createdAt: new Date().toISOString()
-          });
+          // Создаём запись в БД (правила разрешают это только админам)
+          if (isAdminByEmail) {
+            await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
+              email: user.email,
+              displayName: user.displayName || user.email.split('@')[0],
+              role: 'admin',
+              createdAt: new Date().toISOString()
+            });
+          }
         }
       } else {
-        // Firebase DB недоступен — по умолчанию admin
+        // Firebase DB недоступен — админ только по ADMIN_EMAILS
         window.currentUserData = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email.split('@')[0],
-          role: 'admin'
+          role: isAdminByEmail ? 'admin' : 'helper'
         };
       }
       
@@ -1153,12 +1156,18 @@
       return;
     }
     
+    // Самостоятельная регистрация — только для админов; помощников создаёт админ
+    if (!window.ADMIN_EMAILS.includes(email.toLowerCase())) {
+      alert('❌ Самостоятельная регистрация недоступна.\n\nАккаунт помощника создаёт администратор.');
+      return;
+    }
+
     // Проверяем, что Firebase загружен
     if (!window.auth || typeof window.createUserWithEmailAndPassword !== 'function') {
       alert('❌ Firebase ещё не загрузился.\n\nОбновите страницу (Ctrl+F5) и попробуйте снова.');
       return;
     }
-    
+
     try {
       console.log('[Auth] Создаю пользователя...');
       // Создаём пользователя в Firebase Auth
@@ -1347,7 +1356,7 @@
       if (userData) {
         console.log('>>> Данные пользователя найдены:', userData);
         // Если email в списке админов — принудительно ставим admin
-        const role = isAdminByEmail ? 'admin' : (userData.role || 'admin');
+        const role = isAdminByEmail ? 'admin' : 'helper';
         console.log('>>> Определяемая роль:', role);
         
         window.currentUserData = {
@@ -1373,7 +1382,7 @@
           uid: user.uid,
           email: user.email,
           displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-          role: isAdminByEmail ? 'admin' : 'admin' // По умолчанию админ
+          role: isAdminByEmail ? 'admin' : 'helper' // Админы — только из ADMIN_EMAILS
         };
       }
       
@@ -1413,7 +1422,7 @@
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || user.email.split('@')[0] || 'Пользователь',
-        role: 'admin'
+        role: window.ADMIN_EMAILS.includes(user.email.toLowerCase()) ? 'admin' : 'helper'
       };
       window.updateAuthUI();
       window.updateRoleTabs();
