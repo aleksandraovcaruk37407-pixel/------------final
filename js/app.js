@@ -172,15 +172,10 @@
             document.getElementById('addRegularExpenseModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularExpenseModal(); });
             document.getElementById('addRegularIncomeModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularIncomeModal(); });
             
-            // Мобильная навигация — кнопка "Ещё"
+            // Мобильная навигация — кнопку "Ещё" открывает только bindBottomNavClicks:
+            // здесь был второй обработчик, и меню открывалось и сразу закрывалось
             var moreBtn = document.querySelector('.bottom-nav-more');
             var moreMenu = document.getElementById('bottomNavMoreMenu');
-            if (moreBtn && moreMenu) {
-                moreBtn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    moreMenu.classList.toggle('visible');
-                });
-            }
             // Закрываем меню "Ещё" при клике вне его
             document.addEventListener('click', function(e) {
                 if (moreMenu && moreBtn && !moreMenu.contains(e.target) && !moreBtn.contains(e.target)) {
