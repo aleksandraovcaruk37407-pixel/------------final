@@ -236,7 +236,7 @@
 
     // Данные для облачной синхронизации (переменные выше не видны через window)
     window.getSyncData = function() {
-      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes };
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, stock: loadStock() };
     };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
@@ -5904,6 +5904,7 @@ function deleteOrder(orderId) {
                 item.used = val;
             }
             saveStock(stock);
+            if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
             renderStock();
         });
     }
@@ -5925,6 +5926,7 @@ function deleteOrder(orderId) {
         const stock = loadStock();
         const filtered = stock.filter(s => s.name !== name);
         saveStock(filtered);
+        if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
         renderStock();
     }
 
@@ -6253,6 +6255,29 @@ function syncToArray(value) {
     return [];
 }
 
+// Каноническая запись значения: ключи по алфавиту, без пустых полей — как хранит Firebase.
+// Без этого одна и та же запись на устройстве и в облаке выглядела по-разному
+// (Firebase отдаёт поля по алфавиту), и операции кассы удваивались при слиянии.
+function syncCanon(value) {
+    if (value === null || value === undefined) return undefined;
+    if (Array.isArray(value)) {
+        const list = value.map(syncCanon).filter(v => v !== undefined);
+        return list.length ? list : undefined;
+    }
+    if (typeof value === 'object') {
+        const out = {};
+        Object.keys(value).sort().forEach(key => {
+            const v = syncCanon(value[key]);
+            if (v !== undefined) out[key] = v;
+        });
+        return Object.keys(out).length ? out : undefined;
+    }
+    return value;
+}
+function syncCanonJSON(value) {
+    return JSON.stringify(syncCanon(value)) || '';
+}
+
 function syncItemKey(item) {
     if (item && typeof item === 'object') {
         if (item.id != null) return 'id:' + item.id;
@@ -6261,7 +6286,52 @@ function syncItemKey(item) {
         if (item.desc != null && item.day != null) return 'regular:' + String(item.desc).trim().toLowerCase();
         if (item.name != null && item.date == null) return 'name:' + String(item.name).trim().toLowerCase();
     }
-    return 'json:' + JSON.stringify(item);
+    return 'json:' + syncCanonJSON(item);
+}
+
+// ========== ТРЁХСТОРОННЕЕ СЛИЯНИЕ ==========
+// База — облачная версия, с которой устройство было синхронизировано последний раз.
+// По каждой записи: не меняли на устройстве — берём облако; не меняли в облаке — берём своё;
+// меняли и там, и там — правка устройства (удаление не побеждает правку).
+function loadSyncBase() {
+    try { return JSON.parse(localStorage.getItem('cloud_base') || 'null'); } catch (e) { return null; }
+}
+window.setSyncBase = function(data) {
+    try {
+        const base = {};
+        SYNC_KEYS.concat('stock').forEach(key => { base[key] = syncToArray(data && data[key]); });
+        localStorage.setItem('cloud_base', JSON.stringify(base));
+    } catch (e) {
+        localStorage.removeItem('cloud_base'); // нет места — без базы слияние будет простым объединением
+    }
+};
+function mergeThreeWay(localList, baseList, cloudList) {
+    const group = list => {
+        const map = new Map();
+        syncToArray(list).forEach(item => {
+            const key = syncItemKey(item);
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(item);
+        });
+        return map;
+    };
+    const L = group(localList), B = group(baseList), C = group(cloudList);
+    const same = (a, b) => syncCanonJSON(a) === syncCanonJSON(b);
+    const keys = [...new Set([...C.keys(), ...L.keys()])];
+    const result = [];
+    keys.forEach(key => {
+        const l = L.get(key) || [], b = B.get(key) || [], c = C.get(key) || [];
+        let pick;
+        if (same(l, b)) pick = c;
+        else if (same(c, b)) pick = l;
+        else if (key.startsWith('json:')) {
+            // одинаковые записи без id: сколько добавили/удалили на устройстве и в облаке
+            const count = Math.max(0, c.length + l.length - b.length);
+            pick = Array(count).fill(c[0] || l[0]);
+        } else pick = l.length ? l : c;
+        result.push(...pick);
+    });
+    return result;
 }
 
 // Объединяет два списка: ничего не теряется, при совпадении берётся локальная версия.
@@ -6377,19 +6447,23 @@ function backupLocalData(reason) {
 // иначе — облачная (чтобы правки с других устройств доходили).
 function applyMergedVersion(data, preferLocal) {
     const local = window.getSyncData();
-    const merge = (localList, cloudList) => preferLocal ? mergeSyncLists(localList, cloudList) : mergeSyncLists(cloudList, localList);
-    colors = merge(local.colors, data.colors);
-    paints = merge(local.paints, data.paints);
-    films = merge(local.films, data.films);
-    extraRef = merge(local.extraRef, data.extraRef);
-    rates = merge(local.rates, data.rates);
-    ordersData = merge(local.ordersData, data.ordersData);
-    cashOps = merge(local.cashOps, data.cashOps);
-    bookings = merge(local.bookings, data.bookings);
-    materialTypes = merge(local.materialTypes, data.materialTypes);
-    regularExpenses = merge(local.regularExpenses, data.regularExpenses);
-    regularIncomes = merge(local.regularIncomes, data.regularIncomes);
-    notes = merge(local.notes, data.notes);
+    const base = loadSyncBase();
+    // Есть база — трёхстороннее слияние по каждой записи; нет (первый раз) — объединение
+    const merge = key => base
+        ? mergeThreeWay(local[key], base[key], data[key])
+        : (preferLocal ? mergeSyncLists(local[key], data[key]) : mergeSyncLists(data[key], local[key]));
+    colors = merge('colors');
+    paints = merge('paints');
+    films = merge('films');
+    extraRef = merge('extraRef');
+    rates = merge('rates');
+    ordersData = merge('ordersData');
+    cashOps = merge('cashOps');
+    bookings = merge('bookings');
+    materialTypes = merge('materialTypes');
+    regularExpenses = merge('regularExpenses');
+    regularIncomes = merge('regularIncomes');
+    notes = merge('notes');
 }
 
 window.updateCloudData = function(data) {
@@ -6410,6 +6484,12 @@ window.updateCloudData = function(data) {
 
     // Устройство уже синхронизировано с этой версией
     if (everSynced && cloudRev === localRev) {
+        // Первый запуск с синхронизацией склада: если в облаке склада ещё нет, отправляем свой
+        if (!localStorage.getItem('stock_synced') && !syncToArray(data.stock).length &&
+            loadStock().some(s => (parseFloat(s.income) || 0) > 0) && typeof window.markChanged === 'function') {
+            localStorage.setItem('stock_synced', '1');
+            window.markChanged();
+        }
         return;
     }
 
@@ -6432,14 +6512,39 @@ window.updateCloudData = function(data) {
     // Убираем тестовые заказы; если они были в облаке — облако нужно обновить
     if (syncToArray(data.ordersData).some(isSampleOrder)) needUpload = true;
     ordersData = ordersData.filter(order => !isSampleOrder(order));
+
+    // Склад: «расход» пересчитывается из заказов на каждом устройстве, поэтому синхронизируем
+    // позиции и «приход». Позиции объединяются по названию (удалённая может вернуться с другого устройства).
+    const localStock = loadStock();
+    const cloudStock = syncToArray(data.stock);
+    let stock;
+    if (!localStorage.getItem('stock_synced')) {
+        // Первая синхронизация склада: по совпадающим позициям берём больший приход,
+        // чтобы устройство с нулями не затёрло приход, введённый на другом
+        stock = mergeSyncLists(cloudStock, localStock).map(item => {
+            const local = localStock.find(s => s.name === item.name);
+            return local && (parseFloat(local.income) || 0) > (parseFloat(item.income) || 0) ? { ...item, income: local.income } : item;
+        });
+        localStorage.setItem('stock_synced', '1');
+    } else {
+        const base = loadSyncBase();
+        stock = base ? mergeThreeWay(localStock, base.stock, cloudStock)
+            : (dirty ? mergeSyncLists(localStock, cloudStock) : mergeSyncLists(cloudStock, localStock));
+    }
+    const stockIncomes = list => JSON.stringify(syncToArray(list).map(s => [s.name, parseFloat(s.income) || 0]).sort());
+    if (stockIncomes(stock) !== stockIncomes(cloudStock)) needUpload = true;
+    saveStock(stock);
     rates.forEach(r => { if (!r.items) r.items = []; });
     ordersData.forEach(order => (order.services || []).forEach(inst => { inst.manualItems = inst.manualItems || {}; }));
+    recalculateStockFromAllOrders(); // «расход» склада — из полученных заказов
 
     localStorage.setItem('cloud_rev', String(cloudRev));
+    window.setSyncBase(data); // база для следующего слияния — эта облачная версия
 
     // Сохраняем в localStorage (без повторной отправки того, что пришло из облака)
     saveAll(true);
-    if (needUpload && typeof window.markChanged === 'function') {
+    // Отправляем, если у устройства есть недостающие в облаке записи или свои неотправленные правки
+    if ((needUpload || dirty) && typeof window.markChanged === 'function') {
         window.markChanged(); // отправляем объединённые данные
     }
 

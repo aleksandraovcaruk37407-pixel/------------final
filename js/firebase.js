@@ -199,7 +199,7 @@ window.initRealtimeSync = initRealtimeSync;
 // Отправка идёт транзакцией: облако перезаписывается, только если оно всё ещё в той версии,
 // с которой синхронизировано устройство. Иначе (облако изменили с другого устройства,
 // или устройство новое) запись отменяется, данные сливаются и отправляются заново.
-const SYNC_DATA_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes'];
+const SYNC_DATA_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'stock'];
 let changeCounter = 0;
 let syncTimer = null;
 
@@ -263,6 +263,7 @@ window.syncToCloud = function() {
       const cloudData = result.snapshot.val() || {};
       if (result.committed) {
         localStorage.setItem('cloud_rev', String(cloudData.rev));
+        if (typeof window.setSyncBase === 'function') window.setSyncBase(cloudData); // база для следующего слияния
         if (changeCounter === changesAtStart) {
           hasUnsavedChanges = false;
           localStorage.removeItem('cloud_dirty');
