@@ -320,16 +320,24 @@
     films = parseJSON('films_data', []);
     extraRef = parseJSON('extraRef_data', []);
     rates = parseJSON('rates_data', []);
-    ordersData = parseJSON('orders_data', []);
-    cashOps = parseJSON('cash_data', []);
-    bookings = parseJSON('calendar_bookings', []);
+    // Заказы, касса и календарь сохраняются (saveAll) в ordersData_data / cashOps_data / bookings_data,
+    // а раньше читались из старых записей — и после перезапуска терялись. Старые записи — запасной вариант.
+    const parseFirst = (keys, fallback) => {
+        for (const key of keys) {
+            if (localStorage.getItem(key) !== null) return parseJSON(key, fallback);
+        }
+        return fallback;
+    };
+    ordersData = parseFirst(['ordersData_data', 'orders_data'], []).filter(order => !isSampleOrder(order));
+    cashOps = parseFirst(['cashOps_data', 'cash_data'], []);
+    bookings = parseFirst(['bookings_data', 'calendar_bookings'], []);
     materialTypes = parseJSON('materialTypes_data', []);
     regularExpenses = parseJSON('regularExpenses_data', []);
     regularIncomes = parseJSON('regularIncomes_data', []);
     notes = parseJSON('notes_data', []);
 
-    // Очищаем старые записи о распределении (налог, помощник, материалы и т.д.)
-    cleanCashOps();
+    // cleanCashOps() больше не вызываем при запуске: он удалял любые операции со словами
+    // «Материалы», «Оплата заказа», «Бизнес» и т. п. в описании — в том числе внесённые вручную
 
     budgetData = parseJSON('budget_data', null) || getDefaultBudgetData();
     
