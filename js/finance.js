@@ -421,6 +421,34 @@ function renderFinance() {
         </div>
         ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}`;
 
+    // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
+    const helpers = finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, mk);
+    const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
+    html += `<h3 class="fin-h">👷 Помощникам</h3>
+        <div class="fin-group">
+        <div class="fin-group-head"><b>Всего к выплате</b><b class="${owedTotal > 0 ? 'neg' : ''}">${formatMoney(owedTotal)}</b></div>`;
+    if (!helpers.length) html += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
+    helpers.forEach(h => {
+        html += `
+            <div class="fin-pay ${h.owed > 0 ? 'fin-due' : 'fin-paid'}">
+                <div class="fin-pay-main">
+                    <span class="fin-pay-name">👷 ${safeHTML(finHelperName(h.email))}</span>
+                    <b class="${h.owed > 0 ? 'neg' : ''}">${h.owed > 0 ? 'к выплате ' + formatMoney(h.owed) : h.owed < 0 ? 'переплата ' + formatMoney(-h.owed) : h.net > 0 ? 'всё выплачено' : 'пока не начислено'}</b>
+                </div>
+                <div class="fin-pay-sub">
+                    <span>
+                        за ${finMonthTitle(mk).toLowerCase()}: ${formatMoney(h.monthEarned)} (задач ${h.monthDone})<br>
+                        всего начислено ${formatMoney(h.earned)} (задач ${h.done})${h.penalties ? ` − штрафы ${formatMoney(h.penalties)} (${h.overdue})` : ''} · выплачено ${formatMoney(h.paid)}
+                        ${h.pending ? `<br>в работе: задач ${h.pending} на ${formatMoney(h.pendingPay)}` : ''}
+                    </span>
+                    <span class="fin-pay-actions">
+                        ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
+                    </span>
+                </div>
+            </div>`;
+    });
+    html += `</div>`;
+
     // --- Копилки ---
     html += `<h3 class="fin-h">🐷 Копилки</h3><div class="fin-funds">`;
     Object.keys(FIN_FUNDS).forEach(key => {
@@ -477,34 +505,6 @@ function renderFinance() {
         });
         html += `</div>`;
     });
-
-    // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
-    const helpers = finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, mk);
-    const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
-    html += `<h3 class="fin-h">👷 Помощникам</h3>
-        <div class="fin-group">
-        <div class="fin-group-head"><b>Всего к выплате</b><b class="${owedTotal > 0 ? 'neg' : ''}">${formatMoney(owedTotal)}</b></div>`;
-    if (!helpers.length) html += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
-    helpers.forEach(h => {
-        html += `
-            <div class="fin-pay ${h.owed > 0 ? 'fin-due' : 'fin-paid'}">
-                <div class="fin-pay-main">
-                    <span class="fin-pay-name">👷 ${safeHTML(finHelperName(h.email))}</span>
-                    <b class="${h.owed > 0 ? 'neg' : ''}">${h.owed > 0 ? 'к выплате ' + formatMoney(h.owed) : h.owed < 0 ? 'переплата ' + formatMoney(-h.owed) : h.net > 0 ? 'всё выплачено' : 'пока не начислено'}</b>
-                </div>
-                <div class="fin-pay-sub">
-                    <span>
-                        за ${finMonthTitle(mk).toLowerCase()}: ${formatMoney(h.monthEarned)} (задач ${h.monthDone})<br>
-                        всего начислено ${formatMoney(h.earned)} (задач ${h.done})${h.penalties ? ` − штрафы ${formatMoney(h.penalties)} (${h.overdue})` : ''} · выплачено ${formatMoney(h.paid)}
-                        ${h.pending ? `<br>в работе: задач ${h.pending} на ${formatMoney(h.pendingPay)}` : ''}
-                    </span>
-                    <span class="fin-pay-actions">
-                        ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
-                    </span>
-                </div>
-            </div>`;
-    });
-    html += `</div>`;
 
     // --- Операции ---
     const monthOps = cashOps.filter(o => finMonthKey(o.date) === mk)
