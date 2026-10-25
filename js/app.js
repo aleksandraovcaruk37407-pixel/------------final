@@ -1368,8 +1368,8 @@ window.localChangesPending = false;
         const netEarned = totalEarned - totalPenalties;
         
         // Считаем выплачено
-        const payments = budgetData.helperPayments[helperEmail] || [];
-        const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+        // Выплачено — из кассы (синхронизируется) + старые выплаты (js/finance.js)
+        const totalPaid = finHelperPaid(helperEmail);
         const totalUnpaid = Math.max(0, netEarned - totalPaid);
         
         container.innerHTML = `
@@ -1898,8 +1898,7 @@ window.localChangesPending = false;
         const helpersStats = {};
         const allHelperEmails = new Set(allTasks.map(t => t.assignedTo));
         allHelperEmails.forEach(email => {
-            const payments = budgetData.helperPayments[email] || [];
-            const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+            const totalPaid = finHelperPaid(email); // из кассы + старые выплаты (js/finance.js)
             
             let earned = 0, penalties = 0;
             allTasks.filter(t => t.assignedTo === email).forEach(task => {
@@ -2115,83 +2114,9 @@ window.localChangesPending = false;
         return orders.filter(o => o.date >= startDate);
     }
 
+    // Выплата помощнику — расход кассы «Помощникам» (js/finance.js)
     window.payHelper = function(helperEmail) {
-        if (!budgetData.helperPayments[helperEmail]) {
-            budgetData.helperPayments[helperEmail] = [];
-        }
-        
-        // Считаем сколько нужно выплатить
-        let totalEarned = 0;
-        let totalPenalties = 0;
-        ordersData.forEach(order => {
-            (order.services || []).forEach(service => {
-                (service.tasks || []).forEach(task => {
-                    if (task.assignedTo === helperEmail) {
-                        if (task.status === 'completed') {
-                            totalEarned += parseFloat(task.helperPay) || 0;
-                        } else if (task.status === 'overdue') {
-                            totalPenalties += parseFloat(task.penalty) || 0;
-                        }
-                    }
-                });
-            });
-        });
-        
-        const netEarned = totalEarned - totalPenalties;
-        const payments = budgetData.helperPayments[helperEmail] || [];
-        const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-        const unpaid = Math.max(0, netEarned - totalPaid);
-        
-        if (unpaid <= 0) {
-            alert('❌ Помощнику не положена выплата (все средства уже выплачены)');
-            return;
-        }
-        
-        const amount = prompt(`Введите сумму выплаты для ${helperEmail}:\n\nДолжно быть выплачено: ${formatMoney(unpaid)}`, unpaid.toString());
-        if (!amount || isNaN(amount) || parseFloat(amount) <= 0) return;
-        
-        const paymentAmount = parseFloat(amount);
-        if (paymentAmount > unpaid) {
-            if (!confirm(`Вы платите ${formatMoney(paymentAmount)}, но должно быть только ${formatMoney(unpaid)}. Переплата будет учтена в будущем.`)) return;
-        }
-        
-        const paymentDate = new Date().toISOString();
-        
-        // Записываем в текущие выплаты
-        budgetData.helperPayments[helperEmail].push({
-            amount: paymentAmount,
-            date: paymentDate,
-            paidBy: window.currentUserData ? window.currentUserData.email : 'admin'
-        });
-        
-        // Записываем в историю выплат (плоский массив для гибкой фильтрации)
-        if (!budgetData.paymentHistory) {
-            budgetData.paymentHistory = [];
-        }
-        budgetData.paymentHistory.push({
-            id: Date.now().toString(),
-            date: paymentDate,
-            helperEmail: helperEmail,
-            amount: paymentAmount,
-            paidBy: window.currentUserData ? window.currentUserData.email : 'admin',
-            description: `Выплата помощнику ${helperEmail}`
-        });
-
-        // Реальный расход кассы (в прибыли работа помощника уже учтена по заказам)
-        cashOps.push({
-            id: 'hp-' + Date.now(), date: formatDate(new Date()), desc: `Выплата помощнику ${helperEmail}`,
-            income: 0, expense: paymentAmount, category: 'helpers'
-        });
-        saveAll();
-
-        saveBudgetData();
-        renderAdminHelperTasks();
-        renderPaymentHistory();
-        
-        // Уведомляем помощника о выплате
-        notifyHelperAboutPayment(helperEmail, paymentAmount);
-        
-        alert(`✅ Выплата ${formatMoney(paymentAmount)} для ${helperEmail} отмечена!\n📬 Помощник получит уведомление!`);
+        finPayHelper(helperEmail);
     };
 
     // ========== МОДУЛЬ 5.4: ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
@@ -5314,7 +5239,9 @@ function deleteOrder(orderId) {
             div.className = `schedule-slot payment-slot due-${status.state}`;
             const label = status.state === 'paid' ? `✅ оплачено ${formatDateDDMMYYYY(status.op.date)}`
                 : status.state === 'overdue' ? '🔴 просрочен' : '🕒 к оплате';
-            div.innerHTML = `<div>💳 ${safeHTML(p.name)} – ${formatMoney(p.amount)} · ${label}</div>` +
+            const debt = finDebtRemaining(p, cashOps);
+            div.innerHTML = `<div>💳 ${safeHTML(p.name)} – ${formatMoney(p.amount)} · ${label}` +
+                (debt !== null ? `<div class="fin-muted">долг: осталось ${formatMoney(debt)}</div>` : '') + `</div>` +
                 (status.state === 'paid' ? '' : `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Оплатил</button>`);
             grid.appendChild(div);
         });
@@ -5428,6 +5355,7 @@ function deleteOrder(orderId) {
             <span style="color:#007bff;">📋 Заказов: ${summary.orders}</span>
             <span style="color:#28a745;">💰 Прогноз: ${formatMoney(summary.sum)}</span>
             <span style="color:#6c757d;">📅 ${months[currentDate.getMonth()]} ${currentDate.getFullYear()}</span>
+            ${finCalendarPaymentsSummaryHTML(formatDate(currentDate).slice(0, 7))}
         `;
     }
 
