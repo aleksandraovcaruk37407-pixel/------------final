@@ -20,9 +20,10 @@ function isAdminUser(user) {
   return !!user && (user.role === 'admin' || ADMIN_EMAILS.includes(String(user.email || '').toLowerCase()));
 }
 
-// uid получателей: 'admin' — все админы, иначе — пользователь с этим email
+// uid получателей: 'admin' — все админы, кроме того, кто сам это сделал (notice.from), иначе — пользователь с этим email
 function recipientUids(notice, users) {
-  const list = Object.entries(users || {});
+  const from = String(notice.from || '').toLowerCase();
+  const list = Object.entries(users || {}).filter(([, u]) => !from || String(u && u.email || '').toLowerCase() !== from);
   if (notice.to === 'admin') return list.filter(([, u]) => isAdminUser(u)).map(([uid]) => uid);
   const email = String(notice.to).toLowerCase();
   return list.filter(([, u]) => String(u && u.email || '').toLowerCase() === email).map(([uid]) => uid);
@@ -54,7 +55,22 @@ function isDeadTokenError(code) {
   return code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token';
 }
 
-// Утренняя сводка для админов по данным atelier_data на дату today ('ГГГГ-ММ-ДД'); null — нечего сообщить
+const money = n => Math.round(Number(n) || 0).toLocaleString('ru-RU') + ' ₽';
+const shortList = (items, max = 4) => items.slice(0, max).join('; ') + (items.length > max ? `; ещё ${items.length - max}` : '');
+
+// Платёж месяца mk: дата (день платежа, но не позже конца месяца) и оплачен ли он (операция кассы с paymentId и month)
+function paymentDue(payment, mk) {
+  const [y, m] = mk.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const day = Math.min(Math.max(1, parseInt(payment.day) || 1), last);
+  return `${mk}-${String(day).padStart(2, '0')}`;
+}
+function paymentPaid(payment, mk, cash) {
+  return toList(cash).some(o => o.paymentId === payment.id && o.month === mk);
+}
+
+// Утренняя сводка для админов по данным atelier_data на дату today ('ГГГГ-ММ-ДД') — то же, что в календаре на этот день:
+// заказы, заметки, платежи и задачи помощников; null — нечего сообщить
 function dailySummary(data, today) {
   data = data || {};
   const orders = toList(data.ordersData);
@@ -64,16 +80,29 @@ function dailySummary(data, today) {
     return d.toISOString().slice(0, 10);
   };
   const isDone = o => o.done === true || o.done === 'true' || o.done === 1;
-  // Срок заказа — как getDeadline в app.js: дата + durationDays
+  const name = o => '№' + o.orderNumber + (o.client ? ' ' + o.client : '');
+  // Заказы дня в календаре (дата заказа) и срок сдачи — как getDeadline в app.js: дата + durationDays
+  const dayOrders = orders.filter(o => o.date === today && !isDone(o));
   const due = orders.filter(o => o.date && !isDone(o) && parseInt(o.durationDays) > 0 && addDays(o.date, parseInt(o.durationDays)) === today);
+  const notes = toList(data.notes).filter(n => n.date === today)
+    .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
+  const mk = today.slice(0, 7);
+  const payments = toList(data.payments).filter(p => !paymentPaid(p, mk, data.cashOps));
+  const payToday = payments.filter(p => paymentDue(p, mk) === today);
+  const payOverdue = payments.filter(p => paymentDue(p, mk) < today);
   const tasks = [];
-  orders.forEach(o => toList(o.services).forEach(s => toList(s.tasks).forEach(t => tasks.push({ ...t, orderNumber: o.orderNumber }))));
-  const todayTasks = tasks.filter(t => String(t.deadline || '').slice(0, 10) === today && t.status !== 'completed');
+  orders.forEach(o => toList(o.services).forEach(sv => toList(sv.tasks).forEach(t => tasks.push({ ...t, orderNumber: o.orderNumber }))));
+  const todayTasks = tasks.filter(t => String(t.deadline || '').slice(0, 10) === today && t.status !== 'completed' && t.status !== 'cancelled');
   const review = tasks.filter(t => t.status === 'review');
 
   const lines = [];
-  if (due.length) lines.push(`📋 Сдать сегодня: ${due.map(o => '№' + o.orderNumber + ' ' + (o.client || '')).join(', ')}`);
-  if (todayTasks.length) lines.push(`👷 Задачи помощников на сегодня: ${todayTasks.length}`);
+  if (dayOrders.length) lines.push(`🚗 Заказы на сегодня: ${shortList(dayOrders.map(name))}`);
+  if (due.length) lines.push(`📋 Сдать сегодня: ${shortList(due.map(name))}`);
+  if (notes.length) lines.push(`📝 Заметки: ${shortList(notes.map(n => (n.time ? n.time + ' ' : '') + String(n.text || '').slice(0, 60)))}`);
+  if (payToday.length) lines.push(`💳 Платежи сегодня: ${shortList(payToday.map(p => `${p.name} ${money(p.amount)}`))}`);
+  if (payOverdue.length) lines.push(`⚠️ Просрочены платежи: ${shortList(payOverdue.map(p => `${p.name} ${money(p.amount)}`))}`);
+  const taskNames = todayTasks.map(t => String(t.description || '').slice(0, 40)).filter(Boolean);
+  if (todayTasks.length) lines.push(`👷 Задачи помощников на сегодня: ${todayTasks.length}${taskNames.length ? ' — ' + shortList(taskNames, 3) : ''}`);
   if (review.length) lines.push(`🕓 Ждут проверки: ${review.length}`);
   if (!lines.length) return null;
   return { title: '📅 План на сегодня', body: lines.join('\n') };
@@ -112,6 +141,74 @@ function localDateHour(nowMs, timeZone) {
   return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
 }
 
+// Дата, время 'ЧЧ:ММ' и минуты от полуночи в часовом поясе timeZone
+function localDateTime(nowMs, timeZone) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(new Date(nowMs)).map(p => [p.type, p.value]));
+  const time = `${parts.hour}:${parts.minute}`;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
+}
+
+const toMin = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+
+// Рабочий день помощника по умолчанию (если у него нет графика или в графике не указано время)
+const WORK_START = '13:00';
+const WORK_END = '21:00';
+
+// Напоминания помощникам нажать «Пришёл» (с начала рабочего дня) и «Ушёл» (после конца, если приход отмечен).
+// Каждое — один раз в день (ключ в sent). Без графика — каждый день; с графиком — только в его рабочие дни.
+function helperReminders(data, users, nowMs, timeZone, sent) {
+  data = data || {}; sent = sent || {};
+  const { date, minutes } = localDateTime(nowMs, timeZone);
+  const weekday = new Date(date + 'T12:00:00Z').getUTCDay();
+  const schedules = toList(data.helperSchedules), records = toList(data.attendance);
+  const out = [];
+  Object.values(users || {}).filter(u => u && u.role === 'helper' && u.email && !isAdminUser(u)).forEach(u => {
+    const email = String(u.email);
+    const sch = schedules.find(x => x && String(x.email).toLowerCase() === email.toLowerCase());
+    if (sch && Array.isArray(sch.days) && !sch.days.map(Number).includes(weekday)) return;
+    if (sch && sch.from && date < sch.from) return;
+    const start = toMin(sch && sch.start) ?? toMin(WORK_START), end = toMin(sch && sch.end) ?? toMin(WORK_END);
+    const rec = records.find(r => r && r.id === `att-${email}-${date}`) || records.find(r => r && r.email === email && r.date === date);
+    if (rec && ['dayoff', 'sick', 'absent'].includes(rec.status)) return;
+    const inKey = sentKey(`in-${email}-${date}`), outKey = sentKey(`out-${email}-${date}`);
+    if (!(rec && rec.in) && minutes >= start && minutes < end && !sent[inKey]) {
+      out.push({ key: inKey, to: email, title: '⏰ Рабочий день начался', body: `Начало в ${sch && sch.start || WORK_START}. Не забудьте нажать «Пришёл» в программе.` });
+    }
+    if (rec && rec.in && !rec.out && minutes >= end && !sent[outKey]) {
+      out.push({ key: outKey, to: email, title: '🏁 Рабочий день закончился', body: `Конец в ${sch && sch.end || WORK_END}. Не забудьте нажать «Ушёл» в программе.` });
+    }
+  });
+  return out;
+}
+
+// Задачи, срок которых прошёл, а помощник их не сдал: одно уведомление помощнику на задачу.
+// Только за последние сутки — чтобы при первом запуске не прислать старые просрочки разом.
+function overdueTaskNotices(data, nowMs, timeZone, sent) {
+  sent = sent || {};
+  const { date, time } = localDateTime(nowMs, timeZone);
+  const now = `${date}T${time}`;
+  const dayAgo = (() => { const d = localDateTime(nowMs - 24 * 3600 * 1000, timeZone); return `${d.date}T${d.time}`; })();
+  const out = [];
+  toList((data || {}).ordersData).forEach(o => toList(o.services).forEach(sv => toList(sv.tasks).forEach(t => {
+    if (!t || !t.assignedTo || !t.deadline || !t.id) return;
+    if (['completed', 'review', 'overdue', 'cancelled'].includes(t.status)) return;
+    const deadline = String(t.deadline).length > 10 ? String(t.deadline).slice(0, 16) : `${t.deadline}T23:59`;
+    const key = sentKey(`ovd-${t.id}`);
+    if (deadline < now && deadline >= dayAgo && !sent[key]) {
+      out.push({ key, to: t.assignedTo, title: '❌ Задача не выполнена в срок', body: `${t.description || 'Задача'} (Заказ #${o.orderNumber}). Срок был ${deadline.replace('T', ' ')}.` });
+    }
+  })));
+  return out;
+}
+
+// Ключи напоминаний старше трёх дней больше не нужны
+function pruneReminderState(sent, nowMs) {
+  const next = {};
+  Object.entries(sent || {}).forEach(([k, at]) => { if (nowMs - Number(at) < 3 * 24 * 3600 * 1000) next[k] = at; });
+  return next;
+}
+
 // Пора ли утренняя сводка: с hour часов по местному времени, один раз в день. Возвращает дату или null
 function dailyDue(nowMs, timeZone, hour, lastSentDate) {
   const { date, hour: h } = localDateHour(nowMs, timeZone);
@@ -132,4 +229,4 @@ async function sendToDevices(db, messaging, devices, message) {
 }
 
 module.exports = { ADMIN_EMAILS, NOTICE_MAX_AGE_MS, SENDER_MAX_AGE_MS, findNewNotices, recipientUids, tokensFor, buildMessage, noticeMessage, isDeadTokenError, dailySummary,
-  sentKey, pendingNotices, localDateHour, dailyDue, sendToDevices };
+  sentKey, pendingNotices, localDateHour, localDateTime, dailyDue, helperReminders, overdueTaskNotices, pruneReminderState, WORK_START, WORK_END, sendToDevices };

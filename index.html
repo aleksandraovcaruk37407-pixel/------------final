@@ -60,10 +60,12 @@
     <script src="js/finance.js?v=202610262000" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
     <script src="js/attendance.js?v=202610261600" defer></script>
+    <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
+    <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
     <script src="js/fcm.js?v=202610261800" defer></script>
     
-    <script src="js/app.js?v=202610262000" defer></script>
+    <script src="js/app.js?v=202610270800" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610261600" defer></script>
@@ -233,13 +235,21 @@
 
     <!-- Вкладка Склад -->
     <div id="tab-stock" class="tab-content">
-        <input type="search" id="stockSearch" placeholder="🔍 Поиск материала" oninput="applyStockSearch()" style="width:100%;max-width:360px;padding:8px 12px;margin-bottom:10px;border:1px solid #ced4da;border-radius:8px;box-sizing:border-box;">
+        <h2>📦 Склад</h2>
+        <p style="font-size:13px;color:#6c757d;margin:0 0 10px;">Расход считается сам из заказов. Приход добавляется кнопкой «Закупил» во вкладке «Закупка» или вручную. «Списано» — брак и потери. «Мин.» — при меньшем остатке материал подсвечивается.</p>
+        <div id="stockSummary" class="stock-summary"></div>
+        <div class="purchase-toolbar">
+            <input type="search" id="stockSearch" placeholder="🔍 Поиск материала" oninput="applyStockSearch()" style="flex:1;min-width:180px;max-width:360px;padding:8px 12px;border:1px solid #ced4da;border-radius:8px;box-sizing:border-box;">
+            <label><input type="checkbox" id="stockShowAll" onchange="renderStock()"> все из справочников</label>
+        </div>
         <div class="scroll-wrap">
             <table class="stock-table">
-                <thead><tr><th>Материал</th><th>Ед. изм.</th><th>Цена за ед.</th><th>Приход</th><th>Расход</th><th>Остаток</th><th>💰 Сумма</th><th></th></tr></thead>
+                <thead><tr><th>Материал</th><th>Ед.</th><th>Цена</th><th>Приход</th><th>Расход по заказам</th><th>Списано</th><th>Остаток</th><th>Мин.</th><th>💰 Сумма остатка</th><th></th></tr></thead>
                 <tbody id="stockBody"></tbody>
             </table>
         </div>
+        <h3 style="margin-top:20px;">🧾 Закупки</h3>
+        <div id="stockPurchases"></div>
     </div>
 
     <!-- Вкладка Деньги и Бюджет -->
@@ -401,12 +411,22 @@
 
     <!-- Вкладка Закупка -->
     <div id="tab-purchase" class="tab-content">
-        <h2>📄 Документ закупки материалов</h2>
-        <p>Выберите заказы для формирования списка закупки.</p>
+        <h2>📄 Закупка материалов</h2>
+        <p>Отметьте заказы — ниже сразу появится список, что купить. То, что уже есть на складе, вычитается.</p>
+        <div class="purchase-toolbar">
+            <label>С <input type="date" id="purchaseFrom" onchange="renderPurchaseOrdersList()"></label>
+            <label>по <input type="date" id="purchaseTo" onchange="renderPurchaseOrdersList()"></label>
+            <label><input type="checkbox" id="purchaseShowDone" onchange="renderPurchaseOrdersList()"> и выполненные</label>
+            <button class="btn-sm btn-secondary" onclick="purchaseSelectAll(true)">☑ Выбрать все</button>
+            <button class="btn-sm btn-secondary" onclick="purchaseSelectAll(false)">☐ Снять все</button>
+        </div>
         <div class="orders-list" id="purchaseOrdersList"></div>
-        <button class="btn-add" onclick="generatePurchaseDocument()">📄 Сформировать документ</button>
-        <button class="btn-extra print-btn" onclick="printPurchaseDocument()">🖨️ Печать</button>
         <div id="purchaseDocumentContainer" style="margin-top:20px;"></div>
+        <div class="purchase-toolbar" style="margin-top:12px;">
+            <button class="btn-add" onclick="openPurchaseBoughtModal()">✅ Закупил</button>
+            <button class="btn-extra" onclick="copyPurchaseList()">📋 Скопировать список</button>
+            <button class="btn-extra print-btn" onclick="printPurchaseDocument()">🖨️ Печать</button>
+        </div>
     </div>
 
     <!-- Вкладка Мои задачи (для помощника) -->
@@ -586,6 +606,7 @@
     <div class="modal-overlay" id="serviceItemsModal">
         <div class="modal">
             <h3 id="serviceItemsModalTitle">Расходники услуги</h3>
+            <p style="font-size:13px; color:#6c757d; margin:0 0 10px;">Расходник с галочкой «Вкл.» сам считается в каждом заказе этой услуги: «Кол-во» — на один заказ, а с галочкой «на метр» — на каждый метр ткани или плёнки. Например, перчатки: 1 шт на заказ. В заказе количество и цену можно поправить.</p>
             <div id="serviceItemsContainer"></div>
             <div style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                 <button class="btn-extra" onclick="addServiceItemRow()">➕ Добавить расходник</button>
@@ -943,6 +964,11 @@
                 <label>🔒 Пароль</label>
                 <input type="password" id="helperPassword" placeholder="Минимум 6 символов">
                 <button class="btn-extra" onclick="toggleHelperPassword()" style="margin-top:5px;">👁 Показать/скрыть</button>
+            </div>
+            <div class="form-group">
+                <label>🆔 UID — если аккаунт помощника уже создан</label>
+                <input type="text" id="helperUid" placeholder="Из Firebase Console → Authentication" autocomplete="off">
+                <small style="display:block;color:#6c757d;font-size:12px;margin-top:4px;">С UID пароль не нужен: помощник входит со своим паролем, программа только даёт ему доступ.</small>
             </div>
             <div id="helperCredentials" style="display:none;background:#e3f2fd;padding:15px;border-radius:6px;margin-top:10px;"></div>
             <div id="helperCreatedResult" style="display:none;background:#d4edda;padding:15px;border-radius:6px;margin-top:10px;"></div>

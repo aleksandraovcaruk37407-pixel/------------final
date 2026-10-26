@@ -574,6 +574,21 @@
         }
         .purchase-item { display: flex; align-items: center; gap: 10px; padding: 8px; }
         .purchase-item input[type="checkbox"] { width: auto; flex-shrink: 0; }
+        .purchase-item { cursor: pointer; flex-wrap: wrap; }
+        .purchase-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+        .purchase-toolbar label { display: flex; gap: 6px; align-items: center; }
+        .purchase-toolbar input[type="date"] { padding: 6px; border: 1px solid #ced4da; border-radius: 6px; width: auto; }
+        .purchase-toolbar input[type="checkbox"] { width: auto; }
+        .stock-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+        .stock-tile { flex: 1; min-width: 140px; background: #f8f9fa; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #6c757d; }
+        .stock-tile b { display: block; font-size: 20px; color: #1a3c5e; margin-top: 2px; }
+        .stock-tile.short { background: #fdecea; } .stock-tile.short b { color: #dc3545; }
+        .stock-tile.low { background: #fff3cd; } .stock-tile.low b { color: #b7791f; }
+        .stock-badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 10px; margin-left: 4px; white-space: nowrap; }
+        .stock-badge.short { background: #dc3545; color: #fff; }
+        .stock-badge.low { background: #ffc107; color: #212529; }
+        tr.stock-short td { background: #fff5f5; }
+        tr.stock-low td { background: #fffbea; }
         .print-btn { background: #6c757d; color: #fff; border: none; padding: 8px 16px; border-radius: 30px; cursor: pointer; margin-left: 10px; }
         
         /* Стили для вкладки Итоги */

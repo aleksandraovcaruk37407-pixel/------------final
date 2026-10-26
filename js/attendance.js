@@ -135,8 +135,12 @@ function attCheckIn() {
     const email = window.currentUserData.email, today = attToday(), time = attNowTime();
     const late = attLateMinutes(attScheduleOf(email, helperSchedules), time);
     attSaveRecord(email, today, { status: late ? 'late' : 'present', in: time });
-    if (late && typeof addNotice === 'function') {
-        addNotice('admin', 'attendance', `⏰ ${window.currentUserData.displayName || email} пришёл в ${time} — опоздание ${attFormatMinutes(late)}`, null);
+    // Админу — о каждом приходе, с опозданием или без
+    if (typeof addNotice === 'function') {
+        const who = window.currentUserData.displayName || email;
+        addNotice('admin', 'attendance', late
+            ? `⏰ ${who} пришёл в ${time} — опоздание ${attFormatMinutes(late)}`
+            : `▶️ ${who} пришёл в ${time}`, null);
     }
     saveAll();
     renderAttendance();
@@ -149,6 +153,9 @@ function attCheckOut() {
     const rec = attFindRecord(email, today);
     if (!rec || !rec.in) return;
     attSaveRecord(email, today, { out: time });
+    if (typeof addNotice === 'function') {
+        addNotice('admin', 'attendance', `🏁 ${window.currentUserData.displayName || email} ушёл в ${time}, отработано ${attFormatMinutes(attWorkedMinutes(rec))}`, null);
+    }
     saveAll();
     renderAttendance();
     showToast(`Уход отмечен: ${time}. Отработано ${attFormatMinutes(attWorkedMinutes(rec))}`);

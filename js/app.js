@@ -252,6 +252,7 @@
     let extraModalOrderId = null;
     let editingServiceIndex = null;
     let currentExtraData = {};
+    let currentExtraPrices = {}; // свои цены доп. расходников в этом заказе
     let currentServices = [];
     let localChangesPending = false;
     let currentReportPeriodType = 'month';
@@ -1457,8 +1458,11 @@ window.localChangesPending = false;
         document.getElementById('helperName').value = '';
         document.getElementById('helperEmail').value = '';
         document.getElementById('helperPassword').value = '';
+        const uidInput = document.getElementById('helperUid');
+        if (uidInput) uidInput.value = '';
         document.getElementById('helperCreatedResult').style.display = 'none';
         document.getElementById('helperCredentials').innerHTML = '';
+        document.getElementById('helperCredentials').style.display = 'none';
         
         modal.classList.add('active');
         // НЕ блокируем скролл body на мобильных
@@ -1512,14 +1516,20 @@ window.localChangesPending = false;
         const name = document.getElementById('helperName').value.trim();
         const email = document.getElementById('helperEmail').value.trim();
         const password = document.getElementById('helperPassword').value;
-        
+        const existingUid = (document.getElementById('helperUid')?.value || '').trim();
+
         // Валидация
-        if (!name || !email || !password) {
-            alert('❌ Заполните все поля!');
+        if (!name || !email || (!password && !existingUid)) {
+            alert('❌ Заполните имя, email и пароль (или UID уже созданного аккаунта)!');
             return;
         }
-        
-        if (password.length < 6) {
+
+        if (existingUid && !/^[A-Za-z0-9]{20,40}$/.test(existingUid)) {
+            alert('❌ UID — 28 латинских букв и цифр из Firebase Console → Authentication');
+            return;
+        }
+
+        if (!existingUid && password.length < 6) {
             alert('❌ Пароль должен быть минимум 6 символов!');
             return;
         }
@@ -1537,8 +1547,9 @@ window.localChangesPending = false;
         saveBtn.disabled = true;
         
         try {
-            // Регистрация пользователя через Firebase Auth (админ остаётся в своём аккаунте)
-            const uid = await window.createHelperAuthUser(email, password, name);
+            // Аккаунт уже есть (UID из Firebase Console) — только даём доступ;
+            // иначе регистрируем через Firebase Auth (админ остаётся в своём аккаунте)
+            const uid = existingUid || await window.createHelperAuthUser(email, password, name);
             const user = { uid: uid };
 
             // Сохранение данных пользователя в Realtime Database
@@ -1549,14 +1560,20 @@ window.localChangesPending = false;
                 createdAt: new Date().toISOString(),
                 createdBy: window.currentUserData ? window.currentUserData.email : 'system'
             });
-            
+
+            // Записи с тем же email под другим ключом (старые скрипты писали users/daud_yt_play вместо UID).
+            // С ними помощник входит, но видит пустой экран; а копия в atelier_data/users возвращала их обратно
+            const removed = await removeStaleHelperRecords(email, user.uid);
+
             // Показать результат
-            document.getElementById('helperCreatedResult').style.display = 'block';
+            // Данные пишутся в helperCredentials — его и показываем (раньше открывался пустой блок)
+            document.getElementById('helperCredentials').style.display = 'block';
             document.getElementById('helperCredentials').innerHTML = `
-                <div><b>👤 Имя:</b> ${name}</div>
-                <div><b>📧 Email:</b> ${email}</div>
-                <div><b>🔒 Пароль:</b> <span style="color:#dc3545;font-weight:700;">${password}</span></div>
-                <div><b>🆔 UID:</b> ${user.uid}</div>
+                <div><b>👤 Имя:</b> ${safeHTML(name)}</div>
+                <div><b>📧 Email:</b> ${safeHTML(email)}</div>
+                ${existingUid ? '<div><b>🔒 Пароль:</b> прежний, помощник его знает</div>' : `<div><b>🔒 Пароль:</b> <span style="color:#dc3545;font-weight:700;">${safeHTML(password)}</span></div>`}
+                <div><b>🆔 UID:</b> ${safeHTML(user.uid)}</div>
+                ${removed ? `<div>🧹 Удалены старые записи с этим email: ${removed}</div>` : ''}
             `;
             
             // Обновить список помощников в фильтре
@@ -1584,6 +1601,27 @@ window.localChangesPending = false;
             saveBtn.disabled = false;
         }
     };
+
+    // Удаляет записи пользователя с этим email под чужими ключами — и в /users, и в копии atelier_data/users
+    async function removeStaleHelperRecords(email, uid) {
+        let removed = 0;
+        const target = String(email || '').toLowerCase();
+        for (const path of ['users', 'atelier_data/users']) {
+            try {
+                const snap = await window.get(window.child(window.fbRef(window.db), path));
+                const list = snap.exists() ? snap.val() : {};
+                for (const key in list) {
+                    if (key !== uid && String((list[key] || {}).email || '').toLowerCase() === target) {
+                        await window.set(window.fbRef(window.db, path + '/' + key), null);
+                        removed++;
+                    }
+                }
+            } catch (e) {
+                console.warn('Не удалось проверить старые записи в', path, e);
+            }
+        }
+        return removed;
+    }
 
     // Список всех помощников в базе
     window.listAllHelpersInDB = async function() {
@@ -2136,10 +2174,14 @@ window.localChangesPending = false;
     const NOTICE_KEEP_DAYS = 60;
     const NOTICE_MAX = 300;
 
-    function addNotice(to, type, message, orderNumber) {
+    // from — кто это сделал: уведомление «admin» не приходит самому админу, который его вызвал
+    // (оплату, выплату, закупку видит и получает push другой админ). fromSelf: true — прийти и себе (проверка push)
+    function addNotice(to, type, message, orderNumber, opts) {
+        const me = window.currentUserData && window.currentUserData.email;
         helperNotices.push({
             id: 'ntc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
             to: to,
+            ...(to === 'admin' && me && !(opts && opts.fromSelf) ? { from: me } : {}),
             type: type, // new_task, task_submitted, task_confirmed, task_returned, penalty_issued, payment_made
             message: message,
             orderNumber: orderNumber || null,
@@ -2158,8 +2200,9 @@ window.localChangesPending = false;
 
     function getMyNotices() {
         const to = myNoticeAddress();
+        const me = String(window.currentUserData && window.currentUserData.email || '').toLowerCase();
         return helperNotices
-            .filter(n => n.to === to)
+            .filter(n => n.to === to && !(n.from && String(n.from).toLowerCase() === me))
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
 
@@ -2227,6 +2270,27 @@ window.localChangesPending = false;
     }
 
     // Вызывается из js/finance.js (finPayHelper)
+    // Другим админам: оплата заказа, выплата помощнику, оплата платежа, закупка
+    function notifyAdminsAboutMoney(message, orderNumber) {
+        const who = window.currentUserData ? (window.currentUserData.displayName || window.currentUserData.email) : '';
+        addNotice('admin', 'money', `${message}${who ? ' · ' + who : ''}`, orderNumber || null);
+    }
+
+    // Склад: позиции, которые после этого действия стали «заканчивается» или «не хватает для заказов».
+    // before — склад до действия; уведомляем только о переходе в худшее состояние, чтобы не повторяться
+    function notifyAdminsAboutStock(before) {
+        const state = it => { const r = stockRemain(it); return r < 0 ? 2 : ((parseFloat(it.min) || 0) > 0 && r < parseFloat(it.min) ? 1 : 0); };
+        const was = new Map((before || []).map(it => [it.name, state(it)]));
+        loadStock().forEach(it => {
+            const now = state(it);
+            if (!now || now <= (was.get(it.name) || 0)) return;
+            const r = stockRemain(it);
+            addNotice('admin', 'stock', now === 2
+                ? `⛔ Не хватает «${it.name}» для заказов: нужно ещё ${formatNumber(-r)} ${it.unit || ''}`
+                : `⚠️ Заканчивается «${it.name}»: осталось ${formatNumber(r)} ${it.unit || ''} (минимум ${formatNumber(it.min)})`, null, { fromSelf: true });
+        });
+    }
+
     function notifyHelperAboutPayment(helperEmail, amount) {
         addNotice(helperEmail, 'payment_made', `💳 Выплата: ${formatMoney(amount)}`, null);
     }
@@ -2945,54 +3009,13 @@ window.localChangesPending = false;
     }
 
     // ========== МОДУЛЬ 6.1: РАСЧЕТ СЕБЕСТОИМОСТИ ==========
+    // Сам расчёт — в js/costs.js, один для окна заказа, «Денег», закупки и склада
+    function costRefs() {
+        return { rates, colors, paints, films, extraRef, materialTypes };
+    }
+
     function recalcOrder(order) {
-        let totalCost = 0;
-        order.services.forEach(inst => {
-            const svc = rates.find(r => r.service === inst.serviceName);
-            if (!svc) return;
-            if (serviceUsesMarker(svc, 'Ткань') && inst.fabric) {
-                const meters = parseFloat(inst.fabric.meters)||0;
-                const price = parseFloat(inst.fabric.price)||0;
-                totalCost += meters * price;
-            }
-            if (serviceUsesPaint(svc) && inst.paint) {
-                const found = paints.find(p => p.code === inst.paint.code);
-                totalCost += (parseFloat(inst.paint.qty)||0) * (found ? parseFloat(found.price)||0 : 0);
-            }
-            if (serviceUsesMarker(svc, 'Пленка для аквапринта') && inst.film) {
-                const found = films.find(f => f.code === inst.film.code);
-                totalCost += (parseFloat(inst.film.meters)||0) * (found ? parseFloat(found.price)||0 : 0);
-            }
-            svc.items.forEach(item => {
-                if (item.enabled === false) return;
-                if (item.customMarker) return;
-                if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-                if (item.name === 'Пленка для аквапринта' && serviceUsesMarker(svc, 'Пленка для аквапринта')) return;
-                if (item.name === 'Ткань' && serviceUsesMarker(svc, 'Ткань')) return;
-                if (materialTypes.some(mt => mt.name === item.name)) return;
-                let qty = 0;
-                if ((inst.manualItems || {})[item.name] !== undefined) qty = parseFloat((inst.manualItems || {})[item.name])||0;
-                else if (!item.manual) qty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
-                totalCost += qty * (parseFloat(item.price)||0);
-            });
-            materialTypes.forEach(mt => {
-                const markerItem = svc.items.find(item => item.enabled !== false && item.name === mt.name);
-                const markerData = inst[mt.name];
-                if (markerItem && markerData && markerData.code) {
-                    const art = mt.articles.find(a => a.code === markerData.code);
-                    if (art) {
-                        const qty = parseFloat(markerData.sheets || markerData.qty || 0);
-                        totalCost += qty * (parseFloat(art.price)||0);
-                    }
-                }
-            });
-        });
-        let extra = {};
-        try { extra = JSON.parse(order.extraData || '{}'); } catch(e) {}
-        for (let key in extra) {
-            const ref = extraRef.find(e => e.name === key);
-            if (ref) totalCost += (parseFloat(extra[key])||0) * (parseFloat(ref.price)||0);
-        }
+        const totalCost = costOrderTotal(order, costRefs());
         order.materialCost = totalCost;
         order.grossProfit = (parseFloat(order.clientPrice)||0) - totalCost;
         return order;
@@ -3008,79 +3031,15 @@ window.localChangesPending = false;
 
     function recalculateStockFromAllOrders() {
         let stock = loadStock().map(item => ({...item, used:0}));
-        const ensure = (name, unit, price) => {
-            let item = stock.find(s => s.name === name);
+        costSumLines(ordersData, costRefs()).forEach(line => {
+            let item = stock.find(s => s.name === line.name);
             if (!item) {
-                item = {name, unit, price, income:0, used:0, remain:0};
+                item = {name: line.name, unit: line.unit, price: line.price, income:0, used:0, remain:0};
                 stock.push(item);
             }
-            return item;
-        };
-        ordersData.forEach(order => {
-            if (!order.services || !Array.isArray(order.services)) return;
-            order.services.forEach(inst => {
-                const svc = rates.find(r => r.service === inst.serviceName);
-                if (!svc) return;
-                if (serviceUsesMarker(svc, 'Ткань') && inst.fabric && parseFloat(inst.fabric.meters) > 0) {
-                    const glue = ensure('Клей', 'мл', extraRef.find(e=>e.name==='Клей')?.price || 0);
-                    glue.used += parseFloat(inst.fabric.meters) * 150;
-                    const thinner = ensure('Растворитель', 'мл', extraRef.find(e=>e.name==='Растворитель')?.price || 0);
-                    thinner.used += parseFloat(inst.fabric.meters) * 50;
-                }
-                if (serviceUsesPaint(svc) && inst.paint && parseFloat(inst.paint.qty) > 0) {
-                    const paint = paints.find(p => p.code === inst.paint.code);
-                    if (paint) {
-                        const item = ensure(paint.name, 'мл', parseFloat(paint.price)||0);
-                        item.used += parseFloat(inst.paint.qty);
-                    }
-                }
-                if (serviceUsesMarker(svc, 'Пленка для аквапринта') && inst.film && parseFloat(inst.film.meters) > 0) {
-                    const film = films.find(f => f.code === inst.film.code);
-                    if (film) {
-                        const item = ensure(film.name, 'м', parseFloat(film.price)||0);
-                        item.used += parseFloat(inst.film.meters);
-                    }
-                }
-                svc.items.forEach(item => {
-                    if (item.customMarker) return;
-                    if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-                    if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
-                    if (item.name === 'Ткань' && svc.usesFabric) return;
-                    if (materialTypes.some(mt => mt.name === item.name)) return;
-                    let qty = (inst.manualItems || {})[item.name] !== undefined ? parseFloat((inst.manualItems || {})[item.name]) : (item.manual ? 0 : (item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0)));
-                    if (qty > 0) {
-                        const stockItem = ensure(item.name, item.unit, parseFloat(item.price)||0);
-                        stockItem.used += qty;
-                    }
-                });
-                materialTypes.forEach(mt => {
-                    const markerItem = svc.items.find(item => item.enabled !== false && item.name === mt.name);
-                    const markerData = inst[mt.name];
-                    if (markerItem && markerData && markerData.code) {
-                        const art = mt.articles.find(a => a.code === markerData.code);
-                        if (art) {
-                            const qty = markerItem.manual ? (parseFloat(markerData.qty)||0) : (markerItem.perMeter ? (parseFloat(markerItem.quantity)||0) * getServiceMeters(inst) : (parseFloat(markerItem.quantity)||0));
-                            if (qty <= 0) return;
-                            const stockItem = ensure(art.name, mt.unit, parseFloat(art.price)||0);
-                            stockItem.used += qty;
-                        }
-                    }
-                });
-            });
-            let extra = {};
-            try { extra = JSON.parse(order.extraData || '{}'); } catch(e) {}
-            for (let key in extra) {
-                const qty = parseFloat(extra[key]) || 0;
-                if (qty > 0) {
-                    const ref = extraRef.find(e => e.name === key);
-                    if (ref) {
-                        const stockItem = ensure(key, ref.unit, parseFloat(ref.price)||0);
-                        stockItem.used += qty;
-                    }
-                }
-            }
+            item.used += line.qty;
         });
-        stock.forEach(item => item.remain = (parseFloat(item.income)||0) - (parseFloat(item.used)||0));
+        stock.forEach(item => item.remain = stockRemain(item));
         saveStock(stock);
     }
 
@@ -3122,6 +3081,20 @@ window.localChangesPending = false;
     }
 
     function deleteCashOp(idx) {
+        const op = cashOps[idx];
+        // Удаление закупки возвращает склад: купленное по ней убирается из прихода
+        if (op && op.category === 'purchase' && Array.isArray(op.items) && op.items.length) {
+            if (!confirm('Удалить закупку? Купленное по ней уберётся и со склада.')) return;
+            const stock = loadStock();
+            op.items.forEach(it => {
+                const item = stock.find(s => s.name === it.name);
+                if (!item) return;
+                item.income = Math.max(0, (parseFloat(item.income) || 0) - (parseFloat(it.qty) || 0));
+                item.remain = stockRemain(item);
+            });
+            saveStock(stock);
+            if (typeof window.markChanged === 'function') window.markChanged();
+        }
         cashOps.splice(idx, 1);
         saveAll();
         renderAll();
@@ -3659,7 +3632,6 @@ window.localChangesPending = false;
         const unit = item ? item.unit || 'мл' : 'мл';
         const price = item ? (item.price !== undefined ? item.price : 0) : '';
         const perMeter = item ? !!item.perMeter : false;
-        const manual = item ? !!item.manual : false;
         const enabled = item ? (item.enabled !== false) : true;
         const marker = getMarkerDefinition(name);
         const isMarker = !!marker;
@@ -3675,7 +3647,6 @@ window.localChangesPending = false;
             </select>
             <input type="number" class="item-price" placeholder="Цена" value="${price}" style="width:80px;" step="0.01">
             <label><input type="checkbox" class="item-perMeter" ${perMeter ? 'checked' : ''}> на метр</label>
-            <label><input type="checkbox" class="item-manual" ${manual ? 'checked' : ''}> Вручную</label>
             <label><input type="checkbox" class="item-enabled" ${enabled ? 'checked' : ''}> Вкл.</label>
             <button class="btn-del" onclick="this.parentElement.remove()">✕</button>
         `;
@@ -3733,7 +3704,7 @@ window.localChangesPending = false;
             const isMarker = row.dataset.isMarker === 'true' || !!marker;
             if (isMarker) {
                 const perMeter = row.querySelector('.item-perMeter').checked;
-                const manual = row.querySelector('.item-manual').checked;
+                const manual = false; // галочки «Вручную» больше нет: включённое считается по норме
                 const enabled = row.querySelector('.item-enabled').checked;
                 if (enabled && name === 'Ткань') usesFabric = true;
                 else if (enabled && name === 'Краска') usesPaint = true;
@@ -3749,7 +3720,7 @@ window.localChangesPending = false;
             const price = parseFloat(priceInput?.value);
             const unit = unitInput?.value || 'мл';
             const perMeter = row.querySelector('.item-perMeter')?.checked || false;
-            const manual = row.querySelector('.item-manual')?.checked || false;
+            const manual = false;
             const enabled = row.querySelector('.item-enabled')?.checked !== false;
             items.push({name, quantity:Number.isFinite(quantity) ? quantity : 1, unit, price:Number.isFinite(price) ? price : 0, perMeter, manual, enabled, customMarker: false});
         });
@@ -3831,6 +3802,7 @@ window.localChangesPending = false;
             btn.classList.toggle('active', btn.classList.contains(currentManualColor));
         });
         currentExtraData = order?.extraData ? JSON.parse(order.extraData) : {};
+        currentExtraPrices = {...(order?.extraPrices || {})};
         const servicesList = document.getElementById('servicesList');
         servicesList.innerHTML = '';
         currentServices = [];
@@ -3865,6 +3837,7 @@ window.localChangesPending = false;
                 if (taskPay && order.taskPay) {
                     taskPay.value = order.taskPay;
                 }
+                updateModalTotals(); // прибыль — уже с оплатой помощнику
             }
         });
         
@@ -4055,6 +4028,21 @@ window.localChangesPending = false;
         return includes || null;
     }
 
+    // Под полем цены: «своя цена · в справочнике N ₽», если цена в заказе отличается
+    function showRefPriceHint(priceInput, refPrice) {
+        if (!priceInput) return;
+        let hint = priceInput.parentElement.querySelector('.ref-price-hint');
+        if (!hint) {
+            hint = document.createElement('small');
+            hint.className = 'ref-price-hint';
+            hint.style.cssText = 'display:block;color:#e67e22;font-size:11px;margin-top:2px;';
+            priceInput.insertAdjacentElement('afterend', hint);
+        }
+        const ref = parseFloat(refPrice) || 0;
+        const own = parseFloat(priceInput.value) || 0;
+        hint.textContent = ref > 0 && own > 0 && Math.abs(own - ref) > 0.0001 ? `своя цена · в справочнике ${formatMoney(ref)}` : '';
+    }
+
     function buildServiceDetails(container, index) {
         const inst = currentServices[index];
         const svc = rates.find(r => r.service === inst.serviceName);
@@ -4095,23 +4083,28 @@ window.localChangesPending = false;
                 setTimeout(() => { codeInput.placeholder = 'Артикул или название'; }, 2000);
             });
             
-            const update = () => {
+            // Цена из справочника подставляется только при выборе артикула (или если своей цены нет),
+            // иначе своя цена заказа сохраняется и при повторном открытии
+            const update = (codeChanged) => {
                 inst.fabric.category = catInput.value;
                 inst.fabric.code = codeInput.value;
-                inst.fabric.price = parseFloat(priceInput.value) || 0;
                 inst.fabric.meters = parseFloat(metersInput.value) || 0;
                 const found = findReferenceMatch(codeInput.value, colors);
                 if (found) {
                     codeInput.value = found.code;
                     catInput.value = found.category;
-                    priceInput.value = parseFloat(found.price) || 0;
-                    inst.fabric.price = parseFloat(found.price) || 0;
+                    inst.fabric.code = found.code;
+                    inst.fabric.category = found.category;
+                    if (codeChanged === true || !(parseFloat(priceInput.value) > 0)) priceInput.value = parseFloat(found.price) || 0;
                 }
+                inst.fabric.price = parseFloat(priceInput.value) || 0;
+                showRefPriceHint(priceInput, found && found.price);
                 costInput.value = ((parseFloat(inst.fabric.meters)||0) * (parseFloat(inst.fabric.price)||0)).toFixed(2);
                 updateModalTotals();
             };
-            [catInput, codeInput, priceInput, metersInput].forEach(el => el.addEventListener('input', update));
-            update();
+            codeInput.addEventListener('input', () => update(true));
+            [catInput, priceInput, metersInput].forEach(el => el.addEventListener('input', () => update(false)));
+            update(false);
         }
         if (serviceUsesPaint(svc)) {
             const div = document.createElement('div');
@@ -4121,7 +4114,7 @@ window.localChangesPending = false;
                     <input type="text" class="paint-code" value="${inst.paint.code||''}" list="paintCodes" placeholder="Артикул или название" style="flex:1;">
                     <button type="button" class="btn-clear-art" data-target="paint-code" style="padding:6px 12px;font-size:16px;background:#dc3545;color:#fff;border:none;border-radius:6px;cursor:pointer;min-width:40px;min-height:40px;flex-shrink:0;" title="Очистить артикул">✕</button>
                 </div>
-                <label>Цена</label><input type="number" class="paint-price" value="${parseFloat(inst.paint.price)||0}" readonly>
+                <label>Цена</label><input type="number" class="paint-price" value="${parseFloat(inst.paint.price)||0}" step="0.01">
                 <label>Мл</label><input type="number" class="paint-qty" value="${parseFloat(inst.paint.qty)||0}">
                 <label>Стоимость</label><input type="text" class="paint-cost" readonly>`;
             container.appendChild(div);
@@ -4144,23 +4137,23 @@ window.localChangesPending = false;
                 setTimeout(() => { codeInput.placeholder = 'Артикул или название'; }, 2000);
             });
             
-            const update = () => {
+            const update = (codeChanged) => {
                 inst.paint.code = codeInput.value;
                 const found = findReferenceMatch(codeInput.value, paints);
-                if (found) { 
+                if (found) {
                     codeInput.value = found.code;
-                    inst.paint.price = parseFloat(found.price)||0; 
-                    priceInput.value = parseFloat(found.price)||0; 
-                } else {
-                    inst.paint.price = parseFloat(priceInput.value)||0;
+                    inst.paint.code = found.code;
+                    if (codeChanged === true || !(parseFloat(priceInput.value) > 0)) priceInput.value = parseFloat(found.price)||0;
                 }
+                inst.paint.price = parseFloat(priceInput.value)||0;
+                showRefPriceHint(priceInput, found && found.price);
                 inst.paint.qty = parseFloat(qtyInput.value) || 0;
                 costInput.value = ((parseFloat(inst.paint.qty)||0) * (parseFloat(inst.paint.price)||0)).toFixed(2);
                 updateModalTotals();
             };
-            codeInput.addEventListener('input', update);
-            qtyInput.addEventListener('input', update);
-            update();
+            codeInput.addEventListener('input', () => update(true));
+            [priceInput, qtyInput].forEach(el => el.addEventListener('input', () => update(false)));
+            update(false);
         }
         if (serviceUsesMarker(svc, 'Пленка для аквапринта')) {
             const div = document.createElement('div');
@@ -4170,7 +4163,7 @@ window.localChangesPending = false;
                     <input type="text" class="film-code" value="${inst.film.code||''}" list="filmCodes" placeholder="Артикул или название" style="flex:1;">
                     <button type="button" class="btn-clear-art" data-target="film-code" style="padding:6px 12px;font-size:16px;background:#dc3545;color:#fff;border:none;border-radius:6px;cursor:pointer;min-width:40px;min-height:40px;flex-shrink:0;" title="Очистить артикул">✕</button>
                 </div>
-                <label>Цена</label><input type="number" class="film-price" value="${parseFloat(inst.film.price)||0}" readonly>
+                <label>Цена</label><input type="number" class="film-price" value="${parseFloat(inst.film.price)||0}" step="0.01">
                 <label>Метры</label><input type="number" class="film-meters" value="${parseFloat(inst.film.meters)||0}">
                 <label>Стоимость</label><input type="text" class="film-cost" readonly>`;
             container.appendChild(div);
@@ -4193,23 +4186,23 @@ window.localChangesPending = false;
                 setTimeout(() => { codeInput.placeholder = 'Артикул или название'; }, 2000);
             });
             
-            const update = () => {
+            const update = (codeChanged) => {
                 inst.film.code = codeInput.value;
                 const found = findReferenceMatch(codeInput.value, films);
-                if (found) { 
+                if (found) {
                     codeInput.value = found.code;
-                    inst.film.price = parseFloat(found.price)||0; 
-                    priceInput.value = parseFloat(found.price)||0; 
-                } else {
-                    inst.film.price = parseFloat(priceInput.value)||0;
+                    inst.film.code = found.code;
+                    if (codeChanged === true || !(parseFloat(priceInput.value) > 0)) priceInput.value = parseFloat(found.price)||0;
                 }
+                inst.film.price = parseFloat(priceInput.value)||0;
+                showRefPriceHint(priceInput, found && found.price);
                 inst.film.meters = parseFloat(metersInput.value) || 0;
                 costInput.value = ((parseFloat(inst.film.meters)||0) * (parseFloat(inst.film.price)||0)).toFixed(2);
                 updateModalTotals();
             };
-            codeInput.addEventListener('input', update);
-            metersInput.addEventListener('input', update);
-            update();
+            codeInput.addEventListener('input', () => update(true));
+            [priceInput, metersInput].forEach(el => el.addEventListener('input', () => update(false)));
+            update(false);
         }
         // Рендер кастомных маркеров (ВИБРОПОГЛОЩЕНИЕ, ШУМОИЗОЛЯЦИЯ и т.д.)
         const markerIcons = {
@@ -4232,7 +4225,7 @@ window.localChangesPending = false;
                         <input type="text" class="custom-code" data-mt="${mt.name}" value="${markerData.code||''}" list="${mt.name}Codes" placeholder="Артикул или название" style="flex:1;">
                         <button type="button" class="btn-clear-art" data-target="custom-code-${mt.name}" style="padding:6px 12px;font-size:16px;background:#dc3545;color:#fff;border:none;border-radius:6px;cursor:pointer;min-width:40px;min-height:40px;flex-shrink:0;" title="Очистить артикул">✕</button>
                     </div>
-                    <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" readonly>
+                    <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" step="0.01">
                     <label>Количество ${unitLabel}</label><input type="number" class="custom-qty" value="${markerData.qty||''}" step="0.1" placeholder="0.0">
                     <label>Стоимость</label><input type="text" class="custom-cost" value="0.00" readonly>`;
                 container.appendChild(div);
@@ -4255,7 +4248,7 @@ window.localChangesPending = false;
                     setTimeout(() => { codeInput.placeholder = 'Артикул или название'; }, 2000);
                 });
                 
-                const update = () => {
+                const update = (codeChanged) => {
                     const query = codeInput.value.trim().toLowerCase();
                     let art = null;
                     if (query) {
@@ -4268,7 +4261,7 @@ window.localChangesPending = false;
                         codeInput.value = art.code;
                         // Автоматически определяем единицу измерения по коду и названию артикула
                         const detectedUnit = getUnitFromArticleName(art.name, art.code);
-                        priceInput.value = parseFloat(art.price)||0;
+                        if (codeChanged === true || !(parseFloat(priceInput.value) > 0)) priceInput.value = parseFloat(art.price)||0;
                         // Обновляем лейблы если единица изменилась
                         const priceLabel = priceInput.parentElement;
                         const qtyLabel = qtyInput.parentElement;
@@ -4277,88 +4270,113 @@ window.localChangesPending = false;
                     }
                     inst[mt.name] = {
                         code: codeInput.value, 
-                        price: art ? (parseFloat(art.price)||0) : (parseFloat(priceInput.value)||0), 
+                        price: parseFloat(priceInput.value)||0,
                         qty: parseFloat(qtyInput.value) || 0,
                         unit: art ? getUnitFromArticleName(art.name, art.code) : unitLabel
                     };
+                    showRefPriceHint(priceInput, art && art.price);
                     costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].qty)||0)).toFixed(2);
                     updateModalTotals();
                 };
-                codeInput.addEventListener('input', update);
-                qtyInput.addEventListener('input', update);
-                update();
+                codeInput.addEventListener('input', () => update(true));
+                [priceInput, qtyInput].forEach(el => el.addEventListener('input', () => update(false)));
+                update(false);
             }
         });
-        svc.items.forEach(item => {
-            if (item.enabled === false) return;
-            if (item.customMarker) return;
-            if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-            if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
-            if (item.name === 'Ткань' && svc.usesFabric) return;
-            if (materialTypes.some(mt => mt.name === item.name)) return;
-            // Скрываем Клей и Растворитель из отображения (но они считаются в стоимости)
-            if (item.name === 'Клей' || item.name === 'Растворитель') return;
-            // Скрываем Грунт для пластика из услуги "Восстановление после ДТП"
-            if (item.name === 'Грунт для пластика' && inst.serviceName === 'Восстановление после ДТП') return;
-            const div = document.createElement('div');
-            const automaticQty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
-            div.innerHTML = item.manual
-                ? `<label>${item.name} (${item.unit})</label><input type="number" class="ordinary-qty" value="${parseFloat((inst.manualItems || {})[item.name])||''}">`
-                : `<label>${item.name} (${item.unit})</label><input type="number" class="ordinary-qty automatic-qty" data-service-index="${index}" data-base-quantity="${parseFloat(item.quantity)||0}" data-per-meter="${item.perMeter}" value="${automaticQty}" readonly>`;
-            container.appendChild(div);
-            const input = div.querySelector('.ordinary-qty');
-            input.addEventListener('input', () => {
-                const val = parseFloat(input.value)||0;
-                inst.manualItems[item.name] = val;
-                updateModalTotals();
+        // Расходники услуги, включённые в справочнике, считаются сами по норме (на заказ или на метр).
+        // Список свёрнут: в заказе их не нужно вписывать, но можно поправить количество или цену.
+        const ordinaryItems = (svc.items || []).filter(item => costIsOrdinaryItem(item, svc, costRefs()));
+        if (ordinaryItems.length) {
+            const box = document.createElement('details');
+            box.className = 'auto-items';
+            box.dataset.serviceIndex = index;
+            const hasOwn = ordinaryItems.some(item => (inst.manualItems || {})[item.name] !== undefined || (inst.itemPrices || {})[item.name] !== undefined);
+            if (hasOwn) box.open = true;
+            box.innerHTML = `<summary class="section-title" style="cursor:pointer;">🧴 Расходники по норме (${ordinaryItems.length}) · <span class="auto-items-sum">0 ₽</span></summary>`;
+            container.appendChild(box);
+            ordinaryItems.forEach(item => {
+                const div = document.createElement('div');
+                const own = (inst.manualItems || {})[item.name];
+                const ownPrice = parseFloat((inst.itemPrices || {})[item.name]) || 0;
+                div.innerHTML = `<label>${safeHTML(item.name)} · кол-во (${safeHTML(item.unit)}) и цена за ${safeHTML(item.unit)}</label>
+                    <div style="display:flex;gap:6px;align-items:flex-start;">
+                        <div style="flex:1;"><input type="number" class="ordinary-qty automatic-qty" step="0.01" data-service-index="${index}" data-item-name="${escAttr(item.name)}"></div>
+                        <div style="flex:1;"><input type="number" class="ordinary-price" step="0.01" value="${ownPrice || parseFloat(item.price) || 0}"></div>
+                        <button type="button" class="btn-reset-norm" title="Вернуть норму из справочника" style="min-width:40px;min-height:40px;border:1px solid #ced4da;border-radius:6px;background:#fff;cursor:pointer;">↺</button>
+                    </div>
+                    <small class="norm-hint" style="display:block;color:#6c757d;font-size:11px;margin-top:2px;"></small>`;
+                box.appendChild(div);
+                const input = div.querySelector('.ordinary-qty');
+                const priceInput = div.querySelector('.ordinary-price');
+                const resetBtn = div.querySelector('.btn-reset-norm');
+                input.value = own !== undefined ? (parseFloat(own) || 0) : costItemQty(item, inst);
+                input.addEventListener('input', () => {
+                    inst.manualItems = inst.manualItems || {};
+                    inst.manualItems[item.name] = parseFloat(input.value) || 0;
+                    updateModalTotals();
+                });
+                showRefPriceHint(priceInput, item.price);
+                priceInput.addEventListener('input', () => {
+                    inst.itemPrices = inst.itemPrices || {};
+                    const val = parseFloat(priceInput.value) || 0;
+                    // Цена как в справочнике — своя цена не нужна
+                    if (val > 0 && val !== (parseFloat(item.price) || 0)) inst.itemPrices[item.name] = val;
+                    else delete inst.itemPrices[item.name];
+                    showRefPriceHint(priceInput, item.price);
+                    updateModalTotals();
+                });
+                resetBtn.addEventListener('click', () => {
+                    if (inst.manualItems) delete inst.manualItems[item.name];
+                    if (inst.itemPrices) delete inst.itemPrices[item.name];
+                    priceInput.value = parseFloat(item.price) || 0;
+                    showRefPriceHint(priceInput, item.price);
+                    updateModalTotals();
+                });
             });
-        });
+        }
     }
 
     function updateModalTotals() {
-        let totalCost = 0;
+        // Норма расходников зависит от метров ткани/плёнки — пересчитываем, если количество не поправлено вручную
         document.querySelectorAll('.automatic-qty').forEach(input => {
             const inst = currentServices[parseInt(input.dataset.serviceIndex)];
+            const svc = inst && rates.find(r => r.service === inst.serviceName);
+            const item = svc && (svc.items || []).find(i => i.name === input.dataset.itemName);
+            if (!item) return;
+            const own = (inst.manualItems || {})[item.name] !== undefined;
+            const norm = item.perMeter ? `норма ${formatNumber(item.quantity)} ${item.unit} на метр` : `норма ${formatNumber(item.quantity)} ${item.unit} на заказ`;
+            if (!own) input.value = costItemQty(item, inst);
+            const hint = input.closest('.auto-items > div')?.querySelector('.norm-hint');
+            if (hint) {
+                hint.textContent = own ? `своё количество · ${norm}` : norm;
+                hint.style.color = own ? '#e67e22' : '#6c757d';
+            }
+        });
+        document.querySelectorAll('.auto-items').forEach(box => {
+            const inst = currentServices[parseInt(box.dataset.serviceIndex)];
             if (!inst) return;
-            const baseQuantity = parseFloat(input.dataset.baseQuantity) || 0;
-            input.value = input.dataset.perMeter === 'true' ? baseQuantity * getServiceMeters(inst) : baseQuantity;
+            const sum = costOrderLines({ services: [inst] }, costRefs()).filter(l => l.kind === 'item').reduce((a, l) => a + l.sum, 0);
+            const el = box.querySelector('.auto-items-sum');
+            if (el) el.textContent = formatMoney(sum);
         });
-        currentServices.forEach(inst => {
-            const svc = rates.find(r => r.service === inst.serviceName);
-            if (!svc) return;
-            if (serviceUsesMarker(svc, 'Ткань') && inst.fabric) totalCost += (parseFloat(inst.fabric.meters)||0) * (parseFloat(inst.fabric.price)||0);
-            if (serviceUsesPaint(svc) && inst.paint) totalCost += (parseFloat(inst.paint.qty)||0) * (parseFloat(inst.paint.price)||0);
-            if (serviceUsesMarker(svc, 'Пленка для аквапринта') && inst.film) totalCost += (parseFloat(inst.film.meters)||0) * (parseFloat(inst.film.price)||0);
-            svc.items.forEach(item => {
-                if (item.enabled === false) return;
-                if (item.customMarker) return;
-                if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-                if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
-                if (item.name === 'Ткань' && svc.usesFabric) return;
-                let qty = 0;
-                if ((inst.manualItems || {})[item.name] !== undefined) qty = parseFloat((inst.manualItems || {})[item.name])||0;
-                else if (!item.manual) qty = item.perMeter ? (parseFloat(item.quantity)||0) * getServiceMeters(inst) : (parseFloat(item.quantity)||0);
-                totalCost += qty * (parseFloat(item.price)||0);
-            });
-            materialTypes.forEach(mt => {
-                const markerItem = svc.items.find(item => item.enabled !== false && item.name === mt.name);
-                if (markerItem) {
-                    const markerData = inst[mt.name];
-                    if (markerData && markerData.code) {
-                        const qty = parseFloat(markerData.sheets || markerData.qty || markerData.m2 || 0);
-                        totalCost += qty * (parseFloat(markerData.price)||0);
-                    }
-                }
-            });
-        });
-        for (let key in currentExtraData) {
-            const ref = extraRef.find(e => e.name === key);
-            if (ref) totalCost += (parseFloat(currentExtraData[key])||0) * (parseFloat(ref.price)||0);
-        }
+        const draft = { services: currentServices, extraData: currentExtraData, extraPrices: currentExtraPrices };
+        const totalCost = costOrderTotal(draft, costRefs());
         document.getElementById('orderMaterialCost').value = totalCost.toFixed(2);
         const client = parseFloat(document.getElementById('orderClientPrice').value)||0;
         const taskPay = parseFloat(document.getElementById('orderTaskPay') ? document.getElementById('orderTaskPay').value : '0') || 0;
-        document.getElementById('orderGrossProfit').value = (client - totalCost - taskPay).toFixed(2);
+        // Как «Маржинальная прибыль» во вкладке «Деньги»: цена − налог − материалы − помощнику
+        const taxPercent = typeof finSettings === 'function' ? (parseFloat(finSettings().taxPercent) || 0) : 0;
+        const tax = client * taxPercent / 100;
+        const profitInput = document.getElementById('orderGrossProfit');
+        profitInput.value = (client - tax - totalCost - taskPay).toFixed(2);
+        let note = document.getElementById('orderProfitNote');
+        if (!note) {
+            note = document.createElement('small');
+            note.id = 'orderProfitNote';
+            note.style.cssText = 'display:block;color:#6c757d;font-size:11px;margin-top:2px;';
+            profitInput.insertAdjacentElement('afterend', note);
+        }
+        note.textContent = `${formatMoney(client)} − налог ${taxPercent}% ${formatMoney(tax)} − материалы ${formatMoney(totalCost)} − помощнику ${formatMoney(taskPay)}`;
     }
 
     function saveOrderModal() {
@@ -4390,21 +4408,35 @@ window.localChangesPending = false;
             paint: {...inst.paint},
             film: {...inst.film},
             manualItems: {...inst.manualItems},
+            itemPrices: {...(inst.itemPrices || {})},
             ...Object.fromEntries(materialTypes.map(mt => [mt.name, inst[mt.name] ? {...inst[mt.name]} : undefined]))
         }));
         const extraData = JSON.stringify(currentExtraData);
-        
+        const existingOrder = orderEditId ? ordersData.find(o => o.id === orderEditId) : null;
+
+        // Задачи помощникам хранятся в услугах заказа, а окно их не показывает — переносим из
+        // сохранённого заказа (раньше при правке заказа они пропадали вместе с оплатой и штрафами)
+        const oldTasks = [];
+        ((existingOrder && existingOrder.services) || []).forEach(s => (s.tasks || []).forEach(t => oldTasks.push({ serviceName: s.serviceName, task: t })));
+        oldTasks.forEach(({ serviceName, task }) => {
+            const target = servicesCopy.find(s => s.serviceName === serviceName) || servicesCopy[0];
+            (target.tasks = target.tasks || []).push(task);
+        });
+
         // Формируем полный срок с временем
         let fullDeadline = taskDeadline;
         if (fullDeadline && taskTime) {
             fullDeadline = fullDeadline + 'T' + taskTime;
         }
         
+        // Поля, которых нет в окне (дата оплаты paidAt и т.п.), берём из сохранённого заказа:
+        // без paidAt правка оплаченного заказа переносила его выручку на сегодняшний день
         const orderData = {
+            ...(existingOrder || {}),
             id: orderEditId || Date.now(),
             orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : finNextOrderNumber(ordersData, localStorage.getItem('lastOrderNumber')),
             date, client, phone, services: servicesCopy, clientPrice, durationDays,
-            extraData, done, paid, manualColor: currentManualColor,
+            extraData, extraPrices: {...currentExtraPrices}, done, paid, manualColor: currentManualColor,
             // Данные задания помощнику
             helperEmail: helperEmail,
             taskDescription: taskDescription,
@@ -4419,9 +4451,17 @@ window.localChangesPending = false;
         } else {
             ordersData.push(orderData);
         }
-        
-        // Если есть задание помощнику — создаём задачу и уведомляем
-        if (helperEmail && taskDescription && taskDeadline) {
+
+        // Задание из этого окна уже есть (тот же помощник и прежнее описание) — обновляем его,
+        // сохраняя статус; раньше каждое сохранение заказа создавало помощнику новую задачу
+        const sameTask = existingOrder && existingOrder.helperEmail === helperEmail
+            ? oldTasks.map(x => x.task).find(t => t.assignedTo === helperEmail && t.description === existingOrder.taskDescription)
+            : null;
+        if (sameTask && helperEmail && taskDescription && taskDeadline) {
+            sameTask.description = taskDescription;
+            sameTask.deadline = fullDeadline || taskDeadline;
+            sameTask.helperPay = taskPay;
+        } else if (helperEmail && taskDescription && taskDeadline) {
             const order = ordersData.find(o => o.id === orderData.id);
             if (order) {
                 // Добавляем задачу в первую услугу
@@ -4447,15 +4487,15 @@ window.localChangesPending = false;
         }
         
         recalcOrder(orderData);
+        const stockBefore = loadStock();
         recalculateStockFromAllOrders();
+        notifyAdminsAboutStock(stockBefore);
+        if (paid && !(existingOrder && (existingOrder.paid === true || existingOrder.paid === 'true'))) {
+            notifyAdminsAboutMoney(`💰 Оплачен заказ №${orderData.orderNumber} (${orderData.client}): ${formatMoney(clientPrice)}`, orderData.orderNumber);
+        }
         if (paid) {
             // При редактировании существующего оплаченного заказа - удаляем старые транзакции
-            if (orderEditId) {
-                const existingOrder = ordersData.find(o => o.id === orderEditId);
-                if (existingOrder && existingOrder.paid) {
-                    removePaymentDistribution(existingOrder.orderNumber);
-                }
-            }
+            if (existingOrder && existingOrder.paid) removePaymentDistribution(existingOrder.orderNumber);
             distributePayment(orderData);
         }
         saveAll();
@@ -4493,6 +4533,7 @@ function togglePaid(id, checked) {
     const order = ordersData.find(o => String(o.id) === String(id));
     if (order) {
         order.paid = checked;
+        if (checked) notifyAdminsAboutMoney(`💰 Оплачен заказ №${order.orderNumber} (${order.client}): ${formatMoney(parseFloat(order.clientPrice) || 0)}`, order.orderNumber);
         if (checked) distributePayment(order);
         else removePaymentDistribution(order.orderNumber); // Удаляем транзакции при снятии отметки
         saveAll();
@@ -4516,7 +4557,9 @@ function deleteOrder(orderId) {
         extraRef.forEach(ref => {
             const div = document.createElement('div');
             div.className = 'extra-item';
-            div.innerHTML = `<span>${ref.name}</span><input type="number" class="extra-qty" value="${parseFloat(currentExtraData[ref.name])||''}" placeholder="Кол-во" data-name="${ref.name}"> <span>${parseFloat(ref.price)||0}₽/${ref.unit}</span>`;
+            // Цена за единицу — из справочника, но для этого заказа её можно поменять
+            const price = parseFloat(currentExtraPrices[ref.name]) || parseFloat(ref.price) || 0;
+            div.innerHTML = `<span>${safeHTML(ref.name)}</span><input type="number" class="extra-qty" value="${parseFloat(currentExtraData[ref.name])||''}" placeholder="Кол-во" data-name="${escAttr(ref.name)}"> <input type="number" class="extra-price" step="0.01" value="${price}" data-name="${escAttr(ref.name)}" style="width:90px;" title="Цена за ${escAttr(ref.unit)}"> <span>₽/${safeHTML(ref.unit)}</span>`;
             container.appendChild(div);
         });
         document.getElementById('extraModal').classList.add('active');
@@ -4526,12 +4569,23 @@ function deleteOrder(orderId) {
         document.getElementById('extraModal').classList.remove('active');
         document.body.classList.remove('modal-open');
     }
-    function saveExtraModal() {
+    // Переносит введённое в окне доп. расходников в заказ (количество и своя цена)
+    function readExtraModalInputs() {
         document.querySelectorAll('.extra-qty').forEach(input => {
             const val = parseFloat(input.value);
             if (val > 0) currentExtraData[input.dataset.name] = val;
             else delete currentExtraData[input.dataset.name];
         });
+        document.querySelectorAll('.extra-price').forEach(input => {
+            const name = input.dataset.name;
+            const ref = extraRef.find(e => e.name === name);
+            const val = parseFloat(input.value) || 0;
+            if (val > 0 && ref && val !== (parseFloat(ref.price) || 0)) currentExtraPrices[name] = val;
+            else delete currentExtraPrices[name];
+        });
+    }
+    function saveExtraModal() {
+        readExtraModalInputs();
         document.getElementById('extraModal').classList.remove('active');
         document.body.classList.remove('modal-open');
         updateModalTotals();
@@ -4541,168 +4595,234 @@ function deleteOrder(orderId) {
         const price = parseFloat(document.getElementById('newExtraPrice').value);
         const unit = document.getElementById('newExtraUnit').value;
         if (!name || isNaN(price)) return;
+        readExtraModalInputs(); // иначе уже введённые количества пропадали при перерисовке
         extraRef.push({name, unit, price});
         saveAll();
         openExtraModalFromOrder();
     }
 
     // ========== МОДУЛЬ 12: ЗАКУПКА МАТЕРИАЛОВ ==========
+    // Отмеченные заказы переживают перерисовку (renderAll после синхронизации раньше сбрасывал галочки)
+    const purchaseSelected = new Set();
+    let purchaseLastDoc = null; // последний документ — для копирования текстом
+
+    function purchaseVisibleOrders() {
+        const from = document.getElementById('purchaseFrom')?.value || '';
+        const to = document.getElementById('purchaseTo')?.value || '';
+        const showDone = !!document.getElementById('purchaseShowDone')?.checked;
+        return ordersData
+            .filter(o => showDone || !(o.done === true || o.done === 'true'))
+            .filter(o => (!from || (o.date || '') >= from) && (!to || (o.date || '') <= to))
+            .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || (parseInt(a.orderNumber) || 0) - (parseInt(b.orderNumber) || 0));
+    }
+
     function renderPurchaseOrdersList() {
         const container = document.getElementById('purchaseOrdersList');
+        if (!container) return;
         container.innerHTML = '';
-        ordersData.forEach(order => {
-            // Пропускаем выполненные заказы
-            if (order.done) return;
-            const div = document.createElement('div');
-            div.className = 'order-item purchase-item';
-            div.innerHTML = `
-                <input type="checkbox" class="purchase-check" value="${order.id}" style="width:auto;">
-                <span>№${order.orderNumber} ${order.client} (${order.date}) – ${order.services.map(s=>s.serviceName).join(', ')}</span>
-            `;
-            container.appendChild(div);
+        const orders = purchaseVisibleOrders();
+        // Удалённые заказы и заказы вне фильтра не должны попадать в документ
+        const visibleIds = new Set(orders.map(o => String(o.id)));
+        [...purchaseSelected].forEach(id => { if (!visibleIds.has(id)) purchaseSelected.delete(id); });
+        if (!orders.length) {
+            container.innerHTML = '<p class="fin-muted">Нет заказов для закупки. Поменяйте даты или включите «выполненные».</p>';
+        }
+        orders.forEach(order => {
+            const id = String(order.id);
+            const cost = getOrderCost(order);
+            const label = document.createElement('label');
+            label.className = 'order-item purchase-item';
+            label.innerHTML = `
+                <input type="checkbox" class="purchase-check" value="${escAttr(id)}" ${purchaseSelected.has(id) ? 'checked' : ''}>
+                <span style="flex:1;">№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} · ${safeHTML(formatPurchaseDate(order.date))} · ${safeHTML((order.services || []).map(s => s.serviceName).join(', '))}</span>
+                <span class="purchase-cost" style="white-space:nowrap;color:${cost > 0 ? '#dc3545' : '#adb5bd'};">${cost > 0 ? formatMoney(cost) : 'нет материалов'}</span>`;
+            label.querySelector('input').addEventListener('change', (e) => {
+                if (e.target.checked) purchaseSelected.add(id); else purchaseSelected.delete(id);
+                generatePurchaseDocument();
+            });
+            container.appendChild(label);
         });
+        generatePurchaseDocument();
+    }
+
+    function formatPurchaseDate(date) {
+        const m = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}.${m[2]}.${m[1]}` : String(date || '');
+    }
+
+    function purchaseSelectAll(checked) {
+        purchaseVisibleOrders().forEach(o => { if (checked) purchaseSelected.add(String(o.id)); else purchaseSelected.delete(String(o.id)); });
+        renderPurchaseOrdersList();
+    }
+
+    // Список покупок: те же строки, что в себестоимости заказов (js/costs.js), минус остаток склада
+    function buildPurchaseDocumentData(selectedOrders) {
+        const lines = costSumLines(selectedOrders, costRefs());
+        const groupOrder = ['Ткань', 'Краска', 'Пленка', ...materialTypes.map(mt => mt.name), 'Прочие расходники'];
+        const stock = loadStock();
+        const groups = [...new Set([...groupOrder, ...lines.map(l => l.group)])].map(name => {
+            const rows = lines.filter(l => l.group === name).map(g => {
+                const stockItem = stock.find(s => s.name === g.name) || {income:0, used:0};
+                // Остаток до этих заказов: на складе их расход уже вычтен
+                const remain = Math.max(0, stockRemain(stockItem) + g.qty);
+                const toBuy = Math.max(0, g.qty - remain);
+                return {...g, remain, toBuy, buySum: toBuy * g.price};
+            });
+            return {name, rows, total: rows.reduce((s, r) => s + r.buySum, 0)};
+        }).filter(g => g.rows.length);
+        return {orders: selectedOrders, groups, total: groups.reduce((s, g) => s + g.total, 0)};
     }
 
     function generatePurchaseDocument() {
-        const selectedIds = [...document.querySelectorAll('.purchase-check:checked')].map(cb => cb.value);
-        if (!selectedIds.length) { alert('Выберите заказы'); return; }
-        const selectedOrders = ordersData.filter(o => selectedIds.includes(String(o.id)));
         const docContainer = document.getElementById('purchaseDocumentContainer');
-        docContainer.innerHTML = '';
-        
-        // Общая сумма закупки
-        let totalPurchaseSum = 0;
-        
-        const markers = { 'Ткань': [], 'Краска': [], 'Пленка': [] };
-        materialTypes.forEach(mt => markers[mt.name] = []);
-        const otherMaterials = {};
-        selectedOrders.forEach(order => {
-            order.services.forEach(inst => {
-                const svc = rates.find(r => r.service === inst.serviceName);
-                if (!svc) return;
-                if (svc.usesFabric && inst.fabric && inst.fabric.code) {
-                    markers['Ткань'].push({article: inst.fabric.code, name: inst.fabric.colorName || inst.fabric.code, qty: parseFloat(inst.fabric.meters)||0, unit:'м', price: parseFloat(inst.fabric.price)||0});
-                }
-                if (serviceUsesPaint(svc) && inst.paint && inst.paint.code) {
-                    markers['Краска'].push({article: inst.paint.code, name: inst.paint.colorName || inst.paint.code, qty: parseFloat(inst.paint.qty)||0, unit:'мл', price: parseFloat(inst.paint.price)||0});
-                }
-                if (svc.usesFilm && inst.film && inst.film.code) {
-                    markers['Пленка'].push({article: inst.film.code, name: inst.film.name || inst.film.code, qty: parseFloat(inst.film.meters)||0, unit:'м', price: parseFloat(inst.film.price)||0});
-                }
-                materialTypes.forEach(mt => {
-                    const markerData = inst[mt.name];
-                    if (markerData && markerData.code) {
-                        markers[mt.name].push({article: markerData.code, name: mt.articles.find(a=>a.code===markerData.code)?.name || markerData.code, qty: parseFloat(markerData.qty)||0, unit: mt.unit, price: parseFloat(markerData.price)||0});
-                    }
-                });
-                svc.items.forEach(item => {
-                    if (item.customMarker) return;
-                    if (item.name === 'Краска' && serviceUsesPaint(svc)) return;
-                    if (item.name === 'Пленка для аквапринта' && svc.usesFilm) return;
-                    if (item.name === 'Ткань' && svc.usesFabric) return;
-                    if (materialTypes.some(mt=>mt.name===item.name)) return;
-                    let qty = (inst.manualItems || {})[item.name] ? parseFloat((inst.manualItems || {})[item.name]) : (item.manual ? 0 : (item.perMeter ? (parseFloat(item.quantity)||0)*(parseFloat(inst.fabric?.meters)||0) : (parseFloat(item.quantity)||0)));
-                    if (qty > 0) otherMaterials[item.name] = {qty: (parseFloat(otherMaterials[item.name]?.qty || 0)) + qty, price: item.price || 0};
-                });
+        if (!docContainer) return;
+        const selectedOrders = ordersData.filter(o => purchaseSelected.has(String(o.id)));
+        purchaseLastDoc = null;
+        if (!selectedOrders.length) {
+            docContainer.innerHTML = '<p class="fin-muted">Отметьте заказы — здесь появится список, что нужно купить.</p>';
+            return;
+        }
+        const doc = buildPurchaseDocumentData(selectedOrders);
+        if (!doc.groups.length) {
+            docContainer.innerHTML = '<p>В выбранных заказах нет материалов: не указаны артикулы или количество.</p>';
+            return;
+        }
+        purchaseLastDoc = doc;
+        const fmtQty = n => formatNumber(Math.round(n * 100) / 100);
+        let html = `<h3 class="purchase-doc-title">Закупка на ${safeHTML(formatPurchaseDate(formatDate(new Date())))} · заказы: ${doc.orders.map(o => '№' + safeHTML(o.orderNumber)).join(', ')}</h3>`;
+        doc.groups.forEach(g => {
+            html += `<h3>${safeHTML(g.name)}</h3><div class="scroll-wrap"><table class="purchase-table">
+                <tr><th>Артикул</th><th>Наименование</th><th>Цена за ед.</th><th>Нужно</th><th>Ед.</th><th>На складе</th><th>Купить</th><th>Сумма</th></tr>`;
+            g.rows.forEach(r => {
+                const enough = r.toBuy <= 0;
+                html += `<tr style="${enough ? 'color:#adb5bd;' : ''}"><td>${safeHTML(r.code || '—')}</td><td>${safeHTML(r.name)}</td><td>${formatMoney(r.price)}</td><td>${fmtQty(r.qty)}</td><td>${safeHTML(r.unit)}</td><td>${fmtQty(r.remain)}</td><td><b>${enough ? 'есть' : fmtQty(r.toBuy)}</b></td><td style="font-weight:600;color:${enough ? '#adb5bd' : '#dc3545'};">${formatMoney(r.buySum)}</td></tr>`;
             });
-            let extra = {};
-            try { extra = JSON.parse(order.extraData || '{}'); } catch(e) {}
-            for (let key in extra) {
-                const ref = extraRef.find(e => e.name === key);
-                if (ref) {
-                    otherMaterials[key] = {
-                        qty: (parseFloat(otherMaterials[key]?.qty || 0)) + (parseFloat(extra[key])||0),
-                        price: ref.price || 0
-                    };
-                }
-            }
+            html += `<tr style="background:#f8f9fa;font-weight:700;"><td colspan="7" style="text-align:right;">Итого: ${safeHTML(g.name)}</td><td style="color:#dc3545;">${formatMoney(g.total)}</td></tr></table></div>`;
         });
-        
-        // Рендерим маркеры (ткань, краска, плёнка, материалы)
-        for (let markerName in markers) {
-            if (markers[markerName].length) {
-                const section = document.createElement('h3');
-                section.textContent = markerName;
-                docContainer.appendChild(section);
-                const table = document.createElement('table');
-                table.innerHTML = '<tr><th>Артикул</th><th>Наименование</th><th>Цена за ед.</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th><th>Сумма</th></tr>';
-                const grouped = {};
-                markers[markerName].forEach(m => {
-                    if (!grouped[m.article]) grouped[m.article] = {name:m.name, qty:0, unit:m.unit, price: m.price || 0};
-                    grouped[m.article].qty += m.qty;
-                    if (m.price > 0) grouped[m.article].price = m.price;
-                });
-                const stock = loadStock();
-                let sectionTotal = 0;
-                for (let art in grouped) {
-                    const g = grouped[art];
-                    const stockItem = stock.find(s => s.name === g.name) || {remain:0};
-                    const remain = parseFloat(stockItem.remain) || 0;
-                    const toBuy = Math.max(0, g.qty - remain);
-                    const itemSum = toBuy * g.price;
-                    sectionTotal += itemSum;
-                    totalPurchaseSum += itemSum;
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `<td>${art}</td><td>${g.name}</td><td>${formatMoney(g.price)}</td><td>${g.qty.toFixed(2)}</td><td>${g.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${formatMoney(itemSum)}</td>`;
-                    table.appendChild(tr);
-                }
-                // Итого по секции
-                const totalRow = document.createElement('tr');
-                totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
-                totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по ${markerName}:</td><td style="color:#dc3545;">${formatMoney(sectionTotal)}</td>`;
-                table.appendChild(totalRow);
-                docContainer.appendChild(table);
-            }
-        }
-        
-        // Прочие расходники
-        if (Object.keys(otherMaterials).length) {
-            const section = document.createElement('h3');
-            section.textContent = 'Прочие расходники';
-            docContainer.appendChild(section);
-            const table = document.createElement('table');
-            table.innerHTML = '<tr><th>Материал</th><th>Цена за ед.</th><th>Требуется</th><th>Ед.</th><th>Остаток</th><th>К закупке</th><th>Сумма</th></tr>';
-            const stock = loadStock();
-            let sectionTotal = 0;
-            for (let name in otherMaterials) {
-                const data = otherMaterials[name];
-                const ref = extraRef.find(e=>e.name===name) || {unit:'шт', price:0};
-                const stockItem = stock.find(s => s.name === name) || {remain:0};
-                const remain = parseFloat(stockItem.remain) || 0;
-                const toBuy = Math.max(0, data.qty - remain);
-                const itemSum = toBuy * (data.price || ref.price || 0);
-                sectionTotal += itemSum;
-                totalPurchaseSum += itemSum;
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${name}</td><td>${formatMoney((data.price || ref.price || 0))}</td><td>${data.qty.toFixed(2)}</td><td>${ref.unit}</td><td>${remain.toFixed(2)}</td><td><b>${toBuy.toFixed(2)}</b></td><td style="font-weight:600;color:#dc3545;">${formatMoney(itemSum)}</td>`;
-                table.appendChild(tr);
-            }
-            // Итого по секции
-            const totalRow = document.createElement('tr');
-            totalRow.style.cssText = 'background:#f8f9fa;font-weight:700;';
-            totalRow.innerHTML = `<td colspan="6" style="text-align:right;">Итого по прочим расходникам:</td><td style="color:#dc3545;">${formatMoney(sectionTotal)}</td>`;
-            table.appendChild(totalRow);
-            docContainer.appendChild(table);
-        }
-        
-        // ИТОГО ЗАКУПКА
-        if (totalPurchaseSum > 0) {
-            const totalDiv = document.createElement('div');
-            totalDiv.style.cssText = 'background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;';
-            totalDiv.innerHTML = `💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(totalPurchaseSum)}</span>`;
-            docContainer.appendChild(totalDiv);
-        }
+        html += `<div style="background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;">💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(doc.total)}</span></div>`;
+        docContainer.innerHTML = html;
+    }
+
+    // Список «что купить» текстом — отправить поставщику или себе в мессенджер
+    function copyPurchaseList() {
+        if (!purchaseLastDoc) { alert('Сначала отметьте заказы'); return; }
+        const fmtQty = n => formatNumber(Math.round(n * 100) / 100);
+        const parts = [];
+        purchaseLastDoc.groups.forEach(g => {
+            const rows = g.rows.filter(r => r.toBuy > 0);
+            if (!rows.length) return;
+            parts.push(g.name + ':');
+            rows.forEach(r => parts.push(`- ${r.code && r.group !== 'Прочие расходники' ? r.code + ' ' : ''}${r.name} — ${fmtQty(r.toBuy)} ${r.unit}`));
+        });
+        if (!parts.length) { alert('Всё есть на складе — покупать ничего не нужно'); return; }
+        parts.push(`Итого примерно: ${formatMoney(purchaseLastDoc.total)}`);
+        const text = parts.join('\n');
+        const done = () => alert('Список скопирован');
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => prompt('Скопируйте список:', text));
+        else prompt('Скопируйте список:', text);
     }
 
     function printPurchaseDocument() {
+        if (!purchaseLastDoc) { alert('Сначала отметьте заказы'); return; }
         const content = document.getElementById('purchaseDocumentContainer').innerHTML;
-        if (!content) { alert('Сначала сформируйте документ'); return; }
         const printWindow = window.open('', '_blank');
-        printWindow.document.write('<html><head><title>Документ закупки</title><style>body{font-family: Arial; font-size: 14px;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #ddd; padding:8px; text-align:left;}</style></head><body>');
+        if (!printWindow) { alert('Браузер не дал открыть окно печати'); return; }
+        printWindow.document.write('<html><head><meta charset="utf-8"><title>Документ закупки</title><style>body{font-family: Arial; font-size: 14px;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #ddd; padding:6px; text-align:left;}</style></head><body>');
         printWindow.document.write(content);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
         printWindow.print();
+    }
+
+    // «Закупил»: купленное — приход на склад, деньги — расход кассы «Закупка материалов».
+    // Эта категория не уменьшает прибыль в «Деньгах» второй раз: материалы уже вычитаются
+    // из оплаченных заказов по себестоимости. Касса же показывает, куда ушли реальные деньги.
+    function openPurchaseBoughtModal() {
+        if (!purchaseLastDoc) { alert('Сначала отметьте заказы'); return; }
+        const rows = [];
+        purchaseLastDoc.groups.forEach(g => g.rows.forEach(r => { if (r.toBuy > 0) rows.push(r); }));
+        if (!rows.length) { alert('Всё есть на складе — покупать ничего не нужно'); return; }
+        let overlay = document.getElementById('purchaseBoughtModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'purchaseBoughtModal';
+            document.body.appendChild(overlay);
+        }
+        const round = n => Math.round(n * 100) / 100;
+        overlay.innerHTML = `<div class="modal">
+            <h3>✅ Закупил</h3>
+            <p style="font-size:13px;color:#6c757d;margin:0 0 10px;">Проверьте, сколько и почём купили. Купленное придёт на склад, сумма — расходом в кассу.</p>
+            <div class="form-group"><label>Дата покупки</label><input type="date" id="boughtDate" value="${formatDate(new Date())}"></div>
+            <div id="boughtRows">${rows.map((r, i) => `
+                <div class="bought-row" data-i="${i}" style="border-bottom:1px solid #eee;padding:6px 0;">
+                    <label>${safeHTML(r.name)} · кол-во (${safeHTML(r.unit)}) и цена за ${safeHTML(r.unit)}</label>
+                    <div style="display:flex;gap:6px;">
+                        <input type="number" class="bought-qty" step="0.01" value="${round(r.toBuy)}" style="flex:1;">
+                        <input type="number" class="bought-price" step="0.01" value="${round(r.price)}" style="flex:1;">
+                    </div>
+                </div>`).join('')}</div>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:10px;"><input type="checkbox" id="boughtToCash" checked style="width:auto;"> Записать расход в кассу</label>
+            <div style="font-size:18px;font-weight:700;margin-top:10px;">Итого: <span id="boughtTotal"></span></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closePurchaseBoughtModal()">Отмена</button>
+                <button class="btn-save" onclick="confirmPurchaseBought()">Записать</button>
+            </div>
+        </div>`;
+        overlay._rows = rows;
+        const recalc = () => {
+            let total = 0;
+            overlay.querySelectorAll('.bought-row').forEach(row => {
+                total += (parseFloat(row.querySelector('.bought-qty').value) || 0) * (parseFloat(row.querySelector('.bought-price').value) || 0);
+            });
+            overlay.querySelector('#boughtTotal').textContent = formatMoney(total);
+        };
+        overlay.querySelectorAll('input[type="number"]').forEach(el => el.addEventListener('input', recalc));
+        recalc();
+        overlay.classList.add('active');
+        document.body.classList.add('modal-open');
+    }
+
+    function closePurchaseBoughtModal() {
+        const overlay = document.getElementById('purchaseBoughtModal');
+        if (overlay) overlay.classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
+
+    function confirmPurchaseBought() {
+        const overlay = document.getElementById('purchaseBoughtModal');
+        if (!overlay || !overlay._rows) return;
+        const date = overlay.querySelector('#boughtDate').value || formatDate(new Date());
+        const items = [];
+        overlay.querySelectorAll('.bought-row').forEach(row => {
+            const r = overlay._rows[parseInt(row.dataset.i)];
+            const qty = parseFloat(row.querySelector('.bought-qty').value) || 0;
+            const price = parseFloat(row.querySelector('.bought-price').value) || 0;
+            if (r && qty > 0) items.push({ name: r.name, unit: r.unit, qty, price });
+        });
+        if (!items.length) { alert('Укажите, сколько купили'); return; }
+        const stock = loadStock();
+        items.forEach(it => {
+            let item = stock.find(s => s.name === it.name);
+            if (!item) { item = { name: it.name, unit: it.unit, price: it.price, income: 0, used: 0, remain: 0 }; stock.push(item); }
+            item.income = (parseFloat(item.income) || 0) + it.qty;
+            if (it.price > 0) item.price = it.price; // последняя цена покупки
+            item.remain = stockRemain(item);
+        });
+        saveStock(stock);
+        const total = items.reduce((s, it) => s + it.qty * it.price, 0);
+        if (overlay.querySelector('#boughtToCash').checked && total > 0) {
+            const names = items.map(it => `${it.name} ${formatNumber(it.qty)} ${it.unit}`).join(', ');
+            const orders = purchaseLastDoc ? purchaseLastDoc.orders.map(o => '№' + o.orderNumber).join(', ') : '';
+            cashOps.push({ id: 'pur-' + Date.now(), date, desc: `Закупка${orders ? ' для ' + orders : ''}: ${names}`.slice(0, 200),
+                income: 0, expense: total, category: 'purchase', items });
+            notifyAdminsAboutMoney(`🧾 Закупка материалов на ${formatMoney(total)}: ${names}`.slice(0, 200));
+        }
+        if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
+        saveAll();
+        closePurchaseBoughtModal();
+        renderAll();
+        alert(`Записано: ${items.length} поз. на ${formatMoney(total)}`);
     }
 
     // ========== МОДУЛЬ 13: ЭКСПОРТ/ИМПОРТ ДАННЫХ ==========
@@ -5360,31 +5480,63 @@ function deleteOrder(orderId) {
         document.getElementById('unpaidCount').textContent = unpaid.length;
         document.getElementById('unpaidSum').textContent = formatNumber(unpaid.reduce((s,o)=>s+(parseFloat(o.clientPrice)||0),0));
     }
+    // Остаток: приход − расход по заказам − списание (брак, потери)
+    function stockRemain(item) {
+        return (parseFloat(item.income)||0) - (parseFloat(item.used)||0) - (parseFloat(item.writeOff)||0);
+    }
+
     function renderStock() {
         const tbody = document.getElementById('stockBody');
+        if (!tbody) return;
         tbody.innerHTML = '';
         const stock = loadStock();
-        const names = new Set();
-        extraRef.forEach(r => names.add(r.name));
-        paints.forEach(p => names.add(p.name));
-        films.forEach(f => names.add(f.name));
-        materialTypes.forEach(mt => mt.articles.forEach(a => names.add(a.name)));
-        names.forEach(name => {
-            const item = stock.find(s => s.name === name) || {name, unit:'шт', price:0, income:0, used:0, remain:0};
+        const showAll = !!document.getElementById('stockShowAll')?.checked;
+        // По умолчанию — только то, что приходило или расходовалось; «все из справочников» — для ввода прихода новой позиции
+        const items = stock.filter(s => showAll || (parseFloat(s.income)||0) || (parseFloat(s.used)||0) || (parseFloat(s.writeOff)||0) || (parseFloat(s.min)||0));
+        if (showAll) {
+            const names = new Set(stock.map(s => s.name));
+            const add = (name, unit, price) => { if (name && !names.has(name)) { names.add(name); items.push({name, unit, price, income:0, used:0, writeOff:0, min:0}); } };
+            extraRef.forEach(r => add(r.name, r.unit, r.price));
+            rates.forEach(r => (r.items || []).forEach(i => { if (costIsOrdinaryItem(i, r, costRefs())) add(i.name, i.unit, i.price); }));
+            paints.forEach(p => add(p.name, 'мл', p.price));
+            films.forEach(f => add(f.name, 'м', f.price));
+            colors.forEach(c => add(`${c.name} ${c.code}`, 'м', c.price));
+            materialTypes.forEach(mt => mt.articles.forEach(a => add(a.name, mt.unit, a.price)));
+        }
+        // Проблемные сверху: не хватает, затем заканчивается, остальные по алфавиту
+        const rank = it => { const r = stockRemain(it); return r < 0 ? 0 : ((parseFloat(it.min)||0) > 0 && r < parseFloat(it.min) ? 1 : 2); };
+        items.sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name), 'ru'));
+        let totalValue = 0, short = 0, low = 0;
+        items.forEach(item => {
+            const remain = stockRemain(item);
+            const r = rank(item);
+            if (r === 0) short++; else if (r === 1) low++;
+            const value = Math.max(0, remain) * (parseFloat(item.price)||0);
+            totalValue += value;
+            const status = r === 0 ? '<span class="stock-badge short">не хватает</span>' : (r === 1 ? '<span class="stock-badge low">заканчивается</span>' : '');
             const tr = document.createElement('tr');
-            const totalSum = (parseFloat(item.price)||0) * (parseFloat(item.income)||0);
+            if (r < 2) tr.className = r === 0 ? 'stock-short' : 'stock-low';
             // data-label — подписи ячеек для вида карточками на телефоне
             tr.innerHTML = `
-                <td class="stock-name" data-label="Материал">${safeHTML(name)}</td>
-                <td data-label="Ед.">${safeHTML(item.unit)}</td>
-                <td data-label="Цена">${formatNumber(item.price)}</td>
-                <td data-label="Приход"><input type="number" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${escAttr(name)}"></td>
-                <td data-label="Расход"><input type="number" class="stock-used" value="${parseFloat(item.used)||0}" data-name="${escAttr(name)}"></td>
-                <td data-label="Остаток">${formatNumber((parseFloat(item.income)||0) - (parseFloat(item.used)||0))}</td>
-                <td data-label="Сумма" style="font-weight:600;color:#27ae60;">${formatMoney(totalSum)}</td>
-                <td class="stock-del"><button class="btn-del" onclick="deleteStockItem(${escAttr(JSON.stringify(name))})" title="Удалить">🗑️</button></td>`;
+                <td class="stock-name" data-label="Материал">${safeHTML(item.name)} ${status}</td>
+                <td data-label="Ед.">${safeHTML(item.unit || '')}</td>
+                <td data-label="Цена">${formatMoney(item.price)}</td>
+                <td data-label="Приход"><input type="number" step="0.01" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
+                <td data-label="Расход по заказам">${formatNumber(parseFloat(item.used)||0)}</td>
+                <td data-label="Списано"><input type="number" step="0.01" class="stock-writeoff" value="${parseFloat(item.writeOff)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
+                <td data-label="Остаток" style="font-weight:700;color:${remain < 0 ? '#dc3545' : 'inherit'};">${formatNumber(remain)}</td>
+                <td data-label="Мин."><input type="number" step="0.01" class="stock-min" value="${parseFloat(item.min)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
+                <td data-label="Сумма остатка" style="font-weight:600;color:#27ae60;">${formatMoney(value)}</td>
+                <td class="stock-del"><button class="btn-del" onclick="deleteStockItem(${escAttr(JSON.stringify(item.name))})" title="Удалить">🗑️</button></td>`;
             tbody.appendChild(tr);
         });
+        if (!items.length) tbody.innerHTML = '<tr><td colspan="10" class="fin-muted">На складе пока пусто. Приход появится после «Закупил» во вкладке «Закупка» или включите «все из справочников», чтобы ввести его вручную.</td></tr>';
+        const summary = document.getElementById('stockSummary');
+        if (summary) summary.innerHTML = `
+            <div class="stock-tile"><div>💰 На складе на сумму</div><b>${formatMoney(totalValue)}</b></div>
+            <div class="stock-tile ${short ? 'short' : ''}"><div>⛔ Не хватает</div><b>${short}</b></div>
+            <div class="stock-tile ${low ? 'low' : ''}"><div>⚠️ Заканчивается</div><b>${low}</b></div>`;
+        renderStockPurchases();
         applyStockSearch();
         // Делегирование: обработчик вешаем один раз (раньше он добавлялся при каждой перерисовке)
         if (tbody.dataset.bound) return;
@@ -5398,18 +5550,34 @@ function deleteOrder(orderId) {
             let item = stock.find(s => s.name === name);
             if (!item) {
                 // Материала ещё нет в учёте склада — заводим, иначе введённое значение терялось
-                item = {name, unit:'шт', price:0, income:0, used:0, remain:0};
+                item = {name, unit: input.dataset.unit || 'шт', price: parseFloat(input.dataset.price) || 0, income:0, used:0, remain:0};
                 stock.push(item);
             }
-            if (input.classList.contains('stock-income')) {
-                item.income = val;
-            } else if (input.classList.contains('stock-used')) {
-                item.used = val;
-            }
+            const stockBefore = JSON.parse(JSON.stringify(stock));
+            if (input.classList.contains('stock-income')) item.income = val;
+            else if (input.classList.contains('stock-writeoff')) item.writeOff = val;
+            else if (input.classList.contains('stock-min')) item.min = val;
+            item.remain = stockRemain(item);
             saveStock(stock);
+            notifyAdminsAboutStock(stockBefore);
             if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
+            saveAll();
             renderStock();
         });
+    }
+
+    // История закупок — операции кассы «Закупка материалов» из кнопки «Закупил»
+    function renderStockPurchases() {
+        const box = document.getElementById('stockPurchases');
+        if (!box) return;
+        const ops = cashOps.filter(o => o.category === 'purchase').sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 30);
+        if (!ops.length) { box.innerHTML = '<p class="fin-muted">Закупок пока не было. Они появятся после кнопки «Закупил» во вкладке «Закупка».</p>'; return; }
+        box.innerHTML = ops.map(o => {
+            const items = Array.isArray(o.items) && o.items.length
+                ? o.items.map(it => `${safeHTML(it.name)} — ${formatNumber(it.qty)} ${safeHTML(it.unit)} × ${formatMoney(it.price)}`).join('<br>')
+                : safeHTML(o.desc || '');
+            return `<div class="fin-op" style="display:block;"><div style="display:flex;justify-content:space-between;gap:8px;"><b>${safeHTML(formatPurchaseDate(o.date))}</b><b class="neg">−${formatMoney(o.expense)}</b></div><div style="font-size:13px;color:#495057;margin-top:4px;">${items}</div></div>`;
+        }).join('');
     }
 
     // Поиск по складу: скрываем строки, где название не содержит запрос
@@ -5419,16 +5587,23 @@ function deleteOrder(orderId) {
         document.querySelectorAll('#stockBody tr').forEach(tr => {
             const nameCell = tr.querySelector('.stock-name');
             const name = nameCell ? nameCell.textContent.toLowerCase() : '';
-            tr.style.display = !query || name.includes(query) ? '' : 'none';
+            tr.style.display = !query || !nameCell || name.includes(query) ? '' : 'none';
         });
     }
     window.applyStockSearch = applyStockSearch;
 
     function deleteStockItem(name) {
-        if (!confirm(`Удалить позицию "${name}" из склада?`)) return;
         const stock = loadStock();
-        const filtered = stock.filter(s => s.name !== name);
-        saveStock(filtered);
+        const item = stock.find(s => s.name === name);
+        // Расход по заказам считается заново, поэтому позиция из заказов «возвращалась» после удаления
+        if (item && (parseFloat(item.used)||0) > 0) {
+            if (!confirm(`«${name}» используется в заказах, поэтому строка останется. Обнулить приход, списание и минимум?`)) return;
+            item.income = 0; item.writeOff = 0; item.min = 0; item.remain = stockRemain(item);
+            saveStock(stock);
+        } else {
+            if (!confirm(`Удалить позицию "${name}" из склада?`)) return;
+            saveStock(stock.filter(s => s.name !== name));
+        }
         if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
         renderStock();
     }
@@ -6038,7 +6213,8 @@ window.updateCloudData = function(data) {
         stock = base ? mergeThreeWay(localStock, base.stock, cloudStock)
             : (dirty ? mergeSyncLists(localStock, cloudStock) : mergeSyncLists(cloudStock, localStock));
     }
-    const stockIncomes = list => JSON.stringify(syncToArray(list).map(s => [s.name, parseFloat(s.income) || 0]).sort());
+    // Что вводят руками: приход, списание (брак), минимальный остаток — расход считается из заказов
+    const stockIncomes = list => JSON.stringify(syncToArray(list).map(s => [s.name, parseFloat(s.income) || 0, parseFloat(s.writeOff) || 0, parseFloat(s.min) || 0]).sort());
     if (stockIncomes(stock) !== stockIncomes(cloudStock)) needUpload = true;
     saveStock(stock);
     rates.forEach(r => { if (!r.items) r.items = []; });

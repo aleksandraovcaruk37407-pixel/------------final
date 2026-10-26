@@ -672,6 +672,7 @@ function finPayHelper(email) {
     const op = { id: 'hp-' + Date.now(), date: today, desc: `Выплата помощнику ${finHelperName(email)}`, income: 0, expense: amount, category: 'helpers', helper: email };
     cashOps.push(op);
     if (typeof notifyHelperAboutPayment === 'function') notifyHelperAboutPayment(email, amount);
+    if (typeof notifyAdminsAboutMoney === 'function') notifyAdminsAboutMoney(`💸 Выплата помощнику ${finHelperName(email)}: ${formatMoney(amount)}`);
     saveAll();
     renderAll();
     if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
@@ -697,6 +698,7 @@ function finPay(paymentId) {
         id: `pm-${p.id}-${mk}`, date, desc: p.name, income: 0, expense: finNum(p.amount),
         category: p.type === 'personal' ? 'personal' : 'business', paymentId: p.id, month: mk
     });
+    if (typeof notifyAdminsAboutMoney === 'function') notifyAdminsAboutMoney(`💳 Оплачен платёж «${p.name}»: ${formatMoney(finNum(p.amount))}`);
     saveAll();
     renderAll();
 }
