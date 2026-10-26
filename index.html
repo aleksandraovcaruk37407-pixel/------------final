@@ -53,16 +53,18 @@
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202610260100"></script>
+    <script type="module" src="js/firebase.js?v=202610261600"></script>
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202610260500" defer></script>
+    <script src="js/finance.js?v=202610261600" defer></script>
+    <!-- Посещаемость помощников (до app.js) -->
+    <script src="js/attendance.js?v=202610261600" defer></script>
     
-    <script src="js/app.js?v=202610260500" defer></script>
+    <script src="js/app.js?v=202610261600" defer></script>
     
     <!-- Мобильная оптимизация -->
-    <script src="js/mobile.js?v=202610250500" defer></script>
+    <script src="js/mobile.js?v=202610261600" defer></script>
 
 
 </head>
@@ -164,7 +166,7 @@
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
+        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников <span class="notif-badge"></span></button>
         <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
         <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
         <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
@@ -174,7 +176,8 @@
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
     <div class="tabs" id="helperTabs" style="display:none;">
         <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
-        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
+        <button class="tab-btn" data-tab="helper-attendance">🕐 Посещаемость</button>
+        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт <span class="notif-badge"></span></button>
     </div>
 
     <!-- Нижняя навигация для мобильных -->
@@ -182,7 +185,7 @@
         <button class="bottom-nav-item active" data-tab="tab-orders">📋<br><small>Заказы</small></button>
         <button class="bottom-nav-item" data-tab="tab-calendar">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="tab-purchase">📄<br><small>Закупка</small></button>
-        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Задачи</small></button>
+        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<span class="notif-badge"></span><br><small>Задачи</small></button>
         <button class="bottom-nav-more">⚙️<br><small>Ещё</small></button>
     </div>
     
@@ -199,7 +202,8 @@
     <!-- Нижняя навигация для помощника -->
     <div class="bottom-nav" id="helperBottomNav" style="display:none;">
         <button class="bottom-nav-item active" data-tab="helper-tasks">📋<br><small>Задачи</small></button>
-        <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
+        <button class="bottom-nav-item" data-tab="helper-attendance">🕐<br><small>Время</small></button>
+        <button class="bottom-nav-item" data-tab="helper-report">📊<span class="notif-badge"></span><br><small>Отчёт</small></button>
         <button class="bottom-nav-item" onclick="handleLogout()">🚪<br><small>Выйти</small></button>
     </div>
 
@@ -409,10 +413,22 @@
         <div id="helperTasksContainer"></div>
     </div>
 
+    <!-- Вкладка Посещаемость (для помощника) -->
+    <div id="helper-attendance" class="tab-content">
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">🕐 Посещаемость</h2>
+        <div id="helperAttendanceContainer"></div>
+    </div>
+
     <!-- Вкладка Мой отчёт (для помощника) -->
     <div id="helper-report" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
+        <div class="notice-box">
+            <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
+            <div id="helperNotificationsList"></div>
+        </div>
         <div id="helperReportContainer"></div>
+        <h3 style="color:#1a3c5e; margin:20px 0 10px;">⚠️ Мои штрафы</h3>
+        <div id="helperPenaltiesContainer"></div>
     </div>
 
     <!-- Вкладка Задачи помощников (для админа) -->
@@ -421,12 +437,23 @@
         <div style="margin-bottom:15px;">
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
             <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">➕ Добавить помощника</button>
+            <button class="btn-del" onclick="openPenaltyModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">⚠️ Выписать штраф</button>
+        </div>
+        <div class="notice-box">
+            <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
+            <div id="adminNotificationsList"></div>
         </div>
         <div style="margin-bottom:15px;">
             <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
             <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
                 <option value="all">Все помощники</option>
             </select>
+        </div>
+        <div class="notice-box">
+            <h4>🕐 Посещаемость
+                <select id="attHelperSelect" onchange="attSelectHelper(this.value)" style="margin-left:8px;padding:4px 8px;border-radius:6px;border:1px solid #ced4da;font-weight:400;"></select>
+            </h4>
+            <div id="adminAttendanceContainer"></div>
         </div>
         <div id="adminHelperTasksContainer"></div>
         <div id="helperDbCheckResult" style="margin-top:20px;"></div>
@@ -923,13 +950,83 @@
         </div>
     </div>
 
+    <!-- Окно дня посещаемости (админ) -->
+    <div class="modal-overlay" id="attDayModal">
+        <div class="modal" style="max-width:420px;">
+            <h3 id="attDayTitle">День</h3>
+            <div class="form-group">
+                <label>Статус</label>
+                <select id="attDayStatus" onchange="attToggleTimes()" style="width:100%;">
+                    <option value="present">✅ Был</option>
+                    <option value="late">⏰ Опоздал</option>
+                    <option value="absent">❌ Не был</option>
+                    <option value="dayoff">🏖️ Отгул</option>
+                    <option value="sick">🤒 Больничный</option>
+                </select>
+            </div>
+            <div class="form-row" id="attDayTimes">
+                <div class="form-group"><label>Пришёл</label><input type="time" id="attDayIn"></div>
+                <div class="form-group"><label>Ушёл</label><input type="time" id="attDayOut"></div>
+            </div>
+            <div class="form-group">
+                <label>Комментарий</label>
+                <input type="text" id="attDayComment" placeholder="Необязательно">
+            </div>
+            <div id="attDayBy" style="font-size:12px;color:#888;margin-bottom:10px;"></div>
+            <div class="form-actions">
+                <button class="btn-del" id="attDayDelete" onclick="attDeleteDay()" style="margin-right:auto;">🗑️ Удалить</button>
+                <button class="btn-cancel" onclick="attCloseDay()">Отмена</button>
+                <button class="btn-save" onclick="attSaveDay()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Окно графика помощника (админ) -->
+    <div class="modal-overlay" id="attScheduleModal">
+        <div class="modal" style="max-width:420px;">
+            <h3 id="attScheduleTitle">График</h3>
+            <div class="form-group">
+                <label>Рабочие дни</label>
+                <div id="attScheduleDays" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Начало</label><input type="time" id="attScheduleStart"></div>
+                <div class="form-group"><label>Конец</label><input type="time" id="attScheduleEnd"></div>
+            </div>
+            <div class="form-group">
+                <label>Опоздание не считается, мин</label>
+                <input type="number" id="attScheduleGrace" min="0" step="1">
+            </div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="attCloseSchedule()">Отмена</button>
+                <button class="btn-save" onclick="attSaveSchedule()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Модальное окно штрафов -->
     <div class="modal-overlay" id="penaltyModal">
         <div class="modal" style="max-width:600px;">
-            <h3>⚠️ Штрафы помощников</h3>
-            <div id="penaltyModalContent"></div>
+            <h3>⚠️ Выписать штраф</h3>
+            <div class="form-group">
+                <label>👷 Помощник</label>
+                <select id="penaltyHelper" style="width:100%;"></select>
+            </div>
+            <div class="form-group">
+                <label>💰 Сумма штрафа (₽)</label>
+                <input type="number" id="penaltyAmount" placeholder="0" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label>📝 Причина</label>
+                <textarea id="penaltyReason" rows="2" placeholder="За что штраф"></textarea>
+            </div>
+            <div class="form-group">
+                <label>📋 Заказ (необязательно)</label>
+                <select id="penaltyOrder" style="width:100%;"></select>
+            </div>
             <div class="form-actions" style="margin-top:15px;">
-                <button class="btn-cancel" onclick="closePenaltyModal()">Закрыть</button>
+                <button class="btn-cancel" onclick="closePenaltyModal()">Отмена</button>
+                <button class="btn-save" onclick="savePenalty()">Выписать</button>
             </div>
         </div>
     </div>
@@ -1189,129 +1286,6 @@
     }
   };
 
-  // ========== УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (ТОЛЬКО АДМИН) ==========
-  window.adminRegisterUser = async () => {
-    const name = document.getElementById('newUserName').value.trim();
-    const email = document.getElementById('newUserEmail').value.trim();
-    const password = document.getElementById('newUserPassword').value;
-    const role = document.getElementById('newUserRole').value;
-    
-    if (!name || !email || !password) {
-      alert('Заполните все поля!');
-      return;
-    }
-    
-    if (password.length < 6) {
-      alert('Пароль должен быть минимум 6 символов!');
-      return;
-    }
-    
-    try {
-      // Создаём пользователя в Firebase Auth
-      const userCredential = await window.createUserWithEmailAndPassword(window.auth, email, password);
-      const user = userCredential.user;
-      
-      // Сохраняем данные пользователя в Realtime Database
-      await window.fbSet(window.fbRef(window.db, 'users/' + user.uid), {
-        email: email,
-        displayName: name,
-        role: role,
-        createdAt: new Date().toISOString(),
-        createdBy: window.currentUserData?.uid || 'system'
-      });
-      
-      alert('✅ Пользователь успешно зарегистрирован!\n\nИмя: ' + name + '\nEmail: ' + email + '\nРоль: ' + (role === 'admin' ? 'Администратор' : 'Помощник'));
-      
-      // Очищаем форму
-      document.getElementById('newUserName').value = '';
-      document.getElementById('newUserEmail').value = '';
-      document.getElementById('newUserPassword').value = '';
-      
-      // Обновляем список пользователей
-      loadUsersList();
-    } catch (error) {
-      console.error('Ошибка регистрации пользователя:', error);
-      let msg = 'Ошибка регистрации';
-      if (error.code === 'auth/email-already-in-use') msg = 'Этот email уже зарегистрирован';
-      if (error.code === 'auth/weak-password') msg = 'Пароль должен быть минимум 6 символов';
-      if (error.code === 'auth/invalid-email') msg = 'Неверный формат email';
-      if (error.code === 'auth/operation-not-allowed') msg = 'Операция не разрешена';
-      alert('❌ ' + msg);
-    }
-  };
-
-  window.loadUsersList = async () => {
-    const container = document.getElementById('usersListContainer');
-    if (!container) return;
-    
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Загрузка...</div>';
-    
-    try {
-      const snapshot = await window.fbGet(window.fbChild(window.fbRef(window.db), 'users'));
-      
-      if (!snapshot.exists()) {
-        container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Пользователей пока нет</div>';
-        return;
-      }
-      
-      const users = snapshot.val();
-      const usersArray = Object.entries(users).map(([uid, data]) => ({ uid, ...data }));
-      
-      // Сортируем: админы первые, затем по имени
-      usersArray.sort((a, b) => {
-        if (a.role === 'admin' && b.role !== 'admin') return -1;
-        if (a.role !== 'admin' && b.role === 'admin') return 1;
-        return (a.displayName || '').localeCompare(b.displayName || '');
-      });
-      
-      container.innerHTML = `
-        <div style="display:grid;gap:10px;">
-          ${usersArray.map(user => `
-            <div style="background:#fff;padding:15px;border-radius:8px;border:1px solid #dee2e6;display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <div style="font-weight:600;font-size:16px;margin-bottom:4px;">
-                  ${user.role === 'admin' ? '⭐' : '👤'} ${user.displayName || 'Без имени'}
-                </div>
-                <div style="font-size:13px;color:#666;">📧 ${user.email || 'Нет email'}</div>
-                <div style="font-size:12px;color:#888;margin-top:4px;">
-                  📅 Зарегистрирован: ${user.createdAt ? new Date(user.createdAt).toLocaleDateString('ru-RU') : 'Неизвестно'}
-                </div>
-              </div>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <span style="padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;background:${user.role === 'admin' ? '#1a3c5e;color:#fff' : '#17a2b8;color:#fff'};">
-                  ${user.role === 'admin' ? 'ADMIN' : 'HELPER'}
-                </span>
-                ${user.uid !== window.currentUserData?.uid ? `
-                  <button class="btn-del" onclick="adminDeleteUser('${user.uid}')" style="padding:6px 12px;font-size:12px;">
-                    🗑 Удалить
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } catch (error) {
-      console.error('Ошибка загрузки пользователей:', error);
-      container.innerHTML = '<div style="text-align:center;padding:20px;color:#e74c3c;">Ошибка загрузки списка пользователей</div>';
-    }
-  };
-
-  window.adminDeleteUser = async (userId) => {
-    if (!confirm('Удалить этого пользователя? Это действие нельзя отменить.')) return;
-    
-    try {
-      const userRef = ref(window.db, 'users/' + userId);
-      await remove(userRef);
-      
-      alert('✅ Пользователь удалён');
-      loadUsersList();
-    } catch (error) {
-      console.error('Ошибка удаления пользователя:', error);
-      alert('❌ Ошибка удаления пользователя');
-    }
-  };
-
   // Вспомогательная функция для получения данных пользователя
   function getUserDataForAuth(user) {
     console.log('>>> getUserDataForAuth вызван для', user.email, 'uid:', user.uid);
@@ -1449,6 +1423,7 @@
       document.getElementById('tab-purchase').style.display = '';
       document.getElementById('helper-tasks').style.display = 'none';
       document.getElementById('helper-report').style.display = 'none';
+      document.getElementById('helper-attendance').style.display = 'none';
       
       // Показать footer-toolbar (экспорт, импорт, очистить)
       if (footerToolbar) footerToolbar.style.display = 'flex';
@@ -1490,6 +1465,7 @@
       document.getElementById('tab-purchase').style.display = 'none';
       document.getElementById('helper-tasks').style.display = '';
       document.getElementById('helper-report').style.display = '';
+      document.getElementById('helper-attendance').style.display = '';
       
       // Скрыть footer-toolbar (экспорт, импорт, очистить)
       if (footerToolbar) footerToolbar.style.display = 'none';

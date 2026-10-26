@@ -121,7 +121,8 @@ function finFixDuplicateOrderNumbers(orders) {
 }
 
 // ========== НАЧИСЛЕНИЯ ПОМОЩНИКАМ ==========
-// Начислено — оплата выполненных задач; штраф — за просроченные; выплачено — расходы кассы
+// Начислено — оплата выполненных задач; штраф — за просроченные и выписанные отдельно
+// (penalties — список helperPenalties из app.js); выплачено — расходы кассы
 // «Помощникам» с этим помощником (синхронизируются) + старые выплаты, записанные только
 // на устройстве админа (budgetData.helperPayments без cashOpId).
 function finHelperPaidData(email, cash, budget) {
@@ -132,7 +133,7 @@ function finHelperPaidData(email, cash, budget) {
     return fromCash + legacy;
 }
 
-function finHelperAccrualsData(orders, cash, budget, mk) {
+function finHelperAccrualsData(orders, cash, budget, mk, penalties) {
     const byHelper = new Map();
     const get = email => {
         if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, review: 0, reviewPay: 0, monthEarned: 0, monthDone: 0 });
@@ -153,6 +154,7 @@ function finHelperAccrualsData(orders, cash, budget, mk) {
             h.pending++; h.pendingPay += finNum(t.helperPay);
         }
     })));
+    (penalties || []).forEach(p => { if (p && p.helperEmail) get(p.helperEmail).penalties += finNum(p.amount); });
     // Помощники, которым платили, но задач уже нет
     (cash || []).forEach(o => { if (o.category === 'helpers' && o.helper) get(o.helper); });
     return [...byHelper.values()].map(h => {
@@ -466,7 +468,7 @@ function renderFinance() {
         ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}`;
 
     // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
-    const helpers = finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, mk);
+    const helpers = finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, mk, finHelperPenalties());
     const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
     html += `<h3 class="fin-h">👷 Помощникам</h3>
         <div class="fin-group">
@@ -598,6 +600,17 @@ function finHelperName(email) {
     return String(email).split('@')[0];
 }
 
+// Выписанные админом штрафы (helperPenalties из app.js; в тестах может не быть)
+function finHelperPenalties() {
+    return typeof helperPenalties !== 'undefined' ? helperPenalties : [];
+}
+
+// Начисления одного помощника за всё время: earned, penalties, paid, owed (к выплате)
+function finHelperAccrual(email) {
+    return finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, null, finHelperPenalties())
+        .find(h => h.email === email) || { email, earned: 0, penalties: 0, paid: finHelperPaid(email), net: 0, owed: -finHelperPaid(email) };
+}
+
 // Выплачено помощнику (для отчётов помощника и админа в app.js)
 function finHelperPaid(email) {
     return finHelperPaidData(email, cashOps, typeof budgetData !== 'undefined' ? budgetData : null);
@@ -605,8 +618,7 @@ function finHelperPaid(email) {
 
 // Выплата помощнику: расход кассы «Помощникам» (синхронизируется — помощник видит выплату)
 function finPayHelper(email) {
-    const h = finHelperAccrualsData(ordersData, cashOps, budgetData, null).find(x => x.email === email);
-    const owed = h ? h.owed : 0;
+    const owed = finHelperAccrual(email).owed;
     if (owed <= 0 && !confirm('Помощнику сейчас ничего не начислено к выплате. Всё равно записать выплату (аванс)?')) return;
     const input = prompt(`Сумма выплаты для ${finHelperName(email)}:\n\nК выплате: ${formatMoney(Math.max(0, owed))}`, owed > 0 ? Math.round(owed) : '');
     const amount = finNum(input);
@@ -615,20 +627,10 @@ function finPayHelper(email) {
     const today = finTodayStr();
     const op = { id: 'hp-' + Date.now(), date: today, desc: `Выплата помощнику ${finHelperName(email)}`, income: 0, expense: amount, category: 'helpers', helper: email };
     cashOps.push(op);
-    // История выплат на экране помощников (хранится на этом устройстве)
-    if (budgetData) {
-        const paidBy = window.currentUserData ? window.currentUserData.email : 'admin';
-        if (!budgetData.helperPayments[email]) budgetData.helperPayments[email] = [];
-        budgetData.helperPayments[email].push({ amount, date: new Date().toISOString(), paidBy, cashOpId: op.id });
-        if (!budgetData.paymentHistory) budgetData.paymentHistory = [];
-        budgetData.paymentHistory.push({ id: op.id, date: new Date().toISOString(), helperEmail: email, amount, paidBy, description: op.desc, cashOpId: op.id });
-        saveBudgetData();
-    }
+    if (typeof notifyHelperAboutPayment === 'function') notifyHelperAboutPayment(email, amount);
     saveAll();
     renderAll();
     if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
-    if (typeof renderPaymentHistory === 'function') renderPaymentHistory();
-    if (typeof notifyHelperAboutPayment === 'function') notifyHelperAboutPayment(email, amount);
 }
 
 function finSetMonth(delta) { finPaymentsMonth = finShiftMonth(finPaymentsMonth || finMonthKey(finTodayStr()), delta); renderFinance(); }

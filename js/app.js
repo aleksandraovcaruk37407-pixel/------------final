@@ -68,7 +68,6 @@
             // DOM уже загружен и Firebase готов — выполняем инициализацию сразу
             console.log('initAppIfReady: DOM ready и Firebase подключён, инициализация...');
             loadData();
-            initNotifications();
             currentDate = new Date();
             selectedDate = new Date();
             recalculateStockFromAllOrders();
@@ -103,14 +102,12 @@
                     if (btn.dataset.tab === 'tab-purchase') renderPurchaseOrdersList();
                     if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
                     if (btn.dataset.tab === 'helper-report') renderHelperReport();
+                    if (btn.dataset.tab === 'helper-attendance' || btn.dataset.tab === 'tab-helper-admin') renderAttendance();
                     if (btn.dataset.tab === 'tab-helper-admin') {
                         if (typeof updateHelperFilter === 'function') updateHelperFilter();
                         renderAdminHelperTasks();
-                        renderAdminNotifications();
+                        renderNotices();
                         if (typeof listAllHelpersInDB === 'function') listAllHelpersInDB();
-                    }
-                    if (btn.dataset.tab === 'helper-report') {
-                        if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
                     }
                 });
             });
@@ -233,12 +230,16 @@
     let colors = [], paints = [], films = [], extraRef = [], rates = [], ordersData = [], cashOps = [], bookings = [], materialTypes = [], regularExpenses = [], regularIncomes = [], notes = [];
     // Финансы (js/finance.js): платежи месяца и настройки распределения — синхронизируются
     let payments = [], financeSettings = [];
+    // Помощники: уведомления (to — email помощника или 'admin') и штрафы — синхронизируются
+    let helperNotices = [], helperPenalties = [];
+    // Посещаемость помощников и их график (js/attendance.js) — синхронизируются
+    let attendance = [], helperSchedules = [];
     let budgetData = null;
     let currentFilter = 'all';
 
     // Данные для облачной синхронизации (переменные выше не видны через window)
     window.getSyncData = function() {
-      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, stock: loadStock() };
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, helperNotices, helperPenalties, attendance, helperSchedules, stock: loadStock() };
     };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
@@ -334,6 +335,10 @@
     notes = parseJSON('notes_data', []);
     payments = parseJSON('payments_data', []);
     financeSettings = parseJSON('financeSettings_data', []);
+    helperNotices = parseJSON('helperNotices_data', []);
+    helperPenalties = parseJSON('helperPenalties_data', []);
+    attendance = parseJSON('attendance_data', []);
+    helperSchedules = parseJSON('helperSchedules_data', []);
     // Перенос старых финансовых записей: касса = реальные деньги (js/finance.js)
     finMigrate(false);
 
@@ -349,7 +354,7 @@
     if (!budgetData.distributionHistory) budgetData.distributionHistory = [];
     if (!budgetData.helperPayments) budgetData.helperPayments = {};
     if (!budgetData.paymentHistory) budgetData.paymentHistory = [];
-    if (!budgetData.helperPenalties) budgetData.helperPenalties = [];
+    migrateHelperLocalData();
 
     rates.forEach(r => { if (!r.items) r.items = []; });
     const accidentService = rates.find(r => r.service === 'Восстановление после ДТП');
@@ -619,6 +624,10 @@ if (!films.length) {
         notes: notes,
         payments: payments,
         financeSettings: financeSettings,
+        helperNotices: helperNotices,
+        helperPenalties: helperPenalties,
+        attendance: attendance,
+        helperSchedules: helperSchedules,
         budgetData: budgetData
       };
       
@@ -884,9 +893,7 @@ window.localChangesPending = false;
     }
 
     // Старые блоки бюджета (кошельки, обязательные платежи, план) заменены js/finance.js
-    function renderBudget() {
-        renderPaymentHistory();
-    }
+    function renderBudget() {}
 
     function renderMandatoryPayments() {
         const container = document.getElementById('mandatoryPaymentsProgress');
@@ -1263,7 +1270,6 @@ window.localChangesPending = false;
         if (!container || !window.currentUserData) return;
         
         const helperEmail = window.currentUserData.email;
-        console.log('renderHelperTasks: helperEmail=', helperEmail, 'ordersData.length=', ordersData.length);
         
         // Собираем все задачи из всех заказов
         let allTasks = [];
@@ -1335,8 +1341,7 @@ window.localChangesPending = false;
         if (!container || !window.currentUserData) return;
         
         const helperEmail = window.currentUserData.email;
-        console.log('renderHelperReport: helperEmail=', helperEmail, 'ordersData.length=', ordersData.length);
-        
+
         // Фильтруем заказы по периоду
         const filteredOrders = getTasksForPeriod(ordersData, currentHelperReportPeriod);
         
@@ -1366,12 +1371,16 @@ window.localChangesPending = false;
             });
         });
         
+        // Штрафы, выписанные админом отдельно (не за просроченную задачу)
+        totalPenalties += getPenaltiesForPeriod(helperPenalties, currentHelperReportPeriod)
+            .filter(p => p.helperEmail === helperEmail)
+            .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         const netEarned = totalEarned - totalPenalties;
-        
-        // Считаем выплачено
-        // Выплачено — из кассы (синхронизируется) + старые выплаты (js/finance.js)
-        const totalPaid = finHelperPaid(helperEmail);
-        const totalUnpaid = Math.max(0, netEarned - totalPaid);
+
+        // Выплачено и долг — за всё время, независимо от периода (js/finance.js)
+        const accrual = finHelperAccrual(helperEmail);
+        const totalPaid = accrual.paid;
+        const totalUnpaid = Math.max(0, accrual.owed);
         
         container.innerHTML = `
             <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
@@ -1394,7 +1403,7 @@ window.localChangesPending = false;
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${formatMoney(totalEarned)}</div>
                     </div>
                     <div style="background:#d4edda;padding:15px;border-radius:6px;text-align:center;border:2px solid #27ae60;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ ИТОГО К ВЫПЛАТЕ</div>
+                        <div style="font-size:13px;color:#666;margin-bottom:5px;">✨ Итого за период</div>
                         <div style="font-size:28px;font-weight:700;color:#27ae60;">${formatMoney(netEarned)}</div>
                     </div>
                     <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
@@ -1548,7 +1557,6 @@ window.localChangesPending = false;
             
             // Обновить список помощников в фильтре
             updateHelperFilter();
-            updatePaymentHelperFilter();
             
         } catch (error) {
             console.error('Ошибка создания помощника:', error);
@@ -1591,12 +1599,9 @@ window.localChangesPending = false;
             // Сначала пробуем atelier_data/users, если пусто — читаем из /users
             let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             if (!snapshot.exists()) {
-                console.log('🔍 listAllHelpersInDB: atelier_data/users пусто, читаем из /users');
                 snapshot = await window.get(window.child(ref, 'users'));
             }
             
-            console.log('🔍 listAllHelpersInDB: snapshot.exists()=', snapshot.exists());
-            console.log('🔍 listAllHelpersInDB: all users=', snapshot.val());
             
             if (!snapshot.exists()) {
                 resultDiv.innerHTML = '<div style="background:#f8d7da;padding:10px;border-radius:6px;font-size:13px;margin-top:8px;">❌ База пользователей пуста!</div>';
@@ -1609,7 +1614,6 @@ window.localChangesPending = false;
             
             for (const uid in users) {
                 const user = users[uid];
-                console.log('🔍 Processing user:', uid, user);
                 if (user.role === 'helper') {
                     helpers.push(user);
                 } else if (user.role === 'admin') {
@@ -1678,30 +1682,6 @@ window.localChangesPending = false;
         renderHelperReport();
     }
 
-    function markOverdue(orderNumber, taskId) {
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) return;
-        
-        order.services.forEach(service => {
-            (service.tasks || []).forEach(task => {
-                if (String(task.id) === String(taskId)) {
-                    task.status = 'overdue';
-                    
-                    // ИСПРАВЛЕНО: штраф не может превышать оплату за задачу
-                    const helperPay = parseFloat(task.helperPay) || 0;
-                    const penalty = parseFloat(task.penalty) || 0;
-                    if (penalty > helperPay) {
-                        task.penalty = helperPay; // Ограничиваем штраф 100% оплаты
-                    }
-                }
-            });
-        });
-        
-        saveAll();
-        renderHelperTasks();
-        renderHelperReport();
-    }
-
     // ========== МОДУЛЬ 5.2: УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
     let currentEditingTask = null;
 
@@ -1715,7 +1695,6 @@ window.localChangesPending = false;
         
         // ИСПРАВЛЕНО: Ждём готовности Firebase
         if (!window.firebaseReady) {
-            console.log('[updateHelperFilter] Firebase не готов, ожидаем...');
             // Retry через 500мс
             setTimeout(updateHelperFilter, 500);
             return;
@@ -1734,14 +1713,10 @@ window.localChangesPending = false;
             // Сначала пробуем atelier_data/users, если пусто — читаем из /users
             let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             if (!snapshot.exists()) {
-                console.log('🔍 updateHelperFilter: atelier_data/users пусто, читаем из /users');
                 snapshot = await window.get(window.child(ref, 'users'));
             }
             
-            console.log('🔍 updateHelperFilter: users snapshot.exists =', snapshot.exists());
-            console.log('🔍 updateHelperFilter: users snapshot.val =', snapshot.val());
             if (!snapshot.exists()) {
-                console.log('updateHelperFilter: нет пользователей в Firebase');
                 return;
             }
             
@@ -1813,8 +1788,7 @@ window.localChangesPending = false;
     window.updateHelperFilter = updateHelperFilter;
 
     function renderAdminPenalties(filterEmail, period) {
-        const penalties = budgetData.helperPenalties || [];
-        const filtered = getPenaltiesForPeriod(penalties, period || 'all')
+        const filtered = getPenaltiesForPeriod(helperPenalties, period || 'all')
             .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
@@ -1845,7 +1819,10 @@ window.localChangesPending = false;
                             </div>
                         </div>
                         <div style="font-size:14px;color:#333;margin-bottom:6px;">${safeHTML(p.reason)}</div>
-                        <div style="font-size:12px;color:#666;">Назначил: ${safeHTML(p.createdBy)}</div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#666;">
+                            <span>Назначил: ${safeHTML(p.createdBy)}</span>
+                            <button class="btn-extra" onclick="deletePenalty('${escAttr(p.id)}')" style="padding:4px 10px;font-size:12px;">Отменить</button>
+                        </div>
                     </div>
                 `;
             }).join('')}
@@ -1903,27 +1880,31 @@ window.localChangesPending = false;
         const completedTasks = allTasks.filter(t => t.status === 'completed').length;
         const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
         const totalEarned = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
-        const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0);
-        const netEarned = totalEarned - totalPenalties;
-        
+        const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0)
+            + getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod)
+                .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
+                .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
         // Считаем выплаты для всех помощников
         const helpersStats = {};
         const allHelperEmails = new Set(allTasks.map(t => t.assignedTo));
+        const periodPenalties = getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod);
         allHelperEmails.forEach(email => {
-            const totalPaid = finHelperPaid(email); // из кассы + старые выплаты (js/finance.js)
-            
             let earned = 0, penalties = 0;
             allTasks.filter(t => t.assignedTo === email).forEach(task => {
                 if (task.status === 'completed') earned += parseFloat(task.helperPay) || 0;
                 if (task.status === 'overdue') penalties += parseFloat(task.penalty) || 0;
             });
-            
+            periodPenalties.filter(p => p.helperEmail === email).forEach(p => { penalties += parseFloat(p.amount) || 0; });
+
+            // Выплачено и долг — за всё время, независимо от периода (js/finance.js)
+            const accrual = finHelperAccrual(email);
             helpersStats[email] = {
                 earned,
                 penalties,
                 net: earned - penalties,
-                paid: totalPaid,
-                unpaid: Math.max(0, earned - penalties - totalPaid)
+                paid: accrual.paid,
+                unpaid: Math.max(0, accrual.owed)
             };
         });
         
@@ -2142,434 +2123,144 @@ window.localChangesPending = false;
         finPayHelper(helperEmail);
     };
 
-    // ========== МОДУЛЬ 5.4: ИСТОРИЯ ВЫПЛАТ ПОМОЩНИКАМ ==========
-    let currentPaymentHistoryPeriod = 'all';
-
-    window.setPaymentHistoryPeriod = function(period) {
-        currentPaymentHistoryPeriod = period;
-        ['Day', 'Week', 'Month', 'Year', 'All'].forEach(p => {
-            const btn = document.getElementById('btnPay' + p);
-            if (btn) {
-                btn.style.background = '#6c757d';
-                btn.style.color = '#fff';
-            }
-        });
-        const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
-        const activeBtn = document.getElementById('btnPay' + periodMap[period]);
-        if (activeBtn) {
-            activeBtn.style.background = '#007bff';
-            activeBtn.style.color = '#fff';
-        }
-        renderPaymentHistory();
-    };
-
     // Инициализация кнопок периода
     window.setHelperReportPeriod('all');
     window.setAdminHelperReportPeriod('all');
-    window.setPaymentHistoryPeriod('all');
 
-    function getPaymentHistoryForPeriod(period) {
-        if (!budgetData || !budgetData.paymentHistory || budgetData.paymentHistory.length === 0) return [];
-        
-        const now = new Date();
-        let startDate = '';
-        
-        switch(period) {
-            case 'day':
-                startDate = formatDate(now);
-                break;
-            case 'week':
-                const weekAgo = new Date(now);
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                startDate = formatDate(weekAgo);
-                break;
-            case 'month':
-                const monthAgo = new Date(now);
-                monthAgo.setMonth(monthAgo.getMonth() - 1);
-                startDate = formatDate(monthAgo);
-                break;
-            case 'year':
-                const yearAgo = new Date(now);
-                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-                startDate = formatDate(yearAgo);
-                break;
-            default:
-                startDate = '2000-01-01';
-        }
-        
-        return budgetData.paymentHistory.filter(p => p.date >= startDate);
-    }
-
-    function renderPaymentHistory() {
-        const container = document.getElementById('paymentHistoryContainer');
-        if (!container) return;
-        
-        const filterEmail = document.getElementById('paymentHelperFilter')?.value || 'all';
-        const filteredPayments = getPaymentHistoryForPeriod(currentPaymentHistoryPeriod)
-            .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
-            .sort((a, b) => new Date(b.date) - new Date(a.date));
-        
-        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
-        
-        if (filteredPayments.length === 0) {
-            container.innerHTML = `
-                <div style="text-align:center;padding:30px;color:#888;">
-                    <div style="font-size:48px;margin-bottom:10px;">💳</div>
-                    <div>Выплат не найдено</div>
-                    <div style="font-size:13px;margin-top:5px;">История выплат пуста за выбранный период</div>
-                </div>
-            `;
-            return;
-        }
-        
-        // Группируем по помощникам
-        const groupedByHelper = {};
-        let totalAll = 0;
-        
-        filteredPayments.forEach(payment => {
-            const email = payment.helperEmail;
-            if (!groupedByHelper[email]) {
-                groupedByHelper[email] = { payments: [], total: 0 };
-            }
-            groupedByHelper[email].payments.push(payment);
-            groupedByHelper[email].total += payment.amount;
-            totalAll += payment.amount;
-        });
-        
-        container.innerHTML = `
-            <div style="background:#d4edda;padding:12px;border-radius:6px;margin-bottom:15px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-                    <div>
-                        <strong>📊 ${periodNames[currentPaymentHistoryPeriod]}</strong>
-                        <span style="color:#666;margin-left:10px;">(${filteredPayments.length} выплат)</span>
-                    </div>
-                    <div style="font-size:18px;font-weight:700;color:#27ae60;">
-                        💰 Всего: ${formatMoney(totalAll)}
-                    </div>
-                </div>
-            </div>
-            ${Object.entries(groupedByHelper).map(([email, data]) => {
-                const payments = data.payments;
-                const total = data.total;
-                const helperName = email.split('@')[0];
-                
-                return `
-                    <div style="background:#fff;padding:15px;border-radius:8px;margin-bottom:12px;border:1px solid #dee2e6;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:10px;">
-                            <div>
-                                <strong style="font-size:16px;">👤 ${safeHTML(helperName)}</strong>
-                                <span style="color:#666;font-size:13px;margin-left:8px;">(${safeHTML(email)})</span>
-                            </div>
-                            <div style="font-size:16px;font-weight:700;color:#27ae60;">
-                                💰 ${formatMoney(total)}
-                            </div>
-                        </div>
-                        <div style="border-top:1px solid #eee;padding-top:8px;">
-                            ${payments.map(p => {
-                                const date = new Date(p.date);
-                                const dateStr = date.toLocaleDateString('ru-RU');
-                                const timeStr = date.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
-                                const paidBy = p.paidBy ? p.paidBy.split('@')[0] : 'admin';
-                                return `
-                                    <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14px;">
-                                        <div>
-                                            <span style="color:#666;">${dateStr} ${timeStr}</span>
-                                            <span style="margin-left:8px;">${safeHTML(p.description)}</span>
-                                            <span style="margin-left:8px;color:#999;font-size:12px;">от ${safeHTML(paidBy)}</span>
-                                        </div>
-                                        <span style="font-weight:600;color:#27ae60;">+${formatMoney(p.amount)}</span>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('')}
-        `;
-    }
-
-    // Обновляем фильтр помощников для истории выплат
-    function updatePaymentHelperFilter() {
-        const filter = document.getElementById('paymentHelperFilter');
-        if (!filter) return;
-        
-        const ref = window.fbRef(window.db);
-        if (typeof window.get !== 'function' || typeof window.child !== 'function') {
-            // Fallback: помощники из задач
-            const emails = new Set();
-            ordersData.forEach(order => {
-                (order.services || []).forEach(service => {
-                    (service.tasks || []).forEach(task => {
-                        if (task.assignedTo) emails.add(task.assignedTo);
-                    });
-                });
-            });
-            filter.innerHTML = '<option value="all">Все помощники</option>';
-            emails.forEach(email => {
-                const opt = document.createElement('option');
-                opt.value = email;
-                opt.textContent = email;
-                filter.appendChild(opt);
-            });
-            return;
-        }
-        
-        try {
-            window.get(window.child(ref, 'users')).then((snapshot) => {
-                if (!snapshot.exists()) return;
-                
-                const users = snapshot.val();
-                const helpers = [];
-                
-                for (const uid in users) {
-                    if (users[uid].role === 'helper') {
-                        helpers.push({
-                            uid: uid,
-                            email: users[uid].email,
-                            displayName: users[uid].displayName || users[uid].email
-                        });
-                    }
-                }
-                
-                helpers.sort((a, b) => a.displayName.localeCompare(b.displayName));
-                
-                const currentValue = filter.value;
-                filter.innerHTML = '<option value="all">Все помощники</option>';
-                helpers.forEach(helper => {
-                    const option = document.createElement('option');
-                    option.value = helper.email;
-                    option.textContent = `${helper.displayName} (${helper.email})`;
-                    filter.appendChild(option);
-                });
-                
-                if (currentValue && [...helpers].some(h => h.email === currentValue)) {
-                    filter.value = currentValue;
-                }
-            }).catch(err => console.error('Ошибка обновления фильтра выплат:', err));
-        } catch (e) {
-            console.error('Ошибка в updatePaymentHelperFilter:', e);
-        }
-    }
-
-    window.renderPaymentHistory = renderPaymentHistory;
-
-    // ========== МОДУЛЬ 5.5: СИСТЕМА ШТРАФОВ ПОМОЩНИКОВ ==========
-    
     // ========== МОДУЛЬ 5.6: УВЕДОМЛЕНИЯ МЕЖДУ АДМИНОМ И ПОМОЩНИКОМ ==========
-    
-    // Уведомления администратора о действиях помощника
-    window.adminNotifications = [];
-    
-    // Добавить уведомление админу когда помощник завершает задачу
-    function addAdminNotification(type, message, orderNumber) {
-        const notif = {
-            id: 'notif_' + Date.now(),
-            type: type, // 'task_completed', 'task_overdue', 'report_submitted'
+    // Хранятся в helperNotices и синхронизируются через облако: to — email помощника или 'admin'
+    const NOTICE_KEEP_DAYS = 60;
+    const NOTICE_MAX = 300;
+
+    function addNotice(to, type, message, orderNumber) {
+        helperNotices.push({
+            id: 'ntc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+            to: to,
+            type: type, // new_task, task_submitted, task_confirmed, task_returned, penalty_issued, payment_made
             message: message,
             orderNumber: orderNumber || null,
             read: false,
             createdAt: new Date().toISOString()
-        };
-        window.adminNotifications.push(notif);
-        // Не более 50 уведомлений
-        if (window.adminNotifications.length > 50) {
-            window.adminNotifications = window.adminNotifications.slice(-50);
-        }
-        saveAdminNotifications();
+        });
+        const cutoff = new Date(Date.now() - NOTICE_KEEP_DAYS * 86400000).toISOString();
+        helperNotices = helperNotices.filter(n => n.createdAt >= cutoff).slice(-NOTICE_MAX);
     }
-    
-    function saveAdminNotifications() {
-        localStorage.setItem('admin_notifications', JSON.stringify(window.adminNotifications));
+
+    // Уведомления текущего пользователя: админ видит адресованные 'admin', помощник — своему email
+    function myNoticeAddress() {
+        if (!window.currentUserData) return null;
+        return window.currentUserData.role === 'admin' ? 'admin' : window.currentUserData.email;
     }
-    
-    function loadAdminNotifications() {
-        window.adminNotifications = JSON.parse(localStorage.getItem('admin_notifications') || '[]');
-    }
-    
-    function markNotificationRead(notifId) {
-        const notif = window.adminNotifications.find(n => n.id === notifId);
-        if (notif) {
-            notif.read = true;
-            saveAdminNotifications();
-        }
-    }
-    
-    function clearOldNotifications(days) {
-        const cutoff = new Date();
-        cutoff.setDate(cutoff.getDate() - days);
-        window.adminNotifications = window.adminNotifications.filter(n => new Date(n.createdAt) > cutoff);
-        saveAdminNotifications();
-    }
-    
-    // Уведомления помощника о новых задачах
-    window.helperNotifications = [];
-    
-    function addHelperNotification(helperEmail, type, message, orderNumber) {
-        const notif = {
-            id: 'hnotif_' + Date.now(),
-            helperEmail: helperEmail,
-            type: type, // 'new_task', 'task_updated', 'penalty_issued', 'payment_made'
-            message: message,
-            orderNumber: orderNumber || null,
-            read: false,
-            createdAt: new Date().toISOString()
-        };
-        if (!window.helperNotifications) window.helperNotifications = [];
-        window.helperNotifications.push(notif);
-        // Не более 100 уведомлений
-        if (window.helperNotifications.length > 100) {
-            window.helperNotifications = window.helperNotifications.slice(-100);
-        }
-        saveHelperNotifications();
-    }
-    
-    function saveHelperNotifications() {
-        localStorage.setItem('helper_notifications', JSON.stringify(window.helperNotifications));
-    }
-    
-    function loadHelperNotifications() {
-        window.helperNotifications = JSON.parse(localStorage.getItem('helper_notifications') || '[]');
-    }
-    
-    function getHelperNotifications(helperEmail) {
-        return (window.helperNotifications || [])
-            .filter(n => n.helperEmail === helperEmail)
+
+    function getMyNotices() {
+        const to = myNoticeAddress();
+        return helperNotices
+            .filter(n => n.to === to)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
-    
-    function markHelperNotificationRead(helperEmail, notifId) {
-        const notif = (window.helperNotifications || []).find(n => n.id === notifId && n.helperEmail === helperEmail);
-        if (notif) {
-            notif.read = true;
-            saveHelperNotifications();
+
+    function markNoticeRead(id) {
+        const n = helperNotices.find(x => x.id === id);
+        if (!n || n.read) return;
+        n.read = true;
+        saveAll();
+        renderNotices();
+    }
+
+    function markAllNoticesRead() {
+        let changed = false;
+        getMyNotices().forEach(n => { if (!n.read) { n.read = true; changed = true; } });
+        if (!changed) return;
+        saveAll();
+        renderNotices();
+    }
+
+    // Перенос старых уведомлений и штрафов, хранившихся только на этом устройстве
+    function migrateHelperLocalData() {
+        let changed = false;
+        const known = new Set(helperNotices.map(n => n.id));
+        const move = (key, toOf) => {
+            let list = [];
+            try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+            list.forEach(n => {
+                if (!n || known.has(n.id)) return;
+                helperNotices.push({ id: n.id, to: toOf(n), type: n.type, message: n.message, orderNumber: n.orderNumber || null, read: !!n.read, createdAt: n.createdAt });
+                changed = true;
+            });
+            localStorage.removeItem(key);
+        };
+        move('admin_notifications', () => 'admin');
+        move('helper_notifications', n => n.helperEmail);
+        if (budgetData && budgetData.helperPenalties && budgetData.helperPenalties.length) {
+            const ids = new Set(helperPenalties.map(p => p.id));
+            budgetData.helperPenalties.forEach(p => { if (!ids.has(p.id)) { helperPenalties.push(p); changed = true; } });
+            delete budgetData.helperPenalties;
+            saveBudgetData();
         }
+        if (!changed) return;
+        // Вызывается из loadData, поэтому сохраняем напрямую, без saveAll
+        localStorage.setItem('helperNotices_data', JSON.stringify(helperNotices));
+        localStorage.setItem('helperPenalties_data', JSON.stringify(helperPenalties));
+        if (typeof window.markChanged === 'function') window.markChanged();
     }
-    
-    function getUnreadHelperCount(helperEmail) {
-        return (window.helperNotifications || [])
-            .filter(n => n.helperEmail === helperEmail && !n.read)
-            .length;
-    }
-    
-    // Автоматические уведомления при создании задачи
+
     function notifyHelperAboutTask(helperEmail, orderNumber, taskDescription) {
         const order = ordersData.find(o => o.orderNumber == orderNumber);
         const clientName = order ? order.client : 'Заказ #' + orderNumber;
-        addHelperNotification(helperEmail, 'new_task', `📋 Новая задача: ${taskDescription} (Заказ #${orderNumber}, ${clientName})`, orderNumber);
+        addNotice(helperEmail, 'new_task', `📋 Новая задача: ${taskDescription} (Заказ #${orderNumber}, ${clientName})`, orderNumber);
     }
-    
-    // Автоматическое уведомление при завершении задачи помощником
+
     function notifyAdminAboutTaskCompletion(orderNumber, helperEmail, taskDescription) {
-        addAdminNotification('task_completed', `✅ Помощник ${helperEmail} завершил задачу: ${taskDescription} (Заказ #${orderNumber})`, orderNumber);
+        const name = (window.currentUserData && window.currentUserData.displayName) || helperEmail;
+        addNotice('admin', 'task_submitted', `🕓 ${name} сдал задачу на проверку: ${taskDescription} (Заказ #${orderNumber})`, orderNumber);
     }
-    
-    // Уведомление о штрафе
+
     function notifyHelperAboutPenalty(helperEmail, amount, reason) {
-        addHelperNotification(helperEmail, 'penalty_issued', `⚠️ Штраф: ${formatMoney(amount)}. Причина: ${reason}`, null);
+        addNotice(helperEmail, 'penalty_issued', `⚠️ Штраф: ${formatMoney(amount)}. Причина: ${reason}`, null);
     }
-    
-    // Уведомление о выплате
+
+    // Вызывается из js/finance.js (finPayHelper)
     function notifyHelperAboutPayment(helperEmail, amount) {
-        addHelperNotification(helperEmail, 'payment_made', `💳 Выплата: ${formatMoney(amount)} зачислена!`, null);
+        addNotice(helperEmail, 'payment_made', `💳 Выплата: ${formatMoney(amount)}`, null);
     }
-    
-    // ========== МОДУЛЬ 5.7: ОБНОВЛЁННОЕ УПРАВЛЕНИЕ ЗАДАЧАМИ С УВЕДОМЛЕНИЯМИ ==========
-    
+
     // ========== МОДУЛЬ 5.8: ОТОБРАЖЕНИЕ УВЕДОМЛЕНИЙ В UI ==========
-    
-    // Получить unread notifications count для админа
-    function getAdminUnreadCount() {
-        return window.adminNotifications ? window.adminNotifications.filter(n => !n.read).length : 0;
-    }
-    
-    // Получить unread notifications count для помощника
-    function getHelperUnreadCount() {
-        if (!window.currentUserData) return 0;
-        return getUnreadHelperCount(window.currentUserData.email);
-    }
-    
-    // Рендер уведомлений админа
-    function renderAdminNotifications() {
-        const container = document.getElementById('adminNotificationsList');
-        if (!container) return;
-        
-        const notifs = (window.adminNotifications || [])
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 20); // Последние 20
-        
-        if (notifs.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Уведомлений нет ✅</div>';
-            return;
-        }
-        
-        container.innerHTML = notifs.map(n => {
-            const icon = n.type === 'task_completed' ? '✅' : '📋';
-            const date = new Date(n.createdAt).toLocaleString('ru-RU');
-            return `
-                <div style="padding:10px;margin:5px 0;border-radius:6px;background:${n.read ? '#f8f9fa' : '#e3f2fd'};border-left:3px solid ${n.read ? '#6c757d' : '#2196f3'};">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span>${icon} ${safeHTML(n.message)}</span>
-                        <span style="font-size:11px;color:#888;">${date}</span>
-                    </div>
-                    ${n.orderNumber ? `<div style="font-size:12px;color:#666;margin-top:4px;">Заказ #${safeHTML(n.orderNumber)}</div>` : ''}
-                </div>
-            `;
-        }).join('');
-    }
-    
-    // Рендер уведомлений помощника
-    function renderHelperNotifications() {
-        if (!window.currentUserData) return;
-        const container = document.getElementById('helperNotificationsList');
-        if (!container) return;
-        
-        const notifs = getHelperNotifications(window.currentUserData.email);
-        
-        if (notifs.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:#888;">Уведомлений нет ✅</div>';
-            return;
-        }
-        
-        container.innerHTML = notifs.map(n => {
-            const icon = n.type === 'new_task' ? '📋' : n.type === 'penalty_issued' ? '⚠️' : n.type === 'payment_made' ? '💳' : '📢';
-            const date = new Date(n.createdAt).toLocaleString('ru-RU');
-            return `
-                <div style="padding:10px;margin:5px 0;border-radius:6px;background:${n.read ? '#f8f9fa' : '#fff3cd'};border-left:3px solid ${n.read ? '#6c757d' : '#ffc107'};cursor:pointer;" onclick="markHelperNotificationRead('${safeHTML(window.currentUserData.email)}', '${safeHTML(n.id)}'); renderHelperNotifications();">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <span>${icon} ${safeHTML(n.message)}</span>
-                        <span style="font-size:11px;color:#888;">${date}</span>
-                    </div>
-                    ${n.orderNumber ? `<div style="font-size:12px;color:#666;margin-top:4px;">Заказ #${safeHTML(n.orderNumber)}</div>` : ''}
-                </div>
-            `;
-        }).join('');
-    }
-    
-    // Показать счётчик уведомлений в заголовке
-    function updateNotificationBadges() {
-        // Для админа
-        const adminBadge = document.getElementById('adminNotifBadge');
-        if (adminBadge) {
-            const count = getAdminUnreadCount();
-            adminBadge.textContent = count > 0 ? ` (${count})` : '';
-            adminBadge.style.display = count > 0 ? 'inline' : 'none';
-        }
-        
-        // Для помощника
-        const helperBadge = document.getElementById('helperNotifBadge');
-        if (helperBadge) {
-            const count = getHelperUnreadCount();
-            helperBadge.textContent = count > 0 ? ` (${count})` : '';
-            helperBadge.style.display = count > 0 ? 'inline' : 'none';
-        }
-    }
-    
-    // Загрузить уведомления при старте
-    function initNotifications() {
-        loadAdminNotifications();
-        loadHelperNotifications();
+    // Значок типа уже в начале текста уведомления
+
+    // Список уведомлений: у админа — во вкладке «Задачи помощников», у помощника — в «Мой отчёт»
+    function renderNotices() {
         updateNotificationBadges();
+        const container = document.getElementById(myNoticeAddress() === 'admin' ? 'adminNotificationsList' : 'helperNotificationsList');
+        if (!container) return;
+
+        const notices = getMyNotices().slice(0, 30);
+        const unread = notices.filter(n => !n.read).length;
+        if (notices.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:15px;color:#888;">Уведомлений нет</div>';
+            return;
+        }
+        container.innerHTML = (unread ? `<div style="text-align:right;margin-bottom:6px;"><button class="btn-extra" onclick="markAllNoticesRead()" style="padding:4px 10px;font-size:12px;">Прочитать все</button></div>` : '') +
+            notices.map(n => `
+                <div class="notice-item${n.read ? '' : ' unread'}" onclick="markNoticeRead('${escAttr(n.id)}')">
+                    <span>${safeHTML(n.message)}</span>
+                    <span class="notice-date">${new Date(n.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+            `).join('');
     }
+
+    // Счётчик непрочитанных на кнопках вкладок
+    function updateNotificationBadges() {
+        const count = getMyNotices().filter(n => !n.read).length;
+        document.querySelectorAll('.notif-badge').forEach(badge => {
+            badge.textContent = count > 0 ? String(count) : '';
+            badge.style.display = count > 0 ? 'inline-block' : 'none';
+        });
+    }
+
+    window.markNoticeRead = markNoticeRead;
+    window.markAllNoticesRead = markAllNoticesRead;
+    window.renderNotices = renderNotices;
+
     // Универсальная функция загрузки помощников для селектов
     function loadHelpersForSelect(selectEl, includeExisting = true, maxRetries = 5) {
         return _loadHelpersForSelect(selectEl, includeExisting, 0, maxRetries);
@@ -2681,10 +2372,7 @@ window.localChangesPending = false;
         // Загружаем помощников
         loadHelpersForSelect(helperSelect, true).then((helpers) => {
             if (helpers.length === 0) {
-                console.warn('openPenaltyModal: помощники не найдены!');
-                setTimeout(() => {
-                    alert('⚠️ Помощники не найдены!\n\nПомощник может быть зарегистрирован в Firebase Auth, но не в базе пользователей.\n\nНажмите "🔧 Зарегистрировать в базе" в модалке добавления помощника.');
-                }, 300);
+                setTimeout(() => alert('⚠️ Помощники не найдены. Сначала добавьте помощника кнопкой «➕ Добавить помощника».'), 300);
             }
         });
         
@@ -2736,24 +2424,28 @@ window.localChangesPending = false;
             reason: reason,
             orderNumber: orderNumber || null,
             createdBy: window.currentUserData?.email || 'admin',
-            createdAt: new Date().toISOString(),
-            acknowledged: false
+            createdAt: new Date().toISOString()
         };
-        
-        if (!budgetData.helperPenalties) budgetData.helperPenalties = [];
-        budgetData.helperPenalties.push(penalty);
-        saveBudgetData();
-        
-        // Уведомляем помощника о штрафе
+
+        helperPenalties.push(penalty);
         notifyHelperAboutPenalty(helperEmail, amount, reason);
-        
-        // Обновить отображение
+        saveAll();
+        renderAll();
         renderAdminHelperTasks();
-        renderHelperReport();
-        renderHelperPenalties();
-        
+
         closePenaltyModal();
-        alert(`✅ Штраф ${formatMoney(amount)} для ${helperEmail} выписан!\n📬 Помощник получит уведомление!`);
+        showToast(`Штраф ${formatMoney(amount)} для ${helperEmail} выписан`);
+    }
+
+    function deletePenalty(id) {
+        const idx = helperPenalties.findIndex(p => p.id === id);
+        if (idx === -1 || !confirm('Отменить этот штраф?')) return;
+        const p = helperPenalties[idx];
+        helperPenalties.splice(idx, 1);
+        addNotice(p.helperEmail, 'penalty_issued', `✅ Штраф ${formatMoney(p.amount)} отменён (${p.reason})`, p.orderNumber);
+        saveAll();
+        renderAll();
+        renderAdminHelperTasks();
     }
     
     function renderHelperPenalties() {
@@ -2764,7 +2456,7 @@ window.localChangesPending = false;
         
         const helperEmail = window.currentUserData.email;
         const periodFilter = currentHelperReportPeriod || 'all';
-        const filteredPenalties = getPenaltiesForPeriod(budgetData.helperPenalties || [], periodFilter)
+        const filteredPenalties = getPenaltiesForPeriod(helperPenalties, periodFilter)
             .filter(p => p.helperEmail === helperEmail)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
@@ -2838,6 +2530,7 @@ window.localChangesPending = false;
     window.openPenaltyModal = openPenaltyModal;
     window.closePenaltyModal = closePenaltyModal;
     window.savePenalty = savePenalty;
+    window.deletePenalty = deletePenalty;
     window.renderHelperPenalties = renderHelperPenalties;
 
     function openHelperTaskModalFromAdmin() {
@@ -2996,41 +2689,28 @@ window.localChangesPending = false;
     function adminChangeTaskStatus(orderNumber, taskId, newStatus) {
         const found = findTaskById(taskId);
         if (!found) return;
-        const { task } = found;
+        const { order, task } = found;
+        const wasReview = task.status === 'review';
         task.status = newStatus;
         if (newStatus === 'completed') {
             // Подтверждено админом — с этого момента оплата начислена
             task.completedAt = new Date().toISOString();
             task.confirmedBy = window.currentUserData ? window.currentUserData.email : null;
+            if (task.assignedTo) addNotice(task.assignedTo, 'task_confirmed', `✅ Задача принята: ${task.description} (Заказ #${order.orderNumber}). Начислено ${formatMoney(parseFloat(task.helperPay) || 0)}`, order.orderNumber);
         } else if (newStatus === 'pending') {
             // Вернули в работу
             delete task.submittedAt;
             delete task.completedAt;
+            if (wasReview && task.assignedTo) addNotice(task.assignedTo, 'task_returned', `↩️ Задача возвращена в работу: ${task.description} (Заказ #${order.orderNumber})`, order.orderNumber);
+        } else if (newStatus === 'overdue' && task.assignedTo) {
+            addNotice(task.assignedTo, 'penalty_issued', `❌ Задача просрочена: ${task.description} (Заказ #${order.orderNumber})${parseFloat(task.penalty) ? '. Штраф ' + formatMoney(parseFloat(task.penalty)) : ''}`, order.orderNumber);
         }
-        
+
         saveAll();
         renderAll();
         // Всегда обновляем задачи помощника (даже если смотрит админ)
         renderHelperTasks();
         renderHelperReport();
-    }
-
-    // Fallback: помощники из существующих задач (если Firebase недоступен)
-    function loadFallbackHelpersForTask(selectEl) {
-        const emails = new Set();
-        ordersData.forEach(order => {
-            (order.services || []).forEach(service => {
-                (service.tasks || []).forEach(task => {
-                    if (task.assignedTo) emails.add(task.assignedTo);
-                });
-            });
-        });
-        emails.forEach(email => {
-            const option = document.createElement('option');
-            option.value = email;
-            option.textContent = email;
-            selectEl.appendChild(option);
-        });
     }
 
     // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
@@ -3138,58 +2818,6 @@ window.localChangesPending = false;
         closeHelperTaskModal();
         renderAll();
         alert('✅ Задача создана для ' + assignedTo + '\n📬 Помощник получит уведомление!');
-    }
-
-    function openTaskModal(orderNumber) {
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) return;
-        
-        const modal = document.getElementById('taskModal');
-        document.getElementById('taskOrderNumber').textContent = `Заказ №${orderNumber} (${order.client})`;
-        document.getElementById('taskModal').classList.add('active');
-    }
-
-    function closeTaskModal() {
-        document.getElementById('taskModal').classList.remove('active');
-    }
-
-    function saveNewTask() {
-        const orderNumber = document.getElementById('taskOrderNumberInput').value;
-        const description = document.getElementById('taskDescription').value.trim();
-        const deadline = document.getElementById('taskDeadline').value;
-        const assignedTo = document.getElementById('taskAssignedTo').value.trim();
-        const helperPay = parseFloat(document.getElementById('taskHelperPay').value) || 0;
-        const penalty = parseFloat(document.getElementById('taskPenalty').value) || 0;
-        
-        if (!description || !deadline || !assignedTo) {
-            alert('Заполните все поля!');
-            return;
-        }
-        
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) {
-            alert('Заказ не найден!');
-            return;
-        }
-        
-        // Находим первую услугу или создаём новую
-        let service = order.services[0];
-        if (!service.tasks) service.tasks = [];
-        
-        service.tasks.push({
-            id: Date.now().toString(),
-            description,
-            deadline,
-            assignedTo,
-            helperPay,
-            penalty,
-            status: 'pending'
-        });
-        
-        saveAll();
-        closeTaskModal();
-        renderOrders();
-        alert('✅ Задача добавлена!');
     }
 
 
@@ -5596,14 +5224,13 @@ function deleteOrder(orderId) {
         renderRefs();
         renderPurchaseOrdersList();
         updateUnpaidSummary();
-        updateNotificationBadges();
-        
         // Рендеринг для помощника (любой не-админ)
         if (window.currentUserData && window.currentUserData.role !== 'admin') {
             renderHelperTasks();
             renderHelperReport();
-            renderHelperNotifications();
         }
+        renderNotices();
+        renderAttendance();
     }
     
     // Делаем renderAll глобально доступной
@@ -6071,7 +5698,7 @@ function deleteOrder(orderId) {
 // ========== СЛИЯНИЕ ДАННЫХ С ОБЛАКОМ (БЕЗ ПОТЕРЬ) ==========
 // У облака есть номер версии (rev). Устройство помнит, с какой версией оно синхронизировано
 // (cloud_rev), и есть ли у него неотправленные изменения (cloud_dirty).
-const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings'];
+const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'attendance', 'helperSchedules'];
 
 function syncToArray(value) {
     if (Array.isArray(value)) return value.filter(item => item != null);
@@ -6232,6 +5859,10 @@ function applyCloudVersion(data) {
     notes = syncToArray(data.notes);
     payments = syncToArray(data.payments);
     financeSettings = syncToArray(data.financeSettings);
+    helperNotices = syncToArray(data.helperNotices);
+    helperPenalties = syncToArray(data.helperPenalties);
+    attendance = syncToArray(data.attendance);
+    helperSchedules = syncToArray(data.helperSchedules);
 }
 
 // ========== РЕЖИМ ВОССТАНОВЛЕНИЯ ==========
@@ -6292,6 +5923,10 @@ function applyMergedVersion(data, preferLocal) {
     notes = merge('notes');
     payments = merge('payments');
     financeSettings = merge('financeSettings');
+    helperNotices = merge('helperNotices');
+    helperPenalties = merge('helperPenalties');
+    attendance = merge('attendance');
+    helperSchedules = merge('helperSchedules');
 }
 
 window.updateCloudData = function(data) {
@@ -6644,6 +6279,7 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         if (tabId === 'tab-ref' && typeof renderServicesTable === 'function') renderServicesTable();
         if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
+        if ((tabId === 'helper-attendance' || tabId === 'tab-helper-admin') && typeof renderAttendance === 'function') renderAttendance();
     };
     
     // Привязка кликов к bottom nav кнопкам

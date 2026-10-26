@@ -95,14 +95,12 @@
         if (tabId === 'tab-cash' && typeof renderCash === 'function') renderCash();
         if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();
+        if ((tabId === 'helper-attendance' || tabId === 'tab-helper-admin') && typeof renderAttendance === 'function') renderAttendance();
         if (tabId === 'tab-helper-admin') {
             if (typeof updateHelperFilter === 'function') updateHelperFilter();
             if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
-            if (typeof renderAdminNotifications === 'function') renderAdminNotifications();
+            if (typeof renderNotices === 'function') renderNotices();
             if (typeof listAllHelpersInDB === 'function') listAllHelpersInDB();
-        }
-        if (tabId === 'helper-report') {
-            if (typeof renderHelperNotifications === 'function') renderHelperNotifications();
         }
 
         if (navigator.vibrate) navigator.vibrate(10);
