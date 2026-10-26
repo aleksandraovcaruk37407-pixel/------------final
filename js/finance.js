@@ -79,6 +79,20 @@ function finHelperCost(order) {
     return hasTasks ? sum : finNum(order.helperPay);
 }
 
+// Штрафы за просроченные задачи заказа: помощник их «возвращает» из своих начислений
+function finOrderPenalties(order) {
+    let sum = 0;
+    (order.services || []).forEach(s => (s.tasks || []).forEach(t => {
+        if (t.status === 'overdue') sum += finNum(t.penalty);
+    }));
+    return sum;
+}
+
+// Сколько бизнес на самом деле платит помощникам за заказ: оплата задач − штрафы по ним
+function finHelperNetCost(order) {
+    return finHelperCost(order) - finOrderPenalties(order);
+}
+
 // ========== НОМЕРА ЗАКАЗОВ ==========
 // Следующий номер — по всем заказам (они синхронизируются), а не по счётчику устройства:
 // раньше телефон и компьютер выдавали одинаковые номера, а новое устройство начинало с №1.
@@ -123,17 +137,36 @@ function finFixDuplicateOrderNumbers(orders) {
 // ========== НАЧИСЛЕНИЯ ПОМОЩНИКАМ ==========
 // Начислено — оплата выполненных задач; штраф — за просроченные и выписанные отдельно
 // (penalties — список helperPenalties из app.js); выплачено — расходы кассы
-// «Помощникам» с этим помощником (синхронизируются) + старые выплаты, записанные только
-// на устройстве админа (budgetData.helperPayments без cashOpId).
-function finHelperPaidData(email, cash, budget) {
+// «Помощникам» с этим помощником + выплаты до 25.10.2026 (paidBefore — список helperPaidBefore из app.js:
+// тогда выплаты записывались только на устройстве админа и в кассу не попадали).
+function finHelperPaidData(email, cash, paidBefore) {
     const fromCash = (cash || []).filter(o => o.category === 'helpers' && o.helper === email)
         .reduce((sum, o) => sum + finNum(o.expense), 0);
-    const legacy = (budget && budget.helperPayments && budget.helperPayments[email] || [])
-        .filter(p => !p.cashOpId).reduce((sum, p) => sum + finNum(p.amount), 0);
-    return fromCash + legacy;
+    const before = (paidBefore || []).filter(p => p && p.helper === email)
+        .reduce((sum, p) => sum + finNum(p.amount), 0);
+    return fromCash + before;
 }
 
-function finHelperAccrualsData(orders, cash, budget, mk, penalties) {
+// Перенос старых выплат из budgetData.helperPayments (только на устройстве админа) в список paidBefore.
+// id однозначный, поэтому повторный перенос ничего не задваивает. Возвращает true, если список изменился.
+function finMigrateHelperPayments(budget, paidBefore) {
+    const map = budget && budget.helperPayments;
+    if (!map || typeof map !== 'object') return false;
+    const ids = new Set(paidBefore.map(p => p.id));
+    let changed = false;
+    Object.keys(map).forEach(email => {
+        (map[email] || []).filter(p => p && !p.cashOpId && finNum(p.amount) > 0).forEach(p => {
+            const id = 'hpb-' + email + '-' + (p.date || '');
+            if (!ids.has(id)) {
+                paidBefore.push({ id, helper: email, amount: finNum(p.amount), date: p.date || null, paidBy: p.paidBy || null });
+                ids.add(id); changed = true;
+            }
+        });
+    });
+    return changed;
+}
+
+function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties) {
     const byHelper = new Map();
     const get = email => {
         if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, review: 0, reviewPay: 0, monthEarned: 0, monthDone: 0 });
@@ -157,8 +190,9 @@ function finHelperAccrualsData(orders, cash, budget, mk, penalties) {
     (penalties || []).forEach(p => { if (p && p.helperEmail) get(p.helperEmail).penalties += finNum(p.amount); });
     // Помощники, которым платили, но задач уже нет
     (cash || []).forEach(o => { if (o.category === 'helpers' && o.helper) get(o.helper); });
+    (paidBefore || []).forEach(p => { if (p && p.helper) get(p.helper); });
     return [...byHelper.values()].map(h => {
-        const paid = finHelperPaidData(h.email, cash, budget);
+        const paid = finHelperPaidData(h.email, cash, paidBefore);
         const net = h.earned - h.penalties;
         return { ...h, paid, net, owed: net - paid };
     }).sort((a, b) => b.owed - a.owed);
@@ -191,7 +225,8 @@ function finDebtRemaining(payment, cash) {
 
 /**
  * Помесячный расчёт «водопада» и копилок.
- * data: { orders, cash, payments, settings, getOrderCost, today, fromMonth?, toMonth? }
+ * data: { orders, cash, payments, settings, getOrderCost, today, penalties?, fromMonth?, toMonth? }
+ * penalties — штрафы, выписанные помощникам отдельно (helperPenalties): уменьшают «Помощникам» в месяце штрафа
  * Возвращает { months: {mk: {...}}, funds: {key: {accrued, spent, balance}}, reserveTarget }
  */
 function finCompute(data) {
@@ -229,13 +264,17 @@ function finCompute(data) {
         const incomeOps = cash.filter(o => inMonth(o) && o.category === 'income');
         const revenue = incomeOps.reduce((sum, o) => sum + finNum(o.income), 0);
         // Переменные расходы — по тем же заказам
-        let materials = 0, helpers = 0;
+        let materials = 0, helpers = 0, helperPenalties = 0;
         incomeOps.forEach(o => {
             const order = ordersById.get(String(o.orderId));
             if (!order) return;
             materials += data.getOrderCost(order);
             helpers += finHelperCost(order);
+            helperPenalties += finOrderPenalties(order);
         });
+        // Штрафы помощникам — бизнес столько не платит: за просрочку по оплаченным заказам и выписанные в этом месяце
+        (data.penalties || []).forEach(p => { if (p && finMonthKey(p.createdAt) === mk) helperPenalties += finNum(p.amount); });
+        helpers -= helperPenalties;
         const tax = revenue * t;
         const marginal = revenue - tax - materials - helpers;
         // Постоянные расходы бизнеса: план по платежам + прочие траты бизнеса, не из копилок
@@ -260,7 +299,7 @@ function finCompute(data) {
         const free = salary - savings - invest - personal;
 
         result.months[mk] = {
-            revenue, tax, materials, helpers, marginal, fixed, otherBusiness, businessProfit,
+            revenue, tax, materials, helpers, helperPenalties, marginal, fixed, otherBusiness, businessProfit,
             reserve, dev, salary, savings, invest, personal, otherPersonal, free,
             ordersPaid: incomeOps.length
         };
@@ -279,7 +318,7 @@ function finCompute(data) {
 
 // Сумма «водопада» за период из нескольких месяцев
 function finSumMonths(computed, fromMk, toMk) {
-    const keys = ['revenue', 'tax', 'materials', 'helpers', 'marginal', 'fixed', 'businessProfit',
+    const keys = ['revenue', 'tax', 'materials', 'helpers', 'helperPenalties', 'marginal', 'fixed', 'businessProfit',
         'reserve', 'dev', 'salary', 'savings', 'invest', 'personal', 'free', 'ordersPaid'];
     const sum = {};
     keys.forEach(k => { sum[k] = 0; });
@@ -417,7 +456,7 @@ function finSettings() { return finSettingsFrom(financeSettings); }
 function finComputeNow() {
     return finCompute({
         orders: ordersData, cash: cashOps, payments, settings: finSettings(),
-        getOrderCost, today: finTodayStr()
+        getOrderCost, today: finTodayStr(), penalties: finHelperPenalties()
     });
 }
 
@@ -468,7 +507,7 @@ function renderFinance() {
         ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}`;
 
     // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
-    const helpers = finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, mk, finHelperPenalties());
+    const helpers = finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), mk, finHelperPenalties());
     const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
     html += `<h3 class="fin-h">👷 Помощникам</h3>
         <div class="fin-group">
@@ -605,15 +644,20 @@ function finHelperPenalties() {
     return typeof helperPenalties !== 'undefined' ? helperPenalties : [];
 }
 
+// Выплаты помощникам до 25.10.2026 (helperPaidBefore из app.js; в тестах может не быть)
+function finHelperPaidBefore() {
+    return typeof helperPaidBefore !== 'undefined' ? helperPaidBefore : [];
+}
+
 // Начисления одного помощника за всё время: earned, penalties, paid, owed (к выплате)
 function finHelperAccrual(email) {
-    return finHelperAccrualsData(ordersData, cashOps, typeof budgetData !== 'undefined' ? budgetData : null, null, finHelperPenalties())
+    return finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), null, finHelperPenalties())
         .find(h => h.email === email) || { email, earned: 0, penalties: 0, paid: finHelperPaid(email), net: 0, owed: -finHelperPaid(email) };
 }
 
 // Выплачено помощнику (для отчётов помощника и админа в app.js)
 function finHelperPaid(email) {
-    return finHelperPaidData(email, cashOps, typeof budgetData !== 'undefined' ? budgetData : null);
+    return finHelperPaidData(email, cashOps, finHelperPaidBefore());
 }
 
 // Выплата помощнику: расход кассы «Помощникам» (синхронизируется — помощник видит выплату)
@@ -737,7 +781,7 @@ function renderFinanceSummary(startDate, endDate) {
     const paidOrders = ordersData.filter(o => o.paidAt && o.paidAt >= startDate && o.paidAt <= endDate);
     const low = paidOrders.map(o => {
         const price = finNum(o.clientPrice);
-        const margin = price - price * s.taxPercent / 100 - getOrderCost(o) - finHelperCost(o);
+        const margin = price - price * s.taxPercent / 100 - getOrderCost(o) - finHelperNetCost(o);
         return { o, margin, pct: price > 0 ? margin / price * 100 : 0 };
     }).filter(x => x.pct < 30).sort((a, b) => a.pct - b.pct).slice(0, 5);
 
@@ -746,7 +790,7 @@ function renderFinanceSummary(startDate, endDate) {
             ${row('💰 Выручка', m.revenue, 'total', `оплачено заказов: ${m.ordersPaid}`)}
             ${row(`− Налог ${s.taxPercent}% → в копилку`, m.tax)}
             ${row('− Материалы', m.materials)}
-            ${row('− Помощникам', m.helpers)}
+            ${row('− Помощникам', m.helpers, '', m.helperPenalties ? `за вычетом штрафов ${formatMoney(m.helperPenalties)}` : '')}
             ${row('= Маржинальная прибыль', m.marginal, 'sub')}
             ${row('− Постоянные расходы бизнеса', m.fixed, '', 'платежи «Бизнес» и прочие траты')}
             ${row('= Прибыль бизнеса', m.businessProfit, 'sub ' + (m.businessProfit < 0 ? 'neg' : 'pos'))}

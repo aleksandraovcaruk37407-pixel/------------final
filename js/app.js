@@ -232,6 +232,8 @@
     let payments = [], financeSettings = [];
     // Помощники: уведомления (to — email помощника или 'admin') и штрафы — синхронизируются
     let helperNotices = [], helperPenalties = [];
+    // Выплаты помощникам до 25.10.2026 — раньше хранились только на устройстве админа (js/finance.js)
+    let helperPaidBefore = [];
     // Посещаемость помощников и их график (js/attendance.js) — синхронизируются
     let attendance = [], helperSchedules = [];
     let budgetData = null;
@@ -239,7 +241,7 @@
 
     // Данные для облачной синхронизации (переменные выше не видны через window)
     window.getSyncData = function() {
-      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, helperNotices, helperPenalties, attendance, helperSchedules, stock: loadStock() };
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, helperNotices, helperPenalties, helperPaidBefore, attendance, helperSchedules, stock: loadStock() };
     };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
@@ -337,6 +339,7 @@
     financeSettings = parseJSON('financeSettings_data', []);
     helperNotices = parseJSON('helperNotices_data', []);
     helperPenalties = parseJSON('helperPenalties_data', []);
+    helperPaidBefore = parseJSON('helperPaidBefore_data', []);
     attendance = parseJSON('attendance_data', []);
     helperSchedules = parseJSON('helperSchedules_data', []);
     // Перенос старых финансовых записей: касса = реальные деньги (js/finance.js)
@@ -626,6 +629,7 @@ if (!films.length) {
         financeSettings: financeSettings,
         helperNotices: helperNotices,
         helperPenalties: helperPenalties,
+        helperPaidBefore: helperPaidBefore,
         attendance: attendance,
         helperSchedules: helperSchedules,
         budgetData: budgetData
@@ -2197,10 +2201,13 @@ window.localChangesPending = false;
             delete budgetData.helperPenalties;
             saveBudgetData();
         }
+        // Старые выплаты (budgetData.helperPayments) — в общий список, чтобы помощник видел их тоже
+        if (finMigrateHelperPayments(budgetData, helperPaidBefore)) changed = true;
         if (!changed) return;
         // Вызывается из loadData, поэтому сохраняем напрямую, без saveAll
         localStorage.setItem('helperNotices_data', JSON.stringify(helperNotices));
         localStorage.setItem('helperPenalties_data', JSON.stringify(helperPenalties));
+        localStorage.setItem('helperPaidBefore_data', JSON.stringify(helperPaidBefore));
         if (typeof window.markChanged === 'function') window.markChanged();
     }
 
@@ -5722,7 +5729,7 @@ function deleteOrder(orderId) {
 // ========== СЛИЯНИЕ ДАННЫХ С ОБЛАКОМ (БЕЗ ПОТЕРЬ) ==========
 // У облака есть номер версии (rev). Устройство помнит, с какой версией оно синхронизировано
 // (cloud_rev), и есть ли у него неотправленные изменения (cloud_dirty).
-const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'attendance', 'helperSchedules'];
+const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'helperPaidBefore', 'attendance', 'helperSchedules'];
 
 function syncToArray(value) {
     if (Array.isArray(value)) return value.filter(item => item != null);
@@ -5776,6 +5783,7 @@ window.setSyncBase = function(data) {
         const base = {};
         SYNC_KEYS.concat('stock').forEach(key => { base[key] = syncToArray(data && data[key]); });
         localStorage.setItem('cloud_base', JSON.stringify(base));
+        localStorage.setItem('cloud_keys', SYNC_KEYS.join(','));
     } catch (e) {
         localStorage.removeItem('cloud_base'); // нет места — без базы слияние будет простым объединением
     }
@@ -5885,6 +5893,7 @@ function applyCloudVersion(data) {
     financeSettings = syncToArray(data.financeSettings);
     helperNotices = syncToArray(data.helperNotices);
     helperPenalties = syncToArray(data.helperPenalties);
+    helperPaidBefore = syncToArray(data.helperPaidBefore);
     attendance = syncToArray(data.attendance);
     helperSchedules = syncToArray(data.helperSchedules);
 }
@@ -5949,6 +5958,7 @@ function applyMergedVersion(data, preferLocal) {
     financeSettings = merge('financeSettings');
     helperNotices = merge('helperNotices');
     helperPenalties = merge('helperPenalties');
+    helperPaidBefore = merge('helperPaidBefore');
     attendance = merge('attendance');
     helperSchedules = merge('helperSchedules');
 }
@@ -5969,8 +5979,11 @@ window.updateCloudData = function(data) {
         return;
     }
 
-    // Устройство уже синхронизировано с этой версией
-    if (everSynced && cloudRev === localRev) {
+    // Устройство уже синхронизировано с этой версией. Но если новая версия программы добавила списки
+    // (cloud_keys другой), их нужно один раз взять из облака: старый код получил эту версию облака,
+    // не зная о них, и запомнил её номер.
+    const keysChanged = localStorage.getItem('cloud_keys') !== SYNC_KEYS.join(',');
+    if (everSynced && cloudRev === localRev && !keysChanged) {
         // Первый запуск с синхронизацией склада: если в облаке склада ещё нет, отправляем свой
         if (!localStorage.getItem('stock_synced') && !syncToArray(data.stock).length &&
             loadStock().some(s => (parseFloat(s.income) || 0) > 0) && typeof window.markChanged === 'function') {
