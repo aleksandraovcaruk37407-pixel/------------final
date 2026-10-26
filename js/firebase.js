@@ -44,6 +44,19 @@ window.createHelperAuthUser = async function(email, password, displayName) {
   }
 };
 
+// ========== PUSH: ТОКЕН УСТРОЙСТВА (js/fcm.js) ==========
+// Модуль messaging загружается только по запросу: если он недоступен, программа работает без push
+const loadMessaging = () => import("https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging.js");
+window.getPushToken = async function(vapidKey, serviceWorkerRegistration) {
+  const m = await loadMessaging();
+  if (!(await m.isSupported())) return null;
+  return m.getToken(m.getMessaging(app), { vapidKey, serviceWorkerRegistration });
+};
+window.deletePushToken = async function() {
+  const m = await loadMessaging();
+  if (await m.isSupported()) await m.deleteToken(m.getMessaging(app));
+};
+
 let firebaseConnected = false;
 let cloudDataLoaded = false;
 let lastSyncTime = 0;

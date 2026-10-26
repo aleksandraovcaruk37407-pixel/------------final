@@ -1,0 +1,43 @@
+# Бесплатная отправка push-уведомлений (вместо облачных функций Firebase, которым нужен тариф Blaze).
+# Раз в 5 минут запускает functions/github-sender.js. Нужен секрет FIREBASE_SERVICE_ACCOUNT
+# (Settings → Secrets and variables → Actions) — см. PUSH_NOTIFICATIONS_INSTRUCTIONS.md.
+# GitHub запускает расписание с задержкой (обычно 5–15 минут) и отключает его после 60 дней без коммитов.
+name: Push-уведомления
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Не запускать две отправки одновременно — иначе одно уведомление может уйти дважды
+concurrency:
+  group: push-sender
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install
+        working-directory: functions
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Send push
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node github-sender.js

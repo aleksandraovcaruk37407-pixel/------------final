@@ -2228,8 +2228,32 @@ window.localChangesPending = false;
     // Значок типа уже в начале текста уведомления
 
     // Список уведомлений: у админа — во вкладке «Задачи помощников», у помощника — в «Мой отчёт»
+    // Новое уведомление, пока программа открыта: на экране — всплывающая подсказка,
+    // в фоновой вкладке — системное уведомление (если разрешены). Push по расписанию придёт позже
+    // с тем же tag и заменит это уведомление, а не добавит второе.
+    function announceNewNotices() {
+        const to = myNoticeAddress();
+        if (!to) return;
+        const key = 'notices_seen_' + to;
+        let seen = null;
+        try { seen = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+        const mine = getMyNotices();
+        // Первый запуск — без оповещений; старше 10 минут — уже не «новое» (пришло, пока программа была закрыта)
+        const fresh = seen ? mine.filter(n => !n.read && !seen.includes(n.id) && Date.now() - Date.parse(n.createdAt) < 10 * 60000) : [];
+        try { localStorage.setItem(key, JSON.stringify(mine.map(n => n.id).slice(0, NOTICE_MAX))); } catch (e) {}
+        fresh.slice(0, 3).forEach(n => {
+            if (!document.hidden) { showToast(n.message); return; }
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            const options = { body: n.message, tag: n.id, icon: 'icons/icon-192.png' };
+            const reg = navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration() : Promise.resolve(null);
+            reg.then(r => r ? r.showNotification('Авто-ателье', options) : new Notification('Авто-ателье', options)).catch(() => {});
+        });
+    }
+
     function renderNotices() {
         updateNotificationBadges();
+        announceNewNotices();
+        if (typeof renderPushControls === 'function') renderPushControls();
         const container = document.getElementById(myNoticeAddress() === 'admin' ? 'adminNotificationsList' : 'helperNotificationsList');
         if (!container) return;
 
@@ -6397,6 +6421,6 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
     } else {
         console.error('[App] initRealtimeSync не определена!');
     }
-    // Push-уведомления (js/fcm.js) отключены: не настроен ключ VAPID
+    // Push-уведомления: подписка — js/fcm.js (после входа, getUserDataForAuth), отправка — functions/index.js
 })();
 

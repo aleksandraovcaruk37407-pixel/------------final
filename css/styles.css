@@ -1872,3 +1872,6 @@
 .att-legend span { padding:2px 8px; border-radius:10px; }
 .att-daycheck { display:flex; align-items:center; gap:4px; font-size:14px; }
 @media (max-width: 600px) { .att-cell { min-height:46px; padding:2px; font-size:9px; } .att-day { font-size:12px; } .att-big-btn { width:100%; min-width:0; } }
+.push-controls { margin-bottom:8px; font-size:13px; }
+.push-controls:empty { display:none; }
+.push-hint { color:#555; }

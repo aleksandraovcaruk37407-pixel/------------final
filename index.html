@@ -53,15 +53,17 @@
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202610261600"></script>
+    <script type="module" src="js/firebase.js?v=202610261800"></script>
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
     <script src="js/finance.js?v=202610261600" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
     <script src="js/attendance.js?v=202610261600" defer></script>
+    <!-- Push-уведомления: подписка устройства -->
+    <script src="js/fcm.js?v=202610261800" defer></script>
     
-    <script src="js/app.js?v=202610261600" defer></script>
+    <script src="js/app.js?v=202610261800" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610261600" defer></script>
@@ -424,6 +426,7 @@
         <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
         <div class="notice-box">
             <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
+            <div class="push-controls"></div>
             <div id="helperNotificationsList"></div>
         </div>
         <div id="helperReportContainer"></div>
@@ -441,6 +444,7 @@
         </div>
         <div class="notice-box">
             <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
+            <div class="push-controls"></div>
             <div id="adminNotificationsList"></div>
         </div>
         <div style="margin-bottom:15px;">
@@ -1278,6 +1282,7 @@
   window.handleLogout = async () => {
     if (!confirm('Выйти из системы?')) return;
     try {
+      if (typeof window.pushOnLogout === 'function') await window.pushOnLogout();
       await window.signOut(window.auth);
       location.reload();
     } catch (error) {
@@ -1339,6 +1344,7 @@
       console.log('>>> window.currentUserData установлен:', window.currentUserData);
       window.updateAuthUI();
       window.updateRoleTabs();
+      if (typeof window.pushOnLogin === 'function') window.pushOnLogin();
       
       // Ждём загрузки app.js перед вызовом updateCloudData
       const checkUpdateCloudData = () => {
