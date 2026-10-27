@@ -104,7 +104,8 @@ window.pushEnable = async function() {
 // Проверка: уведомление самому себе — отправитель пришлёт push на все мои устройства
 window.pushTest = function() {
     const to = window.currentUserData.role === 'admin' ? 'admin' : window.currentUserData.email;
-    addNotice(to, 'test', '🔔 Проверка push-уведомлений', null);
+    // fromSelf — иначе админу, нажавшему «Проверить», push не пришёл бы (уведомления 'admin' не шлются их автору)
+    addNotice(to, 'test', '🔔 Проверка push-уведомлений', null, { fromSelf: true });
     saveAll();
     renderNotices();
     showToast('Отправлено. Push придёт через 5–15 минут (бесплатная отправка по расписанию)');
@@ -124,7 +125,7 @@ window.pushOnLogout = async function() {
     }
 };
 
-// Кнопка/подсказка рядом со списками уведомлений (.push-controls)
+// Кнопка/подсказка в окошке уведомлений под колокольчиком (.push-controls)
 function renderPushControls() {
     const status = pushStatus();
     const subscribed = status === 'granted' && !!localStorage.getItem(PUSH_KEY_STORAGE);

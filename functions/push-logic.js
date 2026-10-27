@@ -9,10 +9,10 @@ const NOTICE_MAX_AGE_MS = 15 * 60 * 1000;
 
 const toList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === 'object' ? Object.values(v).filter(Boolean) : []);
 
-// Новые уведомления: есть после записи, не было до неё, и созданы недавно
+// Новые уведомления: есть после записи, не было до неё, созданы недавно и не «только в программе»
 function findNewNotices(before, after, nowMs) {
   const old = new Set(toList(before).map(n => n.id));
-  return toList(after).filter(n => n.id && !old.has(n.id) && n.to &&
+  return toList(after).filter(n => n.id && !old.has(n.id) && n.to && !IN_APP_ONLY_TYPES.includes(n.type) &&
     nowMs - Date.parse(n.createdAt || 0) <= NOTICE_MAX_AGE_MS);
 }
 
@@ -119,8 +119,11 @@ function sentKey(id) {
   return String(id).replace(/[.#$[\]/]/g, '_');
 }
 
-// Что отправить сейчас (send) и что пропустить как устаревшее (skip); next — новое содержимое push_state/sent:
-// только уведомления, которые ещё есть в программе (остальные забываем), плюс метка _init
+// Закупка, склад и «Взял в работу» — только в программе (колокольчик), push не отправляем. Тот же список — в js/app.js
+const IN_APP_ONLY_TYPES = ['purchase', 'stock', 'task_started'];
+
+// Что отправить сейчас (send) и что пропустить как устаревшее или «только в программе» (skip);
+// next — новое содержимое push_state/sent: только уведомления, которые ещё есть в программе (остальные забываем), плюс метка _init
 function pendingNotices(notices, sent, nowMs) {
   sent = sent || {};
   const send = [], skip = [], next = { _init: sent._init || nowMs };
@@ -128,7 +131,8 @@ function pendingNotices(notices, sent, nowMs) {
     if (!n.id || !n.to) return;
     const key = sentKey(n.id);
     if (sent[key]) { next[key] = sent[key]; return; }
-    (nowMs - Date.parse(n.createdAt || 0) <= SENDER_MAX_AGE_MS ? send : skip).push(n);
+    const fresh = nowMs - Date.parse(n.createdAt || 0) <= SENDER_MAX_AGE_MS;
+    (fresh && !IN_APP_ONLY_TYPES.includes(n.type) ? send : skip).push(n);
     next[key] = nowMs;
   });
   return { send, skip, next };
@@ -228,5 +232,5 @@ async function sendToDevices(db, messaging, devices, message) {
   return res.successCount;
 }
 
-module.exports = { ADMIN_EMAILS, NOTICE_MAX_AGE_MS, SENDER_MAX_AGE_MS, findNewNotices, recipientUids, tokensFor, buildMessage, noticeMessage, isDeadTokenError, dailySummary,
+module.exports = { ADMIN_EMAILS, IN_APP_ONLY_TYPES, NOTICE_MAX_AGE_MS, SENDER_MAX_AGE_MS, findNewNotices, recipientUids, tokensFor, buildMessage, noticeMessage, isDeadTokenError, dailySummary,
   sentKey, pendingNotices, localDateHour, localDateTime, dailyDue, helperReminders, overdueTaskNotices, pruneReminderState, WORK_START, WORK_END, sendToDevices };

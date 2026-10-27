@@ -248,6 +248,7 @@
     let currentDate = new Date();
     let selectedDate = new Date();
     let orderEditId = null;
+    let currentPrepayments = []; // предоплаты в открытом окне заказа: [{ id, date, amount }]
     let currentManualColor = 'auto';
     let extraModalOrderId = null;
     let editingServiceIndex = null;
@@ -1310,9 +1311,10 @@ window.localChangesPending = false;
             const isOverdue = task.status === 'overdue';
             const isCompleted = task.status === 'completed';
             const isReview = task.status === 'review';
-            const statusText = isCompleted ? '✅ Выполнена' : isReview ? '🕓 На проверке' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+            const statusText = taskStatusText(task);
             const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
-            
+            const canWork = !isCompleted && !isReview;
+
             return `
                 <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
@@ -1330,9 +1332,12 @@ window.localChangesPending = false;
                         ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                     </div>
                     ${isReview ? `<div style="font-size:13px;color:#3498db;">Ждёт подтверждения администратора — оплата начислится после проверки</div>` : ''}
-                    ${!isCompleted && !isReview ? `
-                        <div style="display:flex;gap:8px;">
+                    ${taskProblemsHTML(task)}
+                    ${canWork ? `
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            ${!task.startedAt ? `<button class="btn-add" onclick="startTask('${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#f39c12;">🔧 Взял в работу</button>` : ''}
                             <button class="btn-add" onclick="completeTask('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">✅ Выполнил — на проверку</button>
+                            <button class="btn-extra" onclick="reportTaskProblem('${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">⚠️ Сообщить о проблеме</button>
                         </div>
                     ` : ''}
                 </div>
@@ -1725,6 +1730,68 @@ window.localChangesPending = false;
         renderHelperReport();
     }
 
+    // Статус задачи словами: «В работе» — помощник нажал «Взял в работу» (startedAt), статус при этом остаётся pending
+    function taskStatusText(task) {
+        if (task.status === 'completed') return '✅ Выполнена';
+        if (task.status === 'review') return '🕓 На проверке';
+        if (task.status === 'overdue') return '❌ Просрочена';
+        return task.startedAt ? '🔧 В работе' : '⏳ Ждёт начала';
+    }
+
+    // Сообщения помощника о проблемах по задаче (task.problems) — видят и помощник, и админ
+    function taskProblemsHTML(task) {
+        const list = Array.isArray(task.problems) ? task.problems : [];
+        if (!list.length) return '';
+        return `<div style="background:#fff3cd;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:13px;">
+            ${list.map(p => `<div>⚠️ <b>${new Date(p.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</b> ${safeHTML(p.text)}</div>`).join('')}
+        </div>`;
+    }
+
+    // Помощник: «Взял в работу» — админ видит, что задачей уже занимаются (только в программе, без push)
+    function startTask(taskId) {
+        const found = findTaskById(taskId);
+        if (!found) return;
+        const { order, task } = found;
+        if (task.startedAt || task.status === 'completed' || task.status === 'review') return;
+        task.startedAt = new Date().toISOString();
+        const name = (window.currentUserData && (window.currentUserData.displayName || window.currentUserData.email)) || '';
+        addNotice('admin', 'task_started', `🔧 ${name} взял в работу: ${task.description} (Заказ #${order.orderNumber})`, order.orderNumber);
+        saveAll();
+        renderHelperTasks();
+        showToast('🔧 Задача в работе', 'success');
+    }
+
+    // Помощник: «Сообщить о проблеме» — окно с текстом, админу уведомление и push
+    let problemTaskId = null;
+    function reportTaskProblem(taskId) {
+        problemTaskId = taskId;
+        document.getElementById('problemText').value = '';
+        openModal('problemModal');
+        setTimeout(() => document.getElementById('problemText').focus(), 50);
+    }
+    function closeProblemModal() {
+        problemTaskId = null;
+        closeModalById('problemModal');
+    }
+    function saveTaskProblem() {
+        const text = document.getElementById('problemText').value.trim();
+        if (!text) { alert('Напишите, что случилось'); return; }
+        const found = problemTaskId && findTaskById(problemTaskId);
+        if (!found) { closeProblemModal(); return; }
+        const { order, task } = found;
+        task.problems = (Array.isArray(task.problems) ? task.problems : []).concat({ at: new Date().toISOString(), text: text.slice(0, 500) });
+        const name = (window.currentUserData && (window.currentUserData.displayName || window.currentUserData.email)) || '';
+        addNotice('admin', 'task_problem', `⚠️ ${name}: проблема по задаче «${task.description}» (Заказ #${order.orderNumber}): ${text}`.slice(0, 300), order.orderNumber);
+        saveAll();
+        closeProblemModal();
+        renderHelperTasks();
+        showToast('⚠️ Сообщение отправлено администратору', 'success');
+    }
+    window.startTask = startTask;
+    window.reportTaskProblem = reportTaskProblem;
+    window.closeProblemModal = closeProblemModal;
+    window.saveTaskProblem = saveTaskProblem;
+
     // ========== МОДУЛЬ 5.2: УПРАВЛЕНИЕ ЗАДАЧАМИ (ADMIN) ==========
     let currentEditingTask = null;
 
@@ -2047,7 +2114,7 @@ window.localChangesPending = false;
                 const isOverdue = task.status === 'overdue';
                 const isCompleted = task.status === 'completed';
                 const isReview = task.status === 'review';
-                const statusText = isCompleted ? '✅ Выполнена' : isReview ? '🕓 На проверке' : (isOverdue ? '❌ Просрочена' : '⏳ В процессе');
+                const statusText = taskStatusText(task);
                 const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
                 const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
                 
@@ -2075,8 +2142,10 @@ window.localChangesPending = false;
                             <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
                             ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                             ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
+                            ${task.startedAt ? `<span>🔧 Взял в работу: ${new Date(task.startedAt).toLocaleDateString('ru-RU')}</span>` : ''}
                             ${task.completedAt ? `<span>✅ Выполнена: ${new Date(task.completedAt).toLocaleDateString('ru-RU')}</span>` : ''}
                         </div>
+                        ${taskProblemsHTML(task)}
                         ${isReview ? `
                         <div style="background:#e8f4fd;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
                             <span>🕓 Помощник отметил выполненной${task.submittedAt ? ' ' + new Date(task.submittedAt).toLocaleDateString('ru-RU') : ''}</span>
@@ -2192,7 +2261,7 @@ window.localChangesPending = false;
             id: 'ntc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
             to: to,
             ...(to === 'admin' && me && !(opts && opts.fromSelf) ? { from: me } : {}),
-            type: type, // new_task, task_submitted, task_confirmed, task_returned, penalty_issued, payment_made
+            type: type, // new_task, task_started, task_problem, task_submitted, task_confirmed, task_returned, penalty_issued, payment_made
             message: message,
             orderNumber: orderNumber || null,
             read: false,
@@ -2280,10 +2349,10 @@ window.localChangesPending = false;
     }
 
     // Вызывается из js/finance.js (finPayHelper)
-    // Другим админам: оплата заказа, выплата помощнику, оплата платежа, закупка
-    function notifyAdminsAboutMoney(message, orderNumber) {
+    // Другим админам: оплата заказа, выплата помощнику, оплата платежа, закупка (type 'purchase')
+    function notifyAdminsAboutMoney(message, orderNumber, type) {
         const who = window.currentUserData ? (window.currentUserData.displayName || window.currentUserData.email) : '';
-        addNotice('admin', 'money', `${message}${who ? ' · ' + who : ''}`, orderNumber || null);
+        addNotice('admin', type || 'money', `${message}${who ? ' · ' + who : ''}`, orderNumber || null);
     }
 
     // Склад: позиции, которые после этого действия стали «заканчивается» или «не хватает для заказов».
@@ -2308,7 +2377,11 @@ window.localChangesPending = false;
     // ========== МОДУЛЬ 5.8: ОТОБРАЖЕНИЕ УВЕДОМЛЕНИЙ В UI ==========
     // Значок типа уже в начале текста уведомления
 
-    // Список уведомлений: у админа — во вкладке «Задачи помощников», у помощника — в «Мой отчёт»
+    // Список уведомлений — в окошке под колокольчиком рядом с именем (#noticePanel)
+    // Закупка и склад — только в программе: без push и без системного уведомления
+    // (тот же список — IN_APP_ONLY_TYPES в functions/push-logic.js)
+    const IN_APP_ONLY_TYPES = ['purchase', 'stock', 'task_started'];
+
     // Новое уведомление, пока программа открыта: на экране — всплывающая подсказка,
     // в фоновой вкладке — системное уведомление (если разрешены). Push по расписанию придёт позже
     // с тем же tag и заменит это уведомление, а не добавит второе.
@@ -2324,6 +2397,7 @@ window.localChangesPending = false;
         try { localStorage.setItem(key, JSON.stringify(mine.map(n => n.id).slice(0, NOTICE_MAX))); } catch (e) {}
         fresh.slice(0, 3).forEach(n => {
             if (!document.hidden) { showToast(n.message); return; }
+            if (IN_APP_ONLY_TYPES.includes(n.type)) return;
             if (!('Notification' in window) || Notification.permission !== 'granted') return;
             const options = { body: n.message, tag: n.id, icon: 'icons/icon-192.png' };
             const reg = navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration() : Promise.resolve(null);
@@ -2335,7 +2409,7 @@ window.localChangesPending = false;
         updateNotificationBadges();
         announceNewNotices();
         if (typeof renderPushControls === 'function') renderPushControls();
-        const container = document.getElementById(myNoticeAddress() === 'admin' ? 'adminNotificationsList' : 'helperNotificationsList');
+        const container = document.getElementById('noticeList');
         if (!container) return;
 
         const notices = getMyNotices().slice(0, 30);
@@ -2362,9 +2436,34 @@ window.localChangesPending = false;
         });
     }
 
+    // Колокольчик рядом с именем: открыть/закрыть окошко уведомлений
+    function toggleNoticePanel(event) {
+        if (event) event.stopPropagation();
+        const panel = document.getElementById('noticePanel');
+        if (!panel) return;
+        if (!panel.classList.toggle('open')) return;
+        // Сразу под колокольчиком (высота шапки разная на ПК и телефоне)
+        const bell = event && event.currentTarget;
+        if (bell && bell.getBoundingClientRect) panel.style.top = Math.round(bell.getBoundingClientRect().bottom + 8) + 'px';
+        renderNotices();
+    }
+    function closeNoticePanel() {
+        const panel = document.getElementById('noticePanel');
+        if (panel) panel.classList.remove('open');
+    }
+    // Нажатие мимо окошка или Escape — закрыть
+    document.addEventListener('click', e => {
+        const panel = document.getElementById('noticePanel');
+        if (panel && panel.classList.contains('open') && !panel.contains(e.target)) closeNoticePanel();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNoticePanel(); });
+
     window.markNoticeRead = markNoticeRead;
     window.markAllNoticesRead = markAllNoticesRead;
     window.renderNotices = renderNotices;
+    window.updateNotificationBadges = updateNotificationBadges;
+    window.toggleNoticePanel = toggleNoticePanel;
+    window.closeNoticePanel = closeNoticePanel;
 
     // Универсальная функция загрузки помощников для селектов
     function loadHelpersForSelect(selectEl, includeExisting = true, maxRetries = 5) {
@@ -3813,6 +3912,8 @@ window.localChangesPending = false;
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
         document.getElementById('orderDone').checked = order?.done || false;
         document.getElementById('orderPaid').checked = order?.paid || false;
+        currentPrepayments = (order?.prepayments || []).map(p => ({ ...p }));
+        document.getElementById('prepayAmount').value = '';
         currentManualColor = order?.manualColor || 'auto';
         document.querySelectorAll('.color-select .color-btn').forEach(btn => {
             btn.classList.toggle('active', btn.classList.contains(currentManualColor));
@@ -3870,6 +3971,38 @@ window.localChangesPending = false;
             }
         }
     }
+
+    // Предоплата в окне заказа: список внесённых сумм и «осталось доплатить».
+    // В кассу попадает при сохранении заказа (finReconcile в js/finance.js)
+    function renderPrepayments() {
+        const list = document.getElementById('prepayList');
+        if (!list) return;
+        list.innerHTML = currentPrepayments.map(p => `
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;font-size:14px;">
+                <span>${safeHTML(formatDateDDMMYYYY(p.date))} — <b>${formatMoney(parseFloat(p.amount) || 0)}</b></span>
+                <button class="btn-danger-sm" onclick="removePrepayment('${safeHTML(p.id)}')" title="Убрать предоплату">✖</button>
+            </div>`).join('');
+        const price = parseFloat(document.getElementById('orderClientPrice').value) || 0;
+        const prepaid = currentPrepayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+        const remain = document.getElementById('prepayRemain');
+        if (document.getElementById('orderPaid').checked) remain.textContent = prepaid ? `Внесено ${formatMoney(prepaid)}, заказ оплачен полностью` : '';
+        else remain.textContent = prepaid ? `Внесено ${formatMoney(prepaid)} · осталось доплатить ${formatMoney(Math.max(0, price - prepaid))}` : 'Клиент ещё ничего не вносил';
+    }
+    function addPrepayment() {
+        const input = document.getElementById('prepayAmount');
+        const amount = Math.round(parseFloat(input.value) || 0);
+        if (amount <= 0) { alert('Введите сумму предоплаты'); return; }
+        currentPrepayments.push({ id: 'p' + Date.now(), date: formatDate(new Date()), amount });
+        input.value = '';
+        renderPrepayments();
+    }
+    function removePrepayment(id) {
+        if (!confirm('Убрать эту предоплату? Она уйдёт и из кассы.')) return;
+        currentPrepayments = currentPrepayments.filter(p => p.id !== id);
+        renderPrepayments();
+    }
+    window.addPrepayment = addPrepayment;
+    window.removePrepayment = removePrepayment;
 
     function openOrderModalFromCalendar() {
         openOrderModal(null, selectedDate ? formatDate(selectedDate) : undefined);
@@ -4353,6 +4486,7 @@ window.localChangesPending = false;
     }
 
     function updateModalTotals() {
+        renderPrepayments();
         // Норма расходников зависит от метров ткани/плёнки — пересчитываем, если количество не поправлено вручную
         document.querySelectorAll('.automatic-qty').forEach(input => {
             const inst = currentServices[parseInt(input.dataset.serviceIndex)];
@@ -4453,6 +4587,7 @@ window.localChangesPending = false;
             orderNumber: orderEditId ? ordersData.find(o=>o.id===orderEditId)?.orderNumber : finNextOrderNumber(ordersData, localStorage.getItem('lastOrderNumber')),
             date, client, phone, services: servicesCopy, clientPrice, durationDays,
             extraData, extraPrices: {...currentExtraPrices}, done, paid, manualColor: currentManualColor,
+            prepayments: currentPrepayments.map(p => ({ ...p })),
             // Данные задания помощнику
             helperEmail: helperEmail,
             taskDescription: taskDescription,
@@ -4506,6 +4641,10 @@ window.localChangesPending = false;
         const stockBefore = loadStock();
         recalculateStockFromAllOrders();
         notifyAdminsAboutStock(stockBefore);
+        const oldPrepayIds = new Set(((existingOrder && existingOrder.prepayments) || []).map(p => p.id));
+        orderData.prepayments.filter(p => !oldPrepayIds.has(p.id)).forEach(p => {
+            notifyAdminsAboutMoney(`💵 Предоплата по заказу №${orderData.orderNumber} (${orderData.client}): ${formatMoney(p.amount)}`, orderData.orderNumber);
+        });
         if (paid && !(existingOrder && (existingOrder.paid === true || existingOrder.paid === 'true'))) {
             notifyAdminsAboutMoney(`💰 Оплачен заказ №${orderData.orderNumber} (${orderData.client}): ${formatMoney(clientPrice)}`, orderData.orderNumber);
         }
@@ -4843,7 +4982,7 @@ function deleteOrder(orderId) {
             const names = items.map(it => `${it.name} ${formatNumber(it.qty)} ${it.unit}`).join(', ');
             cashOps.push({ id: 'pur-' + Date.now(), date, desc: `Закупка${note ? ' ' + note : ''}: ${names}`.slice(0, 200),
                 income: 0, expense: total, category: 'purchase', items });
-            notifyAdminsAboutMoney(`🧾 Закупка материалов на ${formatMoney(total)}: ${names}`.slice(0, 200));
+            notifyAdminsAboutMoney(`🧾 Закупка материалов на ${formatMoney(total)}: ${names}`.slice(0, 200), null, 'purchase');
         }
         if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
         saveAll();
@@ -4924,6 +5063,7 @@ function deleteOrder(orderId) {
         document.querySelectorAll('.color-select .color-btn').forEach(b => b.classList.toggle('active', b.classList.contains(color)));
     }
     function handlePaidChange() {
+        renderPrepayments();
         const checkbox = document.getElementById('orderPaid');
         const order = orderEditId ? ordersData.find(o => o.id === orderEditId) : null;
         if (!order) return;
@@ -5124,7 +5264,8 @@ function deleteOrder(orderId) {
                 (status.state === 'paid' ? '' : `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Оплатил</button>`);
             grid.appendChild(div);
         });
-        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !op.desc.includes('Оплата заказа'));
+        // Приходы по заказам (оплата, предоплата, доплата) видны в самих заказах — здесь только ручные
+        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !op.desc.includes('Оплата заказа') && !(op.category === 'income' && op.orderId != null));
         const dayNotes = notes.filter(n => n.date === dateStr);
         dayPayments.forEach(p => {
             const div = document.createElement('div');
@@ -5150,7 +5291,9 @@ function deleteOrder(orderId) {
             const color = getOrderColorObj(order);
             const div = document.createElement('div');
             div.className = `schedule-slot color-${color}`;
-            div.innerHTML = `<div>№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML(order.services.map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>`;
+            div.innerHTML = `<div>№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML(order.services.map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>` +
+                `<button class="btn-extra move-order-btn" title="Перенести на другой день">📅 Перенести</button>`;
+            div.querySelector('.move-order-btn').addEventListener('click', e => { e.stopPropagation(); openMoveOrderModal(order.id); });
             div.addEventListener('click', () => openOrderModal(order.id));
             grid.appendChild(div);
         });
@@ -5158,6 +5301,43 @@ function deleteOrder(orderId) {
             grid.innerHTML = '<div>Нет записей</div>';
         }
     }
+
+    // Перенос заказа на другой день: меняется дата заказа, срок сдвигается вместе с ней
+    let moveOrderId = null;
+    function openMoveOrderModal(orderId) {
+        const order = ordersData.find(o => o.id === orderId);
+        if (!order) return;
+        moveOrderId = orderId;
+        document.getElementById('moveOrderTitle').textContent = `📅 Перенести заказ №${order.orderNumber} (${order.client || 'без клиента'})`;
+        document.getElementById('moveOrderDate').value = order.date || formatDate(new Date());
+        openModal('moveOrderModal');
+    }
+    function closeMoveOrderModal() {
+        moveOrderId = null;
+        closeModalById('moveOrderModal');
+    }
+    function saveMoveOrder() {
+        const date = document.getElementById('moveOrderDate').value;
+        const order = ordersData.find(o => o.id === moveOrderId);
+        if (!date || !order) { closeMoveOrderModal(); return; }
+        if (date !== order.date) {
+            const from = order.date;
+            order.date = date;
+            // Помощникам по этому заказу — сообщение о новой дате
+            const helpers = new Set();
+            (order.services || []).forEach(s => (s.tasks || []).forEach(t => { if (t.assignedTo && t.status !== 'completed') helpers.add(t.assignedTo); }));
+            helpers.forEach(email => addNotice(email, 'order_moved', `📅 Заказ №${order.orderNumber} перенесён: ${formatDateDDMMYYYY(from)} → ${formatDateDDMMYYYY(date)}`, order.orderNumber));
+            saveAll();
+            selectedDate = new Date(date + 'T12:00:00');
+            currentDate = new Date(selectedDate);
+            renderAll();
+            showToast(`📅 Заказ перенесён на ${formatDateDDMMYYYY(date)}`, 'success');
+        }
+        closeMoveOrderModal();
+    }
+    window.openMoveOrderModal = openMoveOrderModal;
+    window.closeMoveOrderModal = closeMoveOrderModal;
+    window.saveMoveOrder = saveMoveOrder;
 
     function changeMonth(delta) {
         currentDate.setMonth(currentDate.getMonth()+delta);
@@ -5501,10 +5681,17 @@ function deleteOrder(orderId) {
             return String(b.id || '').localeCompare(String(a.id || ''), undefined, { numeric: true });
         });
         
+        // Поиск клиента: по имени или цифрам телефона; найденные клиенты — карточками над списком
+        const searchEl = document.getElementById('orderSearch');
+        const query = searchEl ? searchEl.value.trim() : '';
+        const matched = query ? sortedOrders.filter(o => orderMatchesClient(o, query)) : null;
+        renderClientCards(matched);
+
         sortedOrders.forEach(order => {
             const color = getOrderColorObj(order);
             const show = filterCheck(order, currentFilter);
             if (!show) return;
+            if (matched && !matched.includes(order)) return;
             
             // Фильтр по датам
             if (currentOrderDateFrom && order.date < currentOrderDateFrom) return;
@@ -5538,7 +5725,7 @@ function deleteOrder(orderId) {
                     <span class="order-client">${safeHTML(order.client)}</span>
                     <span class="order-phone">${safeHTML(order.phone||'')}</span>
                     <span class="order-service">${safeHTML(order.services.map(s => s.serviceName).join(', '))}</span>
-                    <span class="order-sum ${order.paid?'paid':'unpaid'}">${formatMoney((parseFloat(order.clientPrice)||0))}</span>
+                    <span class="order-sum ${order.paid?'paid':'unpaid'}">${formatMoney((parseFloat(order.clientPrice)||0))}${!order.paid && finPrepaidSum(order) > 0 ? ` <small>(внесено ${formatMoney(finPrepaidSum(order))})</small>` : ''}</span>
                     <span class="order-paid"><input type="checkbox" ${order.paid?'checked':''} onchange="togglePaid(${escAttr(JSON.stringify(String(order.id)))}, this.checked)"> Оплачено</span>
                     <span class="color-indicator ${color}"></span>
                     <button class="btn-extra" onclick="event.stopPropagation(); openHelperTaskModal(${safeHTML(order.orderNumber)})" title="Добавить задачу">📝 Задача${taskCount > 0 ? ' (' + taskCount + ')' : ''}</button>
@@ -5564,7 +5751,52 @@ function deleteOrder(orderId) {
     function updateUnpaidSummary() {
         const unpaid = ordersData.filter(o => !o.paid);
         document.getElementById('unpaidCount').textContent = unpaid.length;
-        document.getElementById('unpaidSum').textContent = formatNumber(unpaid.reduce((s,o)=>s+(parseFloat(o.clientPrice)||0),0));
+        // Долг — с учётом предоплат
+        document.getElementById('unpaidSum').textContent = formatNumber(unpaid.reduce((s,o)=>s+finOrderRemaining(o),0));
+    }
+
+    // Клиент заказа: по последним 10 цифрам телефона, без телефона — по имени
+    function clientKey(order) {
+        const digits = String(order.phone || '').replace(/\D/g, '').slice(-10);
+        return digits.length >= 6 ? 'tel:' + digits : 'name:' + String(order.client || '').trim().toLowerCase();
+    }
+    function orderMatchesClient(order, query) {
+        const q = query.toLowerCase();
+        const qDigits = query.replace(/\D/g, '');
+        if (String(order.client || '').toLowerCase().includes(q)) return true;
+        return qDigits.length >= 3 && String(order.phone || '').replace(/\D/g, '').includes(qDigits);
+    }
+    // Карточки найденных клиентов: сколько заказов, на какую сумму, сколько должен, когда был последний раз
+    function renderClientCards(orders) {
+        const box = document.getElementById('clientCards');
+        if (!box) return;
+        if (!orders) { box.innerHTML = ''; return; }
+        if (!orders.length) { box.innerHTML = '<div class="client-card">Ничего не найдено</div>'; return; }
+        const clients = new Map();
+        orders.forEach(o => {
+            const k = clientKey(o);
+            if (!clients.has(k)) clients.set(k, []);
+            clients.get(k).push(o);
+        });
+        box.innerHTML = [...clients.values()].slice(0, 5).map(list => {
+            const last = list[0]; // список уже отсортирован: новые сверху
+            const total = list.reduce((s, o) => s + (parseFloat(o.clientPrice) || 0), 0);
+            const debt = list.reduce((s, o) => s + finOrderRemaining(o), 0);
+            const services = {};
+            list.forEach(o => (o.services || []).forEach(s => { services[s.serviceName] = (services[s.serviceName] || 0) + 1; }));
+            const top = Object.entries(services).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => `${n}${c > 1 ? ' ×' + c : ''}`).join(', ');
+            return `<div class="client-card">
+                <div class="client-card-name">👤 ${safeHTML(last.client || 'Без имени')} ${last.phone ? `<span>📞 ${safeHTML(last.phone)}</span>` : ''}</div>
+                <div class="client-card-stats">
+                    <span>Заказов: <b>${list.length}</b></span>
+                    <span>На сумму: <b>${formatMoney(total)}</b></span>
+                    <span>Должен: <b class="${debt > 0 ? 'neg' : ''}">${formatMoney(debt)}</b></span>
+                    <span>Последний раз: <b>${safeHTML(formatDateDDMMYYYY(last.date))}</b></span>
+                </div>
+                ${top ? `<div class="client-card-services">Услуги: ${safeHTML(top)}</div>` : ''}
+                <div class="client-card-hint">История заказов — ниже</div>
+            </div>`;
+        }).join('');
     }
     // Остаток: приход − расход по заказам − списание (брак, потери)
     function stockRemain(item) {

@@ -201,6 +201,18 @@ function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties) {
 // Операция кассы «оплата заказа»: приход по каждому оплаченному заказу
 function finIncomeOpId(order) { return 'inc-' + order.id; }
 
+// Предоплаты заказа: order.prepayments = [{ id, date, amount }]
+function finPrepayments(order) {
+    return (Array.isArray(order.prepayments) ? order.prepayments : []).filter(p => p && p.id && finNum(p.amount) > 0);
+}
+function finPrepayOpId(order, p) { return 'pre-' + order.id + '-' + p.id; }
+function finPrepaidSum(order) { return finPrepayments(order).reduce((sum, p) => sum + finNum(p.amount), 0); }
+// Сколько клиент ещё должен: у оплаченного 0, иначе цена минус предоплаты
+function finOrderRemaining(order) {
+    if (order.paid === true || order.paid === 'true') return 0;
+    return Math.max(0, finNum(order.clientPrice) - finPrepaidSum(order));
+}
+
 // Плановая дата платежа в месяце (31-е в коротком месяце → последний день)
 function finPaymentDate(payment, mk) {
     const day = Math.min(Math.max(1, parseInt(payment.day) || 1), finDaysInMonth(mk));
@@ -263,9 +275,10 @@ function finCompute(data) {
         // Выручка — приходы «оплата заказа» в этом месяце
         const incomeOps = cash.filter(o => inMonth(o) && o.category === 'income');
         const revenue = incomeOps.reduce((sum, o) => sum + finNum(o.income), 0);
-        // Переменные расходы — по тем же заказам
+        // Переменные расходы — по тем же заказам (один раз — по приходу «оплата заказа», не по предоплатам)
         let materials = 0, helpers = 0, helperPenalties = 0;
-        incomeOps.forEach(o => {
+        const finalOps = incomeOps.filter(o => !o.prepay);
+        finalOps.forEach(o => {
             const order = ordersById.get(String(o.orderId));
             if (!order) return;
             materials += data.getOrderCost(order);
@@ -301,7 +314,7 @@ function finCompute(data) {
         result.months[mk] = {
             revenue, tax, materials, helpers, helperPenalties, marginal, fixed, otherBusiness, businessProfit,
             reserve, dev, salary, savings, invest, personal, otherPersonal, free,
-            ordersPaid: incomeOps.length
+            ordersPaid: finalOps.length
         };
         const f = result.funds;
         f.tax.accrued += tax; f.reserve.accrued += reserve; f.dev.accrued += dev;
@@ -378,31 +391,41 @@ function finPlan(computed, settings, mk, today) {
  */
 function finReconcileData(orders, cash, today, migration) {
     let changed = false;
-    const paid = new Map();
+    // id прихода → { date, desc, amount, orderId, prepay }: какие приходы по заказам должны быть в кассе
+    const expected = new Map();
     orders.forEach(order => {
         const isPaid = order.paid === true || order.paid === 'true';
+        const client = order.client || 'без клиента';
+        // Предоплаты — свой приход на дату внесения, остаются и у неоплаченного заказа
+        finPrepayments(order).forEach(p => expected.set(finPrepayOpId(order, p), {
+            date: p.date || today, amount: finNum(p.amount), prepay: true, orderId: String(order.id),
+            desc: `Предоплата по заказу №${order.orderNumber} (${client})`
+        }));
         if (isPaid) {
             if (!order.paidAt) { order.paidAt = migration ? (order.date || today) : today; changed = true; }
-            paid.set(finIncomeOpId(order), order);
+            // Приход «оплата заказа» есть всегда (даже 0 ₽ при полной предоплате): по нему считаются материалы и помощники
+            const prepaid = finPrepaidSum(order);
+            expected.set(finIncomeOpId(order), {
+                date: order.paidAt, amount: Math.max(0, finNum(order.clientPrice) - prepaid), orderId: String(order.id),
+                desc: prepaid > 0 ? `Доплата по заказу №${order.orderNumber} (${client})` : `Оплата заказа №${order.orderNumber} (${client})`
+            });
         } else if (order.paidAt) {
             delete order.paidAt; changed = true;
         }
     });
-    // Убираем приходы по неоплаченным/удалённым заказам
+    // Убираем приходы по неоплаченным/удалённым заказам и отменённым предоплатам
     for (let i = cash.length - 1; i >= 0; i--) {
         const op = cash[i];
-        if (op.category === 'income' && op.orderId != null && !paid.has(op.id)) { cash.splice(i, 1); changed = true; }
+        if (op.category === 'income' && op.orderId != null && !expected.has(op.id)) { cash.splice(i, 1); changed = true; }
     }
-    // Добавляем/обновляем приходы по оплаченным
-    paid.forEach((order, id) => {
-        const amount = finNum(order.clientPrice);
-        const desc = `Оплата заказа №${order.orderNumber} (${order.client || 'без клиента'})`;
+    // Добавляем/обновляем приходы
+    expected.forEach((e, id) => {
         const op = cash.find(o => o.id === id);
         if (!op) {
-            cash.push({ id, date: order.paidAt, desc, income: amount, expense: 0, category: 'income', orderId: String(order.id) });
+            cash.push({ id, date: e.date, desc: e.desc, income: e.amount, expense: 0, category: 'income', orderId: e.orderId, ...(e.prepay ? { prepay: true } : {}) });
             changed = true;
-        } else if (finNum(op.income) !== amount || op.desc !== desc) {
-            op.income = amount; op.desc = desc; changed = true;
+        } else if (finNum(op.income) !== e.amount || op.desc !== e.desc || (e.prepay && op.date !== e.date)) {
+            op.income = e.amount; op.desc = e.desc; if (e.prepay) op.date = e.date; changed = true;
         }
     });
     return changed;
@@ -485,6 +508,23 @@ function finMigrate(fromCloud) {
 
 // ========== ВКЛАДКА «ДЕНЬГИ» ==========
 let finPaymentsMonth = null;
+let finCashDay = null; // выбранный день в «Касса за день»; null — сегодня
+
+// Касса за день: все операции этой даты, приход и расход
+function finCashDayData(cash, day) {
+    const ops = cash.filter(o => o.date === day);
+    return {
+        ops,
+        income: ops.reduce((sum, o) => sum + finNum(o.income), 0),
+        expense: ops.reduce((sum, o) => sum + finNum(o.expense), 0)
+    };
+}
+function finSetCashDay(delta) {
+    const d = new Date((finCashDay || finTodayStr()) + 'T12:00:00');
+    d.setDate(d.getDate() + delta);
+    finCashDay = formatDate(d);
+    renderFinance();
+}
 
 function renderFinance() {
     const root = document.getElementById('financeRoot');
@@ -505,6 +545,41 @@ function renderFinance() {
             <div class="fin-card"><div class="fin-card-label">✅ Можно тратить</div><div class="fin-card-value ${free < 0 ? 'neg' : 'pos'}">${formatMoney(free)}</div></div>
         </div>
         ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}`;
+
+    // --- Касса за день и должники ---
+    const day = finCashDay || today;
+    const dayData = finCashDayData(cashOps, day);
+    html += `<h3 class="fin-h">📅 Касса за день</h3>
+        <div class="fin-group">
+            <div class="fin-day-nav">
+                <button onclick="finSetCashDay(-1)" title="Предыдущий день">◀</button>
+                <input type="date" id="finCashDayInput" value="${day}" onchange="finCashDay = this.value || null; renderFinance()">
+                <button onclick="finSetCashDay(1)" title="Следующий день">▶</button>
+                ${day !== today ? `<button onclick="finCashDay = null; renderFinance()">Сегодня</button>` : ''}
+            </div>
+            <div class="fin-day-totals">
+                <div><span>➕ Пришло</span><b class="pos">${formatMoney(dayData.income)}</b></div>
+                <div><span>➖ Ушло</span><b class="neg">${formatMoney(dayData.expense)}</b></div>
+                <div><span>= Итог дня</span><b class="${dayData.income - dayData.expense < 0 ? 'neg' : ''}">${formatMoney(dayData.income - dayData.expense)}</b></div>
+            </div>
+            ${dayData.ops.length ? dayData.ops.map(o => `<div class="fin-op"><div>${safeHTML(o.desc)}</div>
+                <b class="${finNum(o.income) > 0 ? 'pos' : 'neg'}">${finNum(o.income) > 0 ? '+' + formatMoney(o.income) : '−' + formatMoney(o.expense)}</b><span></span></div>`).join('')
+                : `<div class="fin-muted">В этот день денег не было</div>`}
+        </div>`;
+    const debtors = ordersData.filter(o => finOrderRemaining(o) > 0)
+        .sort((a, b) => finOrderRemaining(b) - finOrderRemaining(a));
+    const debtTotal = debtors.reduce((sum, o) => sum + finOrderRemaining(o), 0);
+    html += `<h3 class="fin-h">🧾 Кто сколько должен</h3>
+        <div class="fin-group">
+            <div class="fin-group-head"><b>Клиенты должны всего</b><b class="${debtTotal > 0 ? 'neg' : ''}">${formatMoney(debtTotal)}</b></div>
+            ${debtors.length ? debtors.slice(0, 15).map(o => `<div class="fin-pay fin-due"><div class="fin-pay-main">
+                <span class="fin-pay-name">№${safeHTML(o.orderNumber)} ${safeHTML(o.client || '')}${o.phone ? ' · ' + safeHTML(o.phone) : ''}</span>
+                <b class="neg">${formatMoney(finOrderRemaining(o))}</b></div>
+                <div class="fin-pay-sub"><span>цена ${formatMoney(o.clientPrice)}${finPrepaidSum(o) ? ` · внесено ${formatMoney(finPrepaidSum(o))}` : ''}${o.done === true || o.done === 'true' ? ' · заказ выполнен' : ''}</span>
+                <span class="fin-pay-actions"><button onclick="openOrderModal(${escAttr(JSON.stringify(o.id))})">Открыть</button></span></div></div>`).join('')
+                : `<div class="fin-muted">Все заказы оплачены</div>`}
+            ${debtors.length > 15 ? `<div class="fin-muted">и ещё ${debtors.length - 15} — фильтр «💳 Не оплачено» во вкладке «Заказы»</div>` : ''}
+        </div>`;
 
     // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
     const helpers = finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), mk, finHelperPenalties());
@@ -765,6 +840,28 @@ function savePaymentModal() {
 }
 
 // ========== ВКЛАДКА «ИТОГИ» ==========
+// Популярные услуги: заказы с датой в периоде — сколько раз заказывали и на какую сумму.
+// Цена заказа с несколькими услугами делится между ними поровну
+function finPopularServices(orders, startDate, endDate) {
+    const map = new Map();
+    orders.filter(o => o.date && o.date >= startDate && o.date <= endDate).forEach(o => {
+        const names = (o.services || []).map(s => s.serviceName).filter(Boolean);
+        names.forEach(name => {
+            const row = map.get(name) || { name, count: 0, sum: 0 };
+            row.count++;
+            row.sum += finNum(o.clientPrice) / names.length;
+            map.set(name, row);
+        });
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count || b.sum - a.sum);
+}
+function finPopularServicesHTML(list) {
+    if (!list.length) return '';
+    const max = list[0].count;
+    return `<div class="fin-info"><b>🏆 Популярные услуги за период</b>${list.slice(0, 8).map((r, i) => `
+        <div class="fin-plan-row"><span>${i + 1}. ${safeHTML(r.name)} — ${r.count} раз</span><b>${formatMoney(Math.round(r.sum))}</b></div>
+        <div class="fin-progress"><div style="width:${r.count / max * 100}%"></div></div>`).join('')}</div>`;
+}
 function renderFinanceSummary(startDate, endDate) {
     const block = document.getElementById('summaryBlock');
     if (!block) return;
@@ -777,7 +874,7 @@ function renderFinanceSummary(startDate, endDate) {
 
     // Заказы, выполненные, но не оплаченные (ждём денег)
     const waiting = ordersData.filter(o => !(o.paid === true || o.paid === 'true') && (o.done === true || o.done === 'true'));
-    const waitingSum = waiting.reduce((sum, o) => sum + finNum(o.clientPrice), 0);
+    const waitingSum = waiting.reduce((sum, o) => sum + finOrderRemaining(o), 0);
 
     // Маржа оплаченных в периоде заказов
     const paidOrders = ordersData.filter(o => o.paidAt && o.paidAt >= startDate && o.paidAt <= endDate);
@@ -808,7 +905,8 @@ function renderFinanceSummary(startDate, endDate) {
         <div class="fin-note">Постоянные и личные платежи считаются по плану на каждый месяц периода, даже если ещё не оплачены.</div>
         ${waiting.length ? `<div class="fin-info">⏳ Ждём оплаты за выполненные заказы: ${formatMoney(waitingSum)} (заказов: ${waiting.length})</div>` : ''}
         ${low.length ? `<div class="fin-info"><b>📉 Заказы с низкой маржой (меньше 30%)</b>${low.map(x =>
-            `<div>№${safeHTML(x.o.orderNumber)} ${safeHTML(x.o.client || '')} — маржа ${formatMoney(x.margin)} (${x.pct.toFixed(0)}%)</div>`).join('')}</div>` : ''}`;
+            `<div>№${safeHTML(x.o.orderNumber)} ${safeHTML(x.o.client || '')} — маржа ${formatMoney(x.margin)} (${x.pct.toFixed(0)}%)</div>`).join('')}</div>` : ''}
+        ${finPopularServicesHTML(finPopularServices(ordersData, startDate, endDate))}`;
 
     // План текущего месяца
     const planBox = document.getElementById('incomePlanContainer');

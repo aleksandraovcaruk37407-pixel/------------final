@@ -1855,7 +1855,17 @@
 /* ========== Уведомления помощников ========== */
 .notice-box { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:12px 15px; margin-bottom:15px; }
 .notice-box h4 { margin:0 0 8px 0; color:#1a3c5e; }
-#adminNotificationsList, #helperNotificationsList { max-height:260px; overflow-y:auto; }
+/* Колокольчик рядом с именем и окошко уведомлений под ним */
+.notif-bell { position:relative; background:none; border:1px solid #dee2e6; border-radius:8px; padding:3px 8px; font-size:16px; line-height:1.2; cursor:pointer; min-height:0; min-width:0; box-shadow:none; }
+.notif-bell .notif-badge { position:absolute; top:-7px; right:-8px; }
+.notice-panel { display:none; position:fixed; top:56px; right:12px; z-index:3000; width:min(420px, calc(100vw - 32px)); max-height:min(70vh, 560px); overflow-y:auto;
+    background:#f8f9fa; border:1px solid #dee2e6; border-radius:10px; padding:10px 12px 12px; box-shadow:0 8px 24px rgba(0,0,0,.18); }
+.notice-panel.open { display:block; }
+.notice-panel-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; color:#1a3c5e; font-size:15px; }
+.notice-panel .push-controls:not(:empty) { margin-bottom:6px; }
+@media (max-width: 768px) {
+    .notice-panel { right:16px; left:16px; width:auto; }
+}
 .notice-item { display:flex; justify-content:space-between; gap:10px; padding:8px 10px; margin:4px 0; border-radius:6px; background:#fff; border-left:3px solid #ced4da; font-size:14px; cursor:pointer; }
 .notice-item.unread { background:#fff8e1; border-left-color:#ffc107; font-weight:600; }
 .notice-date { font-size:11px; color:#888; white-space:nowrap; font-weight:400; }
@@ -1899,3 +1909,22 @@
         .scan-found { background: #eafaf1; border: 1px solid #b7e4c7; }
         .scan-unknown { background: #fff8e6; border: 1px solid #ffe08a; }
         .scan-cart-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+
+/* ========== Карточка клиента (поиск во вкладке «Заказы») ========== */
+.client-card { background:#fff; border:1px solid #dee2e6; border-left:4px solid #007bff; border-radius:8px; padding:10px 14px; margin:8px 0; font-size:14px; }
+.client-card-name { font-weight:700; font-size:16px; color:#1a3c5e; margin-bottom:6px; }
+.client-card-name span { font-weight:400; font-size:14px; color:#555; margin-left:8px; }
+.client-card-stats { display:flex; flex-wrap:wrap; gap:6px 16px; }
+.client-card-stats .neg { color:#dc3545; }
+.client-card-services { margin-top:6px; color:#555; }
+.client-card-hint { margin-top:4px; font-size:12px; color:#888; }
+
+/* ========== «Касса за день» во вкладке «Деньги» ========== */
+.fin-day-nav { display:flex; gap:6px; align-items:center; flex-wrap:nowrap; margin-bottom:8px; }
+.fin-day-nav input { flex:1; min-width:0; padding:6px 8px; border:1px solid #ced4da; border-radius:6px; }
+.fin-day-nav button { flex:none; min-width:40px; padding:6px 10px; }
+.fin-day-totals { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:8px; }
+.fin-day-totals > div { background:#f8f9fa; border-radius:8px; padding:6px 8px; display:flex; flex-direction:column; font-size:12px; color:#6c757d; }
+.fin-day-totals b { font-size:15px; color:#1a3c5e; }
+.fin-day-totals b.pos { color:#27ae60; }
+.fin-day-totals b.neg { color:#dc3545; }

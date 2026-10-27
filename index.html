@@ -57,15 +57,15 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202610262000" defer></script>
+    <script src="js/finance.js?v=202610272230" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
     <script src="js/attendance.js?v=202610261600" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
-    <script src="js/fcm.js?v=202610261800" defer></script>
+    <script src="js/fcm.js?v=202610271800" defer></script>
     
-    <script src="js/app.js?v=202610270800" defer></script>
+    <script src="js/app.js?v=202610272230" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610261600" defer></script>
@@ -170,7 +170,7 @@
         <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
         <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
         <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников <span class="notif-badge"></span></button>
+        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
         <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
         <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
         <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
@@ -181,7 +181,7 @@
     <div class="tabs" id="helperTabs" style="display:none;">
         <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
         <button class="tab-btn" data-tab="helper-attendance">🕐 Посещаемость</button>
-        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт <span class="notif-badge"></span></button>
+        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
     </div>
 
     <!-- Нижняя навигация для мобильных -->
@@ -189,7 +189,7 @@
         <button class="bottom-nav-item active" data-tab="tab-orders">📋<br><small>Заказы</small></button>
         <button class="bottom-nav-item" data-tab="tab-calendar">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="tab-purchase">📄<br><small>Закупка</small></button>
-        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<span class="notif-badge"></span><br><small>Задачи</small></button>
+        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Задачи</small></button>
         <button class="bottom-nav-more">⚙️<br><small>Ещё</small></button>
     </div>
     
@@ -207,7 +207,7 @@
     <div class="bottom-nav" id="helperBottomNav" style="display:none;">
         <button class="bottom-nav-item active" data-tab="helper-tasks">📋<br><small>Задачи</small></button>
         <button class="bottom-nav-item" data-tab="helper-attendance">🕐<br><small>Время</small></button>
-        <button class="bottom-nav-item" data-tab="helper-report">📊<span class="notif-badge"></span><br><small>Отчёт</small></button>
+        <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
         <button class="bottom-nav-item" onclick="handleLogout()">🚪<br><small>Выйти</small></button>
     </div>
 
@@ -227,8 +227,12 @@
                 <span style="font-size:14px; color:#6c757d; margin-left:10px;">Всего: <b id="orderCount">0</b></span>
             </div>
         </div>
+        <div class="purchase-toolbar" style="margin-top:8px;">
+            <input type="search" id="orderSearch" placeholder="🔍 Найти клиента: имя или телефон" oninput="renderOrders()" style="flex:1;min-width:180px;max-width:420px;padding:8px 12px;border:1px solid #ced4da;border-radius:8px;box-sizing:border-box;">
+        </div>
+        <div id="clientCards"></div>
         <div id="unpaidSummary">
-            Неоплаченных заказов: <span id="unpaidCount">0</span>, общая сумма: <span id="unpaidSum">0</span> ₽
+            Неоплаченных заказов: <span id="unpaidCount">0</span>, клиенты должны: <span id="unpaidSum">0</span> ₽
         </div>
         <div class="orders-list" id="ordersList"></div>
     </div>
@@ -445,11 +449,6 @@
     <!-- Вкладка Мой отчёт (для помощника) -->
     <div id="helper-report" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
-        <div class="notice-box">
-            <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
-            <div class="push-controls"></div>
-            <div id="helperNotificationsList"></div>
-        </div>
         <div id="helperReportContainer"></div>
         <h3 style="color:#1a3c5e; margin:20px 0 10px;">⚠️ Мои штрафы</h3>
         <div id="helperPenaltiesContainer"></div>
@@ -469,11 +468,6 @@
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
             <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">➕ Добавить помощника</button>
             <button class="btn-del" onclick="openPenaltyModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">⚠️ Выписать штраф</button>
-        </div>
-        <div class="notice-box">
-            <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
-            <div class="push-controls"></div>
-            <div id="adminNotificationsList"></div>
         </div>
         <div class="notice-box">
             <h4>🕐 Посещаемость
@@ -516,6 +510,15 @@
             <div class="form-group order-flags">
                 <label class="order-check"><input type="checkbox" id="orderDone"> ✅ Выполнен</label>
                 <label class="order-check"><input type="checkbox" id="orderPaid" onchange="handlePaidChange()"> 💳 Оплачено</label>
+            </div>
+            <div class="form-group order-prepay">
+                <label>💵 Предоплата</label>
+                <div id="prepayList"></div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <input type="number" id="prepayAmount" placeholder="Сумма, ₽" min="0" step="1" style="width:140px;">
+                    <button class="btn-extra" id="prepayAddBtn" onclick="addPrepayment()">➕ Внести</button>
+                </div>
+                <div id="prepayRemain" style="font-size:13px;color:#6c757d;margin-top:4px;"></div>
             </div>
             <div class="form-group order-extra">
                 <button class="btn-extra" onclick="openExtraModalFromOrder()">📦 Доп. расходники</button>
@@ -632,6 +635,32 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeNoteModal()">Отмена</button>
                 <button class="btn-save" onclick="saveNote()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка переноса заказа в календаре -->
+    <div class="modal-overlay" id="moveOrderModal">
+        <div class="modal" style="max-width:420px;">
+            <h3 id="moveOrderTitle">📅 Перенести заказ</h3>
+            <div class="form-group"><label>Новая дата</label><input type="date" id="moveOrderDate"></div>
+            <p style="font-size:13px;color:#6c757d;margin:0 0 10px;">Срок сдачи сдвинется вместе с датой. Помощники по этому заказу получат уведомление.</p>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeMoveOrderModal()">Отмена</button>
+                <button class="btn-save" onclick="saveMoveOrder()">Перенести</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка «Сообщить о проблеме» (помощник) -->
+    <div class="modal-overlay" id="problemModal">
+        <div class="modal" style="max-width:480px;">
+            <h3>⚠️ Сообщить о проблеме</h3>
+            <p style="font-size:13px;color:#6c757d;margin:0 0 10px;">Напишите, что случилось: ошибся, не хватает материала, нужна помощь. Администратор сразу получит уведомление.</p>
+            <div class="form-group"><textarea id="problemText" rows="4" maxlength="500" placeholder="Например: порвал ткань на заднем сиденье, нужен ещё 1 метр"></textarea></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeProblemModal()">Отмена</button>
+                <button class="btn-save" onclick="saveTaskProblem()">Отправить</button>
             </div>
         </div>
     </div>
@@ -937,6 +966,16 @@
                 <button class="btn-save" onclick="saveEditTask()">Сохранить</button>
             </div>
         </div>
+    </div>
+
+    <!-- Уведомления: открываются колокольчиком рядом с именем -->
+    <div class="notice-panel" id="noticePanel">
+        <div class="notice-panel-head">
+            <b>🔔 Уведомления</b>
+            <button class="notification-close" onclick="closeNoticePanel()">×</button>
+        </div>
+        <div class="push-controls"></div>
+        <div id="noticeList"></div>
     </div>
 
     <!-- Модальное окно уведомлений -->
@@ -1425,11 +1464,14 @@
       authSection.innerHTML = `
         <span id="syncDot" class="sync-dot" title="Синхронизация"></span>
         <span class="user-name">👤 ${window.currentUserData.displayName}</span>
+        <button class="notif-bell" onclick="toggleNoticePanel(event)" title="Уведомления">🔔<span class="notif-badge"></span></button>
         <button class="btn-auth btn-auth-logout" onclick="handleLogout()">Выйти</button>
       `;
       if (typeof window.refreshSyncDot === 'function') window.refreshSyncDot();
+      if (typeof window.updateNotificationBadges === 'function') window.updateNotificationBadges();
     } else {
       authSection.innerHTML = '';
+      if (typeof window.closeNoticePanel === 'function') window.closeNoticePanel();
     }
   }
 
