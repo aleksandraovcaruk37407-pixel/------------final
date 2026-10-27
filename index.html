@@ -241,6 +241,7 @@
         <div class="purchase-toolbar">
             <input type="search" id="stockSearch" placeholder="🔍 Поиск материала" oninput="applyStockSearch()" style="flex:1;min-width:180px;max-width:360px;padding:8px 12px;border:1px solid #ced4da;border-radius:8px;box-sizing:border-box;">
             <label><input type="checkbox" id="stockShowAll" onchange="renderStock()"> все из справочников</label>
+            <button class="btn-add" onclick="openScanModal()">📷 Приход по штрихкоду</button>
         </div>
         <div class="scroll-wrap">
             <table class="stock-table">

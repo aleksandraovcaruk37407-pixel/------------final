@@ -4803,7 +4803,18 @@ function deleteOrder(orderId) {
             if (r && qty > 0) items.push({ name: r.name, unit: r.unit, qty, price });
         });
         if (!items.length) { alert('Укажите, сколько купили'); return; }
+        const orders = purchaseLastDoc ? purchaseLastDoc.orders.map(o => '№' + o.orderNumber).join(', ') : '';
+        const total = recordPurchase(items, date, overlay.querySelector('#boughtToCash').checked, orders ? 'для ' + orders : '');
+        closePurchaseBoughtModal();
+        renderAll();
+        alert(`Записано: ${items.length} поз. на ${formatMoney(total)}`);
+    }
+
+    // Приход купленного на склад и (по желанию) расход в кассу — для «Закупил» и прихода по штрихкоду
+    function recordPurchase(items, date, toCash, note) {
+        askUpdateRefPrices(items);
         const stock = loadStock();
+        const stockBefore = JSON.parse(JSON.stringify(stock));
         items.forEach(it => {
             let item = stock.find(s => s.name === it.name);
             if (!item) { item = { name: it.name, unit: it.unit, price: it.price, income: 0, used: 0, remain: 0 }; stock.push(item); }
@@ -4812,19 +4823,75 @@ function deleteOrder(orderId) {
             item.remain = stockRemain(item);
         });
         saveStock(stock);
+        notifyAdminsAboutStock(stockBefore);
         const total = items.reduce((s, it) => s + it.qty * it.price, 0);
-        if (overlay.querySelector('#boughtToCash').checked && total > 0) {
+        if (toCash && total > 0) {
             const names = items.map(it => `${it.name} ${formatNumber(it.qty)} ${it.unit}`).join(', ');
-            const orders = purchaseLastDoc ? purchaseLastDoc.orders.map(o => '№' + o.orderNumber).join(', ') : '';
-            cashOps.push({ id: 'pur-' + Date.now(), date, desc: `Закупка${orders ? ' для ' + orders : ''}: ${names}`.slice(0, 200),
+            cashOps.push({ id: 'pur-' + Date.now(), date, desc: `Закупка${note ? ' ' + note : ''}: ${names}`.slice(0, 200),
                 income: 0, expense: total, category: 'purchase', items });
             notifyAdminsAboutMoney(`🧾 Закупка материалов на ${formatMoney(total)}: ${names}`.slice(0, 200));
         }
         if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
         saveAll();
-        closePurchaseBoughtModal();
-        renderAll();
-        alert(`Записано: ${items.length} поз. на ${formatMoney(total)}`);
+        return total;
+    }
+
+    // Записи справочников с этим названием (у расходника услуги их может быть несколько — по одной в каждой услуге)
+    function refPriceEntries(name) {
+        const list = [];
+        extraRef.forEach(r => { if (r.name === name) list.push(r); });
+        rates.forEach(svc => (svc.items || []).forEach(i => { if (i.name === name && costIsOrdinaryItem(i, svc, costRefs())) list.push(i); }));
+        paints.forEach(p => { if (p.name === name) list.push(p); });
+        films.forEach(f => { if (f.name === name) list.push(f); });
+        colors.forEach(c => { if (`${c.name} ${c.code}` === name) list.push(c); });
+        materialTypes.forEach(mt => (mt.articles || []).forEach(a => { if (a.name === name) list.push(a); }));
+        return list;
+    }
+
+    // Перед сменой цены в справочнике записывает старую цену в заказы, которые считались по справочнику,
+    // — так их себестоимость и прибыль не меняются задним числом
+    function freezeOrderPrices(name) {
+        const own = v => (parseFloat(v) || 0) > 0;
+        ordersData.forEach(order => {
+            const extraRefItem = extraRef.find(e => e.name === name);
+            if (extraRefItem && costParseExtra(order)[name] !== undefined && !own((order.extraPrices || {})[name])) {
+                order.extraPrices = {...(order.extraPrices || {}), [name]: parseFloat(extraRefItem.price) || 0};
+            }
+            (order.services || []).forEach(inst => {
+                if (!inst) return;
+                const svc = rates.find(r => r.service === inst.serviceName);
+                const item = svc && (svc.items || []).find(i => i.name === name && costIsOrdinaryItem(i, svc, costRefs()));
+                if (item && !own((inst.itemPrices || {})[name])) inst.itemPrices = {...(inst.itemPrices || {}), [name]: parseFloat(item.price) || 0};
+                const freeze = (data, list, matches) => {
+                    if (!data || !data.code || own(data.price)) return;
+                    const ref = list.find(r => String(r.code || '') === String(data.code));
+                    if (ref && matches(ref)) data.price = parseFloat(ref.price) || 0;
+                };
+                freeze(inst.fabric, colors, c => `${c.name} ${c.code}` === name);
+                freeze(inst.paint, paints, p => p.name === name);
+                freeze(inst.film, films, f => f.name === name);
+                materialTypes.forEach(mt => freeze(inst[mt.name], mt.articles || [], a => a.name === name));
+            });
+        });
+    }
+
+    // Цена покупки не совпала со справочником — спрашиваем, обновить ли справочник (для новых заказов)
+    function askUpdateRefPrices(items) {
+        const newPrice = new Map(); // название → последняя цена покупки
+        items.forEach(it => { if (it.price > 0) newPrice.set(it.name, it.price); });
+        const changes = [];
+        newPrice.forEach((price, name) => {
+            const old = [...new Set(refPriceEntries(name).map(r => parseFloat(r.price) || 0))].filter(p => p !== price);
+            if (old.length) changes.push({name, price, old});
+        });
+        if (!changes.length) return;
+        const lines = changes.map(c => `• ${c.name}: ${c.old.map(p => formatMoney(p)).join(' / ')} → ${formatMoney(c.price)}`).join('\n');
+        if (!confirm(`Цена покупки отличается от справочника:\n${lines}\n\nОбновить цены в справочнике? Новые заказы будут считаться по новой цене, старые заказы останутся по старой.`)) return;
+        changes.forEach(c => {
+            freezeOrderPrices(c.name);
+            refPriceEntries(c.name).forEach(r => { r.price = c.price; });
+        });
+        ordersData.forEach(recalcOrder);
     }
 
     // ========== МОДУЛЬ 13: ЭКСПОРТ/ИМПОРТ ДАННЫХ ==========
@@ -5487,6 +5554,19 @@ function deleteOrder(orderId) {
         return (parseFloat(item.income)||0) - (parseFloat(item.used)||0) - (parseFloat(item.writeOff)||0);
     }
 
+    // Все материалы из справочников, которые могут быть на складе (без повторов)
+    function stockRefItems() {
+        const list = [], names = new Set();
+        const add = (name, unit, price) => { if (name && !names.has(name)) { names.add(name); list.push({name, unit, price: parseFloat(price) || 0}); } };
+        extraRef.forEach(r => add(r.name, r.unit, r.price));
+        rates.forEach(r => (r.items || []).forEach(i => { if (costIsOrdinaryItem(i, r, costRefs())) add(i.name, i.unit, i.price); }));
+        paints.forEach(p => add(p.name, 'мл', p.price));
+        films.forEach(f => add(f.name, 'м', f.price));
+        colors.forEach(c => add(`${c.name} ${c.code}`, 'м', c.price));
+        materialTypes.forEach(mt => mt.articles.forEach(a => add(a.name, mt.unit, a.price)));
+        return list;
+    }
+
     function renderStock() {
         const tbody = document.getElementById('stockBody');
         if (!tbody) return;
@@ -5497,13 +5577,7 @@ function deleteOrder(orderId) {
         const items = stock.filter(s => showAll || (parseFloat(s.income)||0) || (parseFloat(s.used)||0) || (parseFloat(s.writeOff)||0) || (parseFloat(s.min)||0));
         if (showAll) {
             const names = new Set(stock.map(s => s.name));
-            const add = (name, unit, price) => { if (name && !names.has(name)) { names.add(name); items.push({name, unit, price, income:0, used:0, writeOff:0, min:0}); } };
-            extraRef.forEach(r => add(r.name, r.unit, r.price));
-            rates.forEach(r => (r.items || []).forEach(i => { if (costIsOrdinaryItem(i, r, costRefs())) add(i.name, i.unit, i.price); }));
-            paints.forEach(p => add(p.name, 'мл', p.price));
-            films.forEach(f => add(f.name, 'м', f.price));
-            colors.forEach(c => add(`${c.name} ${c.code}`, 'м', c.price));
-            materialTypes.forEach(mt => mt.articles.forEach(a => add(a.name, mt.unit, a.price)));
+            stockRefItems().forEach(r => { if (!names.has(r.name)) { names.add(r.name); items.push({...r, income:0, used:0, writeOff:0, min:0}); } });
         }
         // Проблемные сверху: не хватает, затем заканчивается, остальные по алфавиту
         const rank = it => { const r = stockRemain(it); return r < 0 ? 0 : ((parseFloat(it.min)||0) > 0 && r < parseFloat(it.min) ? 1 : 2); };
@@ -5609,6 +5683,295 @@ function deleteOrder(orderId) {
         if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
         renderStock();
     }
+
+    // ========== МОДУЛЬ 8.1: ПРИХОД ПО ШТРИХКОДУ ==========
+    // Штрихкоды хранятся в позиции склада: item.barcodes = ['4607...', ...] — у одного материала
+    // их может быть несколько (другая фирма, другая фасовка). Код вводится камерой, USB-сканером
+    // (он «печатает» цифры и Enter) или руками; товар без кода выбирается по названию.
+    const SCAN_LIB_URL = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    let scanCart = [];      // набранное в окне: {name, unit, qty, price}
+    let scanCurrent = null; // найденный материал, для которого вводится количество
+    let scanCamera = null;  // запущенная камера Html5Qrcode
+
+    function scanNormalizeCode(text) {
+        return String(text || '').replace(/\s+/g, '');
+    }
+    function scanLooksLikeCode(text) {
+        return /^\d{6,14}$/.test(scanNormalizeCode(text));
+    }
+    // Склад + справочники: всё, что можно приходовать
+    function scanAllItems() {
+        const stock = loadStock();
+        const names = new Set(stock.map(s => s.name));
+        return stock.map(s => ({name: s.name, unit: s.unit || 'шт', price: parseFloat(s.price) || 0}))
+            .concat(stockRefItems().filter(r => !names.has(r.name)));
+    }
+    function scanFindByCode(code) {
+        return loadStock().find(s => (s.barcodes || []).includes(code)) || null;
+    }
+    function scanFindByName(name) {
+        const q = String(name || '').trim().toLowerCase();
+        return q ? scanAllItems().find(it => it.name.toLowerCase() === q) || null : null;
+    }
+
+    function openScanModal() {
+        let overlay = document.getElementById('scanModal');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'scanModal';
+            document.body.appendChild(overlay);
+        }
+        scanCart = [];
+        scanCurrent = null;
+        overlay.innerHTML = `<div class="modal">
+            <h3>📷 Приход по штрихкоду</h3>
+            <p style="font-size:13px;color:#6c757d;margin:0 0 10px;">Отсканируйте камерой или сканером. Нет штрихкода — начните вводить название и выберите из списка.</p>
+            <div class="scan-input-row">
+                <input type="text" id="scanInput" list="scanNames" placeholder="Штрихкод или название" autocomplete="off">
+                <button class="btn-save" onclick="scanSubmitInput()">OK</button>
+                <button class="btn-add" id="scanCameraBtn" onclick="toggleScanCamera()">📷 Камера</button>
+            </div>
+            <datalist id="scanNames">${scanAllItems().map(it => `<option value="${escAttr(it.name)}">`).join('')}</datalist>
+            <div id="scanCamera" class="scan-camera" style="display:none;"></div>
+            <div id="scanPanel"></div>
+            <h4 style="margin:14px 0 6px;">К приходу</h4>
+            <div id="scanCartList"></div>
+            <div class="form-group" style="margin-top:10px;"><label>Дата покупки</label><input type="date" id="scanDate" value="${formatDate(new Date())}"></div>
+            <label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="scanToCash" checked style="width:auto;"> Записать расход в кассу</label>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="closeScanModal()">Закрыть</button>
+                <button class="btn-save" onclick="confirmScanCart()">Записать приход</button>
+            </div>
+        </div>`;
+        const input = overlay.querySelector('#scanInput');
+        // USB-сканер вводит код и нажимает Enter
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); scanSubmitInput(); } });
+        // Выбор названия из подсказок сразу открывает материал
+        input.addEventListener('input', () => { if (!scanLooksLikeCode(input.value) && scanFindByName(input.value)) scanSubmitInput(); });
+        renderScanCart();
+        overlay.classList.add('active');
+        document.body.classList.add('modal-open');
+        setTimeout(() => input.focus(), 50);
+    }
+
+    function closeScanModal() {
+        if (scanCart.length && !confirm('Набранное не записано. Всё равно закрыть?')) return;
+        stopScanCamera();
+        scanCart = [];
+        const overlay = document.getElementById('scanModal');
+        if (overlay) overlay.classList.remove('active');
+        document.body.classList.remove('modal-open');
+    }
+
+    // Разбор введённого: известный код → материал; название → материал; иначе — что делать с новым
+    function scanSubmitInput() {
+        const input = document.getElementById('scanInput');
+        const text = (input.value || '').trim();
+        if (!text) return;
+        const code = scanNormalizeCode(text);
+        const byCode = scanFindByCode(code);
+        if (byCode) { input.value = ''; scanShowItem(byCode.name); return; }
+        const byName = scanFindByName(text);
+        if (byName) { input.value = ''; scanShowItem(byName.name); return; }
+        scanShowUnknown(scanLooksLikeCode(text) ? code : '', scanLooksLikeCode(text) ? '' : text);
+    }
+
+    // Найден материал: количество, цена и привязанные коды
+    function scanShowItem(name) {
+        const it = scanAllItems().find(i => i.name === name);
+        if (!it) return;
+        scanCurrent = it;
+        const stockItem = loadStock().find(s => s.name === name);
+        const codes = (stockItem && stockItem.barcodes) || [];
+        const panel = document.getElementById('scanPanel');
+        panel.innerHTML = `<div class="scan-found">
+            <div style="font-weight:700;">✅ ${safeHTML(it.name)}</div>
+            <div style="font-size:12px;color:#6c757d;margin:2px 0 8px;">Остаток: ${formatNumber(stockItem ? stockRemain(stockItem) : 0)} ${safeHTML(it.unit)}${codes.length ? ' · коды: ' + codes.map(c => `${safeHTML(c)} <a href="#" onclick="scanUnbindCode(${escAttr(JSON.stringify(c))});return false;" title="Отвязать">✕</a>`).join(', ') : ''}</div>
+            <label style="font-size:13px;">Количество (${safeHTML(it.unit)}) и цена за ${safeHTML(it.unit)}</label>
+            <div style="display:flex;gap:6px;">
+                <input type="number" id="scanQty" step="0.01" value="1" style="flex:1;">
+                <input type="number" id="scanPrice" step="0.01" value="${Math.round(it.price * 100) / 100}" style="flex:1;">
+                <button class="btn-save" onclick="scanAddToCart()">Добавить</button>
+            </div>
+        </div>`;
+        const qty = panel.querySelector('#scanQty');
+        qty.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); scanAddToCart(); } });
+        qty.focus();
+        qty.select();
+    }
+
+    // Незнакомый код или название: привязать к материалу, завести новый или поискать в интернете
+    function scanShowUnknown(code, name) {
+        scanCurrent = null;
+        const panel = document.getElementById('scanPanel');
+        panel.innerHTML = `<div class="scan-unknown">
+            <div style="font-weight:700;">❓ ${code ? 'Код ' + safeHTML(code) + ' ещё не знаком' : '«' + safeHTML(name) + '» нет в справочниках'}</div>
+            ${code ? `<div style="margin-top:8px;">
+                <label style="font-size:13px;">Это уже есть в программе (например, клей другой фирмы)?</label>
+                <div style="display:flex;gap:6px;">
+                    <input type="text" id="scanBindName" list="scanNames" placeholder="Выберите материал" style="flex:1;">
+                    <button class="btn-save" onclick="scanBindCode(${escAttr(JSON.stringify(code))})">Привязать</button>
+                </div>
+                <a href="https://yandex.ru/search/?text=${encodeURIComponent(code)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;font-size:13px;">🔍 Найти название в Яндексе</a>
+            </div>` : ''}
+            <div style="margin-top:10px;">
+                <label style="font-size:13px;">Новый расходник${code ? ' с этим кодом' : ''}: название, ед. и цена</label>
+                <input type="text" id="scanNewName" value="${escAttr(name)}" placeholder="Название" style="margin-bottom:6px;">
+                <div style="display:flex;gap:6px;">
+                    <input type="text" id="scanNewUnit" value="шт" placeholder="Ед." style="flex:1;">
+                    <input type="number" id="scanNewPrice" step="0.01" placeholder="Цена" style="flex:1;">
+                    <button class="btn-add" onclick="scanCreateItem(${escAttr(JSON.stringify(code))})">Создать</button>
+                </div>
+            </div>
+        </div>`;
+        (panel.querySelector(code ? '#scanBindName' : '#scanNewUnit')).focus();
+    }
+
+    // Запоминает код у материала; материал из справочника, которого ещё нет на складе, заводится там
+    function scanSaveCode(name, code) {
+        const stock = loadStock();
+        stock.forEach(s => { if (s.barcodes) s.barcodes = s.barcodes.filter(c => c !== code); }); // код — только у одного
+        let item = stock.find(s => s.name === name);
+        if (!item) {
+            const ref = scanAllItems().find(i => i.name === name) || {unit: 'шт', price: 0};
+            item = {name, unit: ref.unit, price: ref.price, income: 0, used: 0, remain: 0};
+            stock.push(item);
+        }
+        if (code) item.barcodes = (item.barcodes || []).concat(code);
+        saveStock(stock);
+        if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
+        saveAll();
+    }
+
+    function scanBindCode(code) {
+        const name = (document.getElementById('scanBindName').value || '').trim();
+        const it = scanFindByName(name);
+        if (!it) { alert('Выберите материал из списка'); return; }
+        scanSaveCode(it.name, code);
+        document.getElementById('scanInput').value = '';
+        scanShowItem(it.name);
+    }
+
+    function scanUnbindCode(code) {
+        if (!confirm(`Отвязать код ${code}?`)) return;
+        const stock = loadStock();
+        stock.forEach(s => { if (s.barcodes) s.barcodes = s.barcodes.filter(c => c !== code); });
+        saveStock(stock);
+        if (typeof window.markChanged === 'function') window.markChanged();
+        saveAll();
+        if (scanCurrent) scanShowItem(scanCurrent.name);
+    }
+
+    // Новый расходник попадает в справочник «Доп. расходники», чтобы его можно было ставить в заказы
+    function scanCreateItem(code) {
+        const name = (document.getElementById('scanNewName').value || '').trim();
+        const unit = (document.getElementById('scanNewUnit').value || '').trim() || 'шт';
+        const price = parseFloat(document.getElementById('scanNewPrice').value) || 0;
+        if (!name) { alert('Введите название'); return; }
+        if (scanFindByName(name)) { alert('Такой материал уже есть — выберите его в поле «Привязать» или в поиске'); return; }
+        extraRef.push({name, unit, price});
+        scanSaveCode(name, code);
+        renderRefs();
+        const dl = document.getElementById('scanNames');
+        if (dl) dl.innerHTML = scanAllItems().map(it => `<option value="${escAttr(it.name)}">`).join('');
+        document.getElementById('scanInput').value = '';
+        scanShowItem(name);
+    }
+
+    function scanAddToCart() {
+        if (!scanCurrent) return;
+        const qty = parseFloat(document.getElementById('scanQty').value) || 0;
+        const price = parseFloat(document.getElementById('scanPrice').value) || 0;
+        if (qty <= 0) { alert('Укажите количество'); return; }
+        // Повторный скан того же товара по той же цене прибавляется к строке
+        const same = scanCart.find(r => r.name === scanCurrent.name && r.price === price);
+        if (same) same.qty = Math.round((same.qty + qty) * 100) / 100;
+        else scanCart.push({name: scanCurrent.name, unit: scanCurrent.unit, qty, price});
+        scanCurrent = null;
+        document.getElementById('scanPanel').innerHTML = '';
+        renderScanCart();
+        document.getElementById('scanInput').focus();
+    }
+
+    function scanRemoveFromCart(idx) {
+        scanCart.splice(idx, 1);
+        renderScanCart();
+    }
+
+    function renderScanCart() {
+        const box = document.getElementById('scanCartList');
+        if (!box) return;
+        if (!scanCart.length) { box.innerHTML = '<p class="fin-muted" style="margin:0;">Пока пусто</p>'; return; }
+        const total = scanCart.reduce((s, r) => s + r.qty * r.price, 0);
+        box.innerHTML = scanCart.map((r, i) => `<div class="scan-cart-row">
+                <span>${safeHTML(r.name)} — ${formatNumber(r.qty)} ${safeHTML(r.unit)} × ${formatMoney(r.price)}</span>
+                <button class="btn-del" onclick="scanRemoveFromCart(${i})" title="Убрать">✕</button>
+            </div>`).join('') + `<div style="font-weight:700;margin-top:6px;">Итого: ${formatMoney(total)}</div>`;
+    }
+
+    function confirmScanCart() {
+        if (!scanCart.length) { alert('Добавьте хотя бы один товар'); return; }
+        const date = document.getElementById('scanDate').value || formatDate(new Date());
+        const count = scanCart.length;
+        const total = recordPurchase(scanCart, date, document.getElementById('scanToCash').checked, 'по штрихкоду');
+        scanCart = [];
+        closeScanModal();
+        renderAll();
+        alert(`Записано: ${count} поз. на ${formatMoney(total)}`);
+    }
+
+    // Камера: библиотека грузится только при первом нажатии
+    function loadScanLib() {
+        if (window.Html5Qrcode) return Promise.resolve();
+        return new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = SCAN_LIB_URL;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('Не удалось загрузить сканер — проверьте интернет'));
+            document.head.appendChild(s);
+        });
+    }
+
+    async function toggleScanCamera() {
+        if (scanCamera) { stopScanCamera(); return; }
+        const box = document.getElementById('scanCamera');
+        const btn = document.getElementById('scanCameraBtn');
+        try {
+            await loadScanLib();
+            box.style.display = '';
+            const F = window.Html5QrcodeSupportedFormats;
+            scanCamera = new window.Html5Qrcode('scanCamera', {
+                formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE],
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                verbose: false
+            });
+            btn.textContent = '⏹ Стоп';
+            await scanCamera.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 260, height: 130 } }, text => {
+                stopScanCamera();
+                if (navigator.vibrate) navigator.vibrate(80);
+                document.getElementById('scanInput').value = text;
+                scanSubmitInput();
+            });
+        } catch (e) {
+            stopScanCamera();
+            alert('Камера не запустилась: ' + (e && e.message ? e.message : e) + '\nМожно ввести код или название вручную.');
+        }
+    }
+
+    function stopScanCamera() {
+        const cam = scanCamera;
+        scanCamera = null;
+        // Если камера так и не запустилась, stop() бросает ошибку сразу, а не через Promise
+        if (cam) Promise.resolve().then(() => cam.stop()).catch(() => {}).finally(() => { try { cam.clear(); } catch (e) {} });
+        const box = document.getElementById('scanCamera');
+        if (box) box.style.display = 'none';
+        const btn = document.getElementById('scanCameraBtn');
+        if (btn) btn.textContent = '📷 Камера';
+    }
+
+    Object.assign(window, { openScanModal, closeScanModal, scanSubmitInput, toggleScanCamera, scanBindCode, scanUnbindCode,
+        scanCreateItem, scanAddToCart, scanRemoveFromCart, confirmScanCart });
 
     // ========== МОДУЛЬ 11: ИТОГИ И ОТЧЁТЫ ==========
     function calculateSummaryPeriodDates() {
