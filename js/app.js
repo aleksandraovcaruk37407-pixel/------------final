@@ -1952,8 +1952,12 @@ window.localChangesPending = false;
             };
         });
         
+        // Список задач — в отдельном блоке вверху вкладки, статистика и выплаты остаются ниже
+        const listEl = document.getElementById('adminHelperTaskList') || container;
+
         if (allTasks.length === 0) {
-            container.innerHTML = `
+            if (listEl !== container) container.innerHTML = '';
+            listEl.innerHTML = `
                 <div class="helper-empty-state">
                     <div style="font-size:48px;margin-bottom:15px;">📋</div>
                     <div style="font-size:16px;margin-bottom:8px;">Задач не найдено</div>
@@ -2034,7 +2038,9 @@ window.localChangesPending = false;
                 <h4 style="margin:0 0 15px 0;color:#856404;">⚠️ Штрафы помощников</h4>
                 ${renderAdminPenalties(filterEmail, currentAdminHelperReportPeriod)}
             </div>
-            
+        `;
+
+        const listHTML = `
             <!-- Список задач -->
             <div class="helper-section-title">Все задачи</div>
             ${allTasks.map(task => {
@@ -2086,8 +2092,10 @@ window.localChangesPending = false;
                 `;
             }).join('')}
         `;
+        if (listEl === container) container.innerHTML += listHTML;
+        else listEl.innerHTML = listHTML;
     }
-    
+
     // Делаем функции глобально доступными
     window.renderAdminHelperTasks = renderAdminHelperTasks;
     window.renderAdminPenalties = renderAdminPenalties;
@@ -2787,6 +2795,11 @@ window.localChangesPending = false;
         const found = findTaskById(taskId);
         if (!found) return;
         const { order, task } = found;
+        // Повторное нажатие (в т.ч. на устаревшей карточке) не должно слать помощнику второе уведомление и push
+        if (task.status === newStatus) {
+            renderAdminHelperTasks();
+            return;
+        }
         const wasReview = task.status === 'review';
         task.status = newStatus;
         if (newStatus === 'completed') {
@@ -2808,6 +2821,7 @@ window.localChangesPending = false;
         // Всегда обновляем задачи помощника (даже если смотрит админ)
         renderHelperTasks();
         renderHelperReport();
+        showToast({ completed: '✅ Задача принята', pending: '↩️ Задача возвращена в работу', overdue: '❌ Задача просрочена' }[newStatus] || 'Статус задачи изменён', 'success');
     }
 
     // ========== МОДАЛКА ЗАДАЧ ДЛЯ ПОМОЩНИКА (ADMIN) ==========
@@ -5448,6 +5462,9 @@ function deleteOrder(orderId) {
         if (window.currentUserData && window.currentUserData.role !== 'admin') {
             renderHelperTasks();
             renderHelperReport();
+        } else {
+            // Без этого после «Подтвердить» карточка оставалась прежней — казалось, что нажатие не сработало
+            renderAdminHelperTasks();
         }
         renderNotices();
         renderAttendance();

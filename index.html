@@ -459,6 +459,13 @@
     <div id="tab-helper-admin" class="tab-content">
         <h2 style="color:#1a3c5e; margin-bottom:15px;">👥 Задачи помощников</h2>
         <div style="margin-bottom:15px;">
+            <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
+            <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;max-width:100%;padding:8px;border-radius:6px;border:1px solid #ced4da;">
+                <option value="all">Все помощники</option>
+            </select>
+        </div>
+        <div id="adminHelperTaskList" style="margin-bottom:20px;"></div>
+        <div style="margin-bottom:15px;">
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
             <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">➕ Добавить помощника</button>
             <button class="btn-del" onclick="openPenaltyModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">⚠️ Выписать штраф</button>
@@ -467,12 +474,6 @@
             <h4>🔔 Уведомления <span class="notif-badge"></span></h4>
             <div class="push-controls"></div>
             <div id="adminNotificationsList"></div>
-        </div>
-        <div style="margin-bottom:15px;">
-            <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
-            <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;padding:8px;border-radius:6px;border:1px solid #ced4da;">
-                <option value="all">Все помощники</option>
-            </select>
         </div>
         <div class="notice-box">
             <h4>🕐 Посещаемость
