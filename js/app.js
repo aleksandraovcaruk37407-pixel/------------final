@@ -1638,10 +1638,11 @@ window.localChangesPending = false;
         try {
             const ref = window.fbRef(window.db);
             
-            // Сначала пробуем atelier_data/users, если пусто — читаем из /users
-            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            // Основной список — /users (туда пишет «Добавить помощника»); копия atelier_data/users
+            // обновляется только при входе админа, и новый помощник в ней появлялся не сразу
+            let snapshot = await window.get(window.child(ref, 'users'));
             if (!snapshot.exists()) {
-                snapshot = await window.get(window.child(ref, 'users'));
+                snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             }
             
             
@@ -1752,10 +1753,11 @@ window.localChangesPending = false;
         try {
             const ref = window.fbRef(window.db);
             
-            // Сначала пробуем atelier_data/users, если пусто — читаем из /users
-            let snapshot = await window.get(window.child(ref, 'atelier_data/users'));
+            // Основной список — /users (туда пишет «Добавить помощника»); копия atelier_data/users
+            // обновляется только при входе админа, и новый помощник в ней появлялся не сразу
+            let snapshot = await window.get(window.child(ref, 'users'));
             if (!snapshot.exists()) {
-                snapshot = await window.get(window.child(ref, 'users'));
+                snapshot = await window.get(window.child(ref, 'atelier_data/users'));
             }
             
             if (!snapshot.exists()) {
