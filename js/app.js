@@ -4428,10 +4428,11 @@ window.localChangesPending = false;
                         const detectedUnit = getUnitFromArticleName(art.name, art.code);
                         if (codeChanged === true || !(parseFloat(priceInput.value) > 0)) priceInput.value = parseFloat(art.price)||0;
                         // Обновляем лейблы если единица изменилась
-                        const priceLabel = priceInput.parentElement;
-                        const qtyLabel = qtyInput.parentElement;
-                        if (priceLabel) priceLabel.textContent = `Цена за ${detectedUnit}`;
-                        if (qtyLabel) qtyLabel.textContent = `Количество ${detectedUnit}`;
+                        // подпись — <label> перед полем (родитель — весь блок маркера, его не трогать: иначе блок стирается)
+                        const priceLabel = priceInput.previousElementSibling;
+                        const qtyLabel = qtyInput.previousElementSibling;
+                        if (priceLabel && priceLabel.tagName === 'LABEL') priceLabel.textContent = `Цена за ${detectedUnit}`;
+                        if (qtyLabel && qtyLabel.tagName === 'LABEL') qtyLabel.textContent = `Количество ${detectedUnit}`;
                     }
                     inst[mt.name] = {
                         code: codeInput.value, 
