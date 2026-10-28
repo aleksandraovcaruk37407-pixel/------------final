@@ -3889,6 +3889,7 @@ window.localChangesPending = false;
         document.getElementById('orderDurationDays').value = order?.durationDays || 1;
         updateDeadline();
         document.getElementById('orderClient').value = order?.client || '';
+        if (typeof clSetInfo === 'function') clSetInfo(null); // подсказка постоянных клиентов (js/clients.js)
         document.getElementById('orderPhone').value = order?.phone || '';
         // Показать модалку и заблокировать скролл
         const orderModal = document.getElementById('orderModal');
@@ -4861,6 +4862,81 @@ function deleteOrder(orderId) {
         html += `<div style="background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;">💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(doc.total)}</span></div>`;
         docContainer.innerHTML = html;
     }
+
+    // Список «что купить» текстом (null — покупать нечего или документа нет)
+    function purchaseListText() {
+        if (!purchaseLastDoc) { alert('Сначала отметьте заказы'); return null; }
+        const fmtQty = n => formatNumber(Math.round(n * 100) / 100);
+        const parts = [];
+        purchaseLastDoc.groups.forEach(g => {
+            const rows = g.rows.filter(r => r.toBuy > 0);
+            if (!rows.length) return;
+            parts.push(g.name + ':');
+            rows.forEach(r => parts.push(`- ${r.code && r.group !== 'Прочие расходники' ? r.code + ' ' : ''}${r.name} — ${fmtQty(r.toBuy)} ${r.unit}`));
+        });
+        if (!parts.length) { alert('Всё есть на складе — покупать ничего не нужно'); return null; }
+        parts.push(`Итого примерно: ${formatMoney(purchaseLastDoc.total)}`);
+        return ['Закупка материалов ' + formatDateDDMMYYYY(formatDate(new Date())), ...parts].join('\n');
+    }
+
+    // «Отправить текстом»: на телефоне — окно «Поделиться» (WhatsApp, Telegram…), иначе копируем
+    function sharePurchaseText() {
+        const text = purchaseListText();
+        if (!text) return;
+        if (navigator.share) navigator.share({ text }).catch(() => {});
+        else copyPurchaseList();
+    }
+
+    // «Отправить картинкой»: снимок документа закупки. Телефон — «Поделиться», компьютер — файл .png
+    let html2canvasLoading = null;
+    function loadHtml2canvas() {
+        if (window.html2canvas) return Promise.resolve();
+        if (!html2canvasLoading) html2canvasLoading = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            s.onload = resolve;
+            s.onerror = () => { html2canvasLoading = null; reject(new Error('нет связи')); };
+            document.head.appendChild(s);
+        });
+        return html2canvasLoading;
+    }
+    async function sharePurchaseImage() {
+        const box = document.getElementById('purchaseDocumentContainer');
+        if (!purchaseLastDoc || !box || !box.innerHTML.trim()) { alert('Сначала отметьте заказы'); return; }
+        await shareElementImage(box, 'закупка', 'Закупка материалов');
+    }
+    function shareSummaryImage() {
+        return shareElementImage(document.getElementById('summaryShot'), 'отчёт', 'Отчёт');
+    }
+    // Снимок блока страницы: на телефоне — окно «Поделиться», на компьютере — файл .png.
+    // Вместо печати: окно печати на телефоне закрывало программу без пути назад.
+    async function shareElementImage(box, baseName, title) {
+        showToast('📷 Готовлю картинку…');
+        try {
+            await loadHtml2canvas();
+            const canvas = await window.html2canvas(box, { backgroundColor: '#ffffff', scale: 2 });
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+            const name = baseName + '-' + formatDate(new Date()) + '.png';
+            const file = new File([blob], name, { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title }).catch(() => {});
+                return;
+            }
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+            showToast('📷 Картинка сохранена: ' + name, 'success');
+        } catch (e) {
+            alert('Не получилось сделать картинку (' + e.message + '). Сделайте скриншот экрана или отправьте текстом.');
+        }
+    }
+    window.sharePurchaseImage = sharePurchaseImage;
+    window.shareSummaryImage = shareSummaryImage;
+    window.sharePurchaseText = sharePurchaseText;
 
     // Список «что купить» текстом — отправить поставщику или себе в мессенджер
     function copyPurchaseList() {

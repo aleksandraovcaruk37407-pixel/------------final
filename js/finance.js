@@ -604,6 +604,7 @@ function renderFinance() {
                     </span>
                     <span class="fin-pay-actions">
                         ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
+                        <button class="btn-extra fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника">${finPayLink(h.email) ? '🔗 ссылка банка ✓' : '🔗 добавить ссылку банка'}</button>
                     </span>
                 </div>
             </div>`;
@@ -751,6 +752,45 @@ function finPayHelper(email) {
     saveAll();
     renderAll();
     if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
+    finOpenPayLink(email, amount);
+}
+
+// ---------- Перевод помощнику через банк ----------
+// Помощник делает в своём банке (ВТБ и др.) «ссылку для перевода», админ вставляет её один раз.
+// После «Выплатить» сумма копируется, а ссылка открывает банк с реквизитами помощника.
+function finPayLink(email) {
+    const links = finSettings().payLinks || {};
+    return links[email] || '';
+}
+
+function finSetPayLink(email) {
+    const current = finPayLink(email);
+    const input = prompt(`Ссылка для перевода ${finHelperName(email)}.
+
+Попросите помощника создать её в банке (ВТБ: «Платежи» → «Ссылка для перевода») и пришлите вам. Пустое поле — удалить ссылку.`, current);
+    if (input === null) return;
+    const link = input.trim();
+    if (link && !/^https?:\/\//i.test(link)) { alert('Ссылка должна начинаться с https://'); return; }
+    const s = finSettings();
+    const payLinks = { ...(s.payLinks || {}) };
+    if (link) payLinks[email] = link; else delete payLinks[email];
+    financeSettings = [{ ...s, payLinks }];
+    saveAll();
+    renderAll();
+    if (typeof showToast === 'function') showToast(link ? '🔗 Ссылка для перевода сохранена' : 'Ссылка удалена');
+}
+
+function finOpenPayLink(email, amount) {
+    const link = finPayLink(email);
+    const sum = String(Math.round(amount));
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(() => {});
+    if (!link) {
+        if (typeof showToast === 'function') showToast(`Выплата записана. Сумма ${sum} ₽ скопирована — переведите её в банке`);
+        return;
+    }
+    if (typeof showToast === 'function') showToast(`Сумма ${sum} ₽ скопирована — вставьте её в банке`);
+    const w = window.open(link, '_blank');
+    if (!w) location.href = link;
 }
 
 function finSetMonth(delta) { finPaymentsMonth = finShiftMonth(finPaymentsMonth || finMonthKey(finTodayStr()), delta); renderFinance(); }

@@ -1996,3 +1996,14 @@
 .st-toggle.st-add { background: #185FA5; color: #fff; }
 .st-who { display: flex; gap: 14px; flex-wrap: wrap; }
 .st-who-item { display: flex; align-items: center; gap: 5px; font-weight: 400; cursor: pointer; }
+
+/* Подсказка постоянных клиентов в окне заказа (js/clients.js) */
+.client-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 50; background: #fff; border: 1px solid #ced4da; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.12); max-height: 260px; overflow-y: auto; }
+.client-suggest-item { padding: 8px 10px; cursor: pointer; border-top: 1px solid #f0f0f0; font-size: 14px; }
+.client-suggest-item:first-child { border-top: none; }
+.client-suggest-item:hover { background: #e7f1ff; }
+.client-suggest-sub { font-size: 12px; color: #6c757d; }
+.client-star { font-size: 12px; color: #b8860b; }
+.client-info { font-size: 13px; color: #b8860b; margin: -4px 0 10px; }
+.client-info:empty { display: none; }
+.fin-link-btn { padding: 4px 8px !important; font-size: 12px !important; margin-left: 4px; }
