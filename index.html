@@ -53,19 +53,22 @@
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202610262000"></script>
+    <script type="module" src="js/firebase.js?v=202610281500"></script>
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
     <script src="js/finance.js?v=202610272230" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202610261600" defer></script>
+    <script src="js/attendance.js?v=202610281500" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
     <script src="js/fcm.js?v=202610271800" defer></script>
     
-    <script src="js/app.js?v=202610281200" defer></script>
+    <!-- Задачи студии: план из экселя и экран задач (до app.js) -->
+    <script src="js/studio-plan.js?v=202610281500" defer></script>
+    <script src="js/studio-tasks.js?v=202610281500" defer></script>
+    <script src="js/app.js?v=202610281500" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/learning.js?v=202610281200" defer></script>
     
@@ -183,7 +186,7 @@
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
     <div class="tabs" id="helperTabs" style="display:none;">
         <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
-        <button class="tab-btn" data-tab="helper-attendance">🕐 Посещаемость</button>
+        <button class="tab-btn" data-tab="helper-attendance">📅 Календарь</button>
         <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
         <button class="tab-btn" data-tab="tab-learn">🎓 Обучение</button>
     </div>
@@ -211,7 +214,7 @@
     <!-- Нижняя навигация для помощника -->
     <div class="bottom-nav" id="helperBottomNav" style="display:none;">
         <button class="bottom-nav-item active" data-tab="helper-tasks">📋<br><small>Задачи</small></button>
-        <button class="bottom-nav-item" data-tab="helper-attendance">🕐<br><small>Время</small></button>
+        <button class="bottom-nav-item" data-tab="helper-attendance">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
         <button class="bottom-nav-item" data-tab="tab-learn">🎓<br><small>Обучение</small></button>
         <button class="bottom-nav-item" onclick="handleLogout()">🚪<br><small>Выйти</small></button>
@@ -337,6 +340,7 @@
         <div class="calendar-grid" id="calendarGrid"></div>
         <div class="schedule-container">
             <h3>Расписание на <span id="selectedDateDisplay"></span></h3>
+            <div id="scheduleStudio"></div>
             <div class="schedule-grid" id="scheduleGrid"></div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
@@ -456,7 +460,7 @@
 
     <!-- Вкладка Посещаемость (для помощника) -->
     <div id="helper-attendance" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">🕐 Посещаемость</h2>
+        <h2 style="color:#1a3c5e; margin-bottom:15px;">📅 Календарь</h2>
         <div id="helperAttendanceContainer"></div>
     </div>
 
@@ -662,6 +666,22 @@
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeMoveOrderModal()">Отмена</button>
                 <button class="btn-save" onclick="saveMoveOrder()">Перенести</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модалка «Новая задача» (админ ставит задачу себе, Егору или Дауду; js/studio-tasks.js) -->
+    <div class="modal-overlay" id="studioTaskModal">
+        <div class="modal" style="max-width:440px;">
+            <h3 id="studioTaskTitle">➕ Новая задача</h3>
+            <div class="form-group"><label>Кому</label><div id="studioTaskWho" class="st-who"></div></div>
+            <div class="form-group"><label>Что сделать</label><textarea id="studioTaskText" rows="3" placeholder="Например: отвезти машину на мойку"></textarea></div>
+            <div class="form-group"><label>День</label><input type="date" id="studioTaskDate"></div>
+            <div class="form-group"><label>Пометка (необязательно)</label><input type="text" id="studioTaskNote" placeholder="Например: обсудить с Егором"></div>
+            <div id="studioTaskError" style="color:#dc3545;font-size:13px;margin-bottom:8px;"></div>
+            <div class="form-actions">
+                <button class="btn-cancel" onclick="stCloseTaskModal()">Отмена</button>
+                <button class="btn-save" onclick="stSaveTask()">Сохранить</button>
             </div>
         </div>
     </div>

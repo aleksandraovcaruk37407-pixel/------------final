@@ -212,7 +212,7 @@ window.initRealtimeSync = initRealtimeSync;
 // Отправка идёт транзакцией: облако перезаписывается, только если оно всё ещё в той версии,
 // с которой синхронизировано устройство. Иначе (облако изменили с другого устройства,
 // или устройство новое) запись отменяется, данные сливаются и отправляются заново.
-const SYNC_DATA_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'stock', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'helperPaidBefore', 'attendance', 'helperSchedules'];
+const SYNC_DATA_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'stock', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'helperPaidBefore', 'attendance', 'helperSchedules', 'studioTaskMarks'];
 let changeCounter = 0;
 let syncTimer = null;
 

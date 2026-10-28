@@ -113,6 +113,7 @@ function attShiftMonth(mk, delta) {
 let attMonth = null;          // показываемый месяц 'ГГГГ-ММ'
 let attAdminEmail = '';       // помощник, выбранный админом
 let attEditing = null;        // { email, date } в окне дня
+let attSelDate = null;        // день, выбранный помощником (дела под календарём)
 
 function attToday() { return finTodayStr(); }
 function attNowTime() {
@@ -166,6 +167,40 @@ function attSetMonth(delta) {
     renderAttendance();
 }
 
+function attSelectDay(date) {
+    attSelDate = date;
+    renderAttendance();
+}
+
+// Дела помощника под календарём: на выбранный день, а если их нет — ближайшие
+function attTasksHTML(email) {
+    if (typeof stTasksOf !== 'function') return '';
+    const today = attToday(), date = attSelDate || today;
+    const human = typeof formatDateHuman === 'function' ? formatDateHuman(new Date(date + 'T12:00:00')) : date;
+    const day = stTasksForDate(email, date, false);
+    const late = stOpenTasksUntil(email, today, false).filter(t => t.date < today);
+    let html = `<div class="st-day"><div class="st-day-head">📌 Дела на ${human}${date === today ? ' (сегодня)' : ''}</div>`;
+    html += day.length ? day.map(t => stTaskRowHTML(t, { today })).join('') : '<div class="st-empty">На этот день дел нет</div>';
+    html += '</div>';
+    if (late.length) html += `<div class="st-day"><div class="st-day-head">🔴 Не сделано в прошлые дни</div>${late.map(t => stTaskRowHTML(t, { today, showDate: true })).join('')}</div>`;
+    if (!day.length) {
+        const next = stTasksOf(email, false).filter(t => t.date > date && stStatus(t) !== 'done').sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+        if (next.length) html += `<div class="st-day"><div class="st-day-head">⏭ Ближайшие дела</div>${next.map(t => stTaskRowHTML(t, { today, showDate: true })).join('')}</div>`;
+    }
+    return html;
+}
+
+// Админу: дела помощника в показанном месяце
+function attAdminTasksHTML(email, mk) {
+    if (typeof stTasksOf !== 'function') return '';
+    const list = stTasksOf(email, false).filter(t => t.date.slice(0, 7) === mk).sort((a, b) => a.date.localeCompare(b.date));
+    const add = `<button class="st-toggle st-add" onclick="stOpenTaskModal('')">➕ Задача помощнику</button>`;
+    if (!list.length) return `<div class="st-tools">${add}</div>`;
+    const done = list.filter(t => stStatus(t) === 'done').length;
+    return `<div class="st-tools">${add}</div><div class="st-day"><div class="st-day-head">📌 Дела помощника в этом месяце <span class="st-count">${done} из ${list.length} готово</span></div>
+        ${list.map(t => stTaskRowHTML(t, { today: attToday(), showDate: true })).join('')}</div>`;
+}
+
 function attSelectHelper(email) {
     attAdminEmail = email;
     renderAttendance();
@@ -208,9 +243,15 @@ function attCalendarHTML(email, mk, clickable) {
         else if (rec && ATT_STATUSES[rec.status]) text = ATT_STATUSES[rec.status].icon + ' ' + ATT_STATUSES[rec.status].label;
         else if (state === 'missed') text = 'нет отметки';
         const title = rec && rec.comment ? ` title="${escAttr(rec.comment)}"` : '';
-        const click = clickable ? ` onclick="attOpenDay('${escAttr(email)}', '${date}')"` : '';
-        cells += `<div class="att-cell att-${state || 'none'}${date === today ? ' today' : ''}${clickable ? ' clickable' : ''}"${click}${title}>
-            <div class="att-day">${d}${rec && rec.comment ? ' 💬' : ''}</div><div class="att-text">${text}</div></div>`;
+        // Админ открывает окно отметки; помощник выбирает день, чтобы увидеть дела под календарём
+        const click = clickable ? ` onclick="attOpenDay('${escAttr(email)}', '${date}')"` : ` onclick="attSelectDay('${date}')"`;
+        // Дела на день из плана студии (js/studio-tasks.js)
+        const dayTasks = typeof stTasksForDate === 'function' ? stTasksForDate(email, date, false) : [];
+        const openTasks = dayTasks.filter(t => stStatus(t) !== 'done').length;
+        const tasksMark = dayTasks.length ? `<div class="att-tasks">${openTasks ? '📌 ' + openTasks : '✅'}</div>` : '';
+        const selected = !clickable && date === (attSelDate || today);
+        cells += `<div class="att-cell att-${state || 'none'}${date === today ? ' today' : ''}${selected ? ' att-selected' : ''} clickable"${click}${title}>
+            <div class="att-day">${d}${rec && rec.comment ? ' 💬' : ''}</div><div class="att-text">${text}</div>${tasksMark}</div>`;
     }
     const [y, m] = mk.split('-').map(Number);
     const s = attMonthSummary(email, mk, attendance, helperSchedules, today);
@@ -235,6 +276,7 @@ function attCalendarHTML(email, mk, clickable) {
         <div class="att-legend">
             <span class="att-present">Был</span><span class="att-late">Опоздал</span><span class="att-missed">Не было отметки</span>
             <span class="att-dayoff">Отгул / больничный</span><span class="att-planned">Рабочий день впереди</span>
+            <span>📌 дела на день</span>
         </div>`;
 }
 
@@ -246,7 +288,7 @@ function renderAttendance() {
         const container = document.getElementById('helperAttendanceContainer');
         if (!container) return;
         const email = window.currentUserData.email;
-        container.innerHTML = attTodayCard(email) + attCalendarHTML(email, attMonth, false);
+        container.innerHTML = attTodayCard(email) + attCalendarHTML(email, attMonth, false) + attTasksHTML(email);
         return;
     }
 
@@ -272,7 +314,8 @@ function renderAttendance() {
             <button class="btn-extra" onclick="attOpenSchedule()" style="padding:4px 10px;font-size:12px;margin-left:8px;">🗓 График</button>
         </div>
         <div style="font-size:12px;color:#888;margin-bottom:6px;">Нажмите на день, чтобы исправить отметку</div>
-        ${attCalendarHTML(attAdminEmail, attMonth, true)}`;
+        ${attCalendarHTML(attAdminEmail, attMonth, true)}
+        ${attAdminTasksHTML(attAdminEmail, attMonth)}`;
 }
 
 // ---------- Окно дня (админ) ----------

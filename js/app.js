@@ -236,12 +236,14 @@
     let helperPaidBefore = [];
     // Посещаемость помощников и их график (js/attendance.js) — синхронизируются
     let attendance = [], helperSchedules = [];
+    // Отметки по задачам студии (план — js/studio-plan.js, экран — js/studio-tasks.js) — синхронизируются
+    let studioTaskMarks = [];
     let budgetData = null;
     let currentFilter = 'all';
 
     // Данные для облачной синхронизации (переменные выше не видны через window)
     window.getSyncData = function() {
-      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, helperNotices, helperPenalties, helperPaidBefore, attendance, helperSchedules, stock: loadStock() };
+      return { colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, payments, financeSettings, helperNotices, helperPenalties, helperPaidBefore, attendance, helperSchedules, studioTaskMarks, stock: loadStock() };
     };
     let calendarViewMode = 'month';
     let currentServiceFilter = 'all';
@@ -344,6 +346,7 @@
     helperPaidBefore = parseJSON('helperPaidBefore_data', []);
     attendance = parseJSON('attendance_data', []);
     helperSchedules = parseJSON('helperSchedules_data', []);
+    studioTaskMarks = parseJSON('studioTaskMarks_data', []);
     // Перенос старых финансовых записей: касса = реальные деньги (js/finance.js)
     finMigrate(false);
 
@@ -634,6 +637,7 @@ if (!films.length) {
         helperPaidBefore: helperPaidBefore,
         attendance: attendance,
         helperSchedules: helperSchedules,
+        studioTaskMarks: studioTaskMarks,
         budgetData: budgetData
       };
       
@@ -5228,6 +5232,10 @@ function deleteOrder(orderId) {
             dayBadge.notes = dayNotes.length;
             dayBadge.expenses = cashPayments.length;
             dayBadge.payments = dayDuePayments.length;
+            // Задачи студии (js/studio-tasks.js): сколько ещё не готово
+            const dayStudio = typeof stTasksForDate === 'function' ? stTasksForDate(stMyEmail(), dateStr, stShowAll) : [];
+            dayBadge.studio = dayStudio.filter(t => stStatus(t) !== 'done').length;
+            if (dayStudio.length && !dayBadge.studio) dayBadge.studioDone = true;
             if (dayDuePayments.some(x => x.status.state === 'overdue')) classes += ' pay-overdue';
 
             // Цвет дня (приоритет: красный > жёлтый > зелёный > серый «всё выполнено» > фиолетовый «заметка»)
@@ -5257,6 +5265,8 @@ function deleteOrder(orderId) {
             if (dayBadge.notes > 0) badgeText.push(`📝${dayBadge.notes}`);
             if (dayBadge.expenses > 0) badgeText.push(`💰${dayBadge.expenses}`);
             if (dayBadge.payments > 0) badgeText.push(`💳${dayBadge.payments}`);
+            if (dayBadge.studio > 0) badgeText.push(`✔${dayBadge.studio}`);
+            else if (dayBadge.studioDone) badgeText.push('✅');
 
             if (badgeText.length > 0) {
                 const badge = document.createElement('span');
@@ -5290,6 +5300,10 @@ function deleteOrder(orderId) {
         const dateStr = formatDate(selectedDate);
         title.textContent = formatDateHuman(selectedDate) + (dateStr === formatDate(new Date()) ? ' (сегодня)' : '');
         grid.innerHTML = '';
+        // Задачи студии на этот день (js/studio-tasks.js) — сверху, с переключателем «мои / все»
+        const studioBox = document.getElementById('scheduleStudio');
+        const studioHTML = typeof stDayListHTML === 'function' ? stDayListHTML(stMyEmail(), dateStr, stShowAll) : '';
+        if (studioBox) studioBox.innerHTML = (typeof stToggleHTML === 'function' ? stToggleHTML(dateStr) : '') + studioHTML;
         const { start: dayOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
         const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId && !op.desc.includes('Оплата заказа'));
         const dayDuePayments = finPaymentsForDate(dateStr);
@@ -5342,7 +5356,7 @@ function deleteOrder(orderId) {
         dueOrders.forEach(order => addOrderSlot(order, 'due'));
         dayOrders.forEach(order => addOrderSlot(order, 'start'));
         if (dayOrders.length === 0 && dueOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0 && dayDuePayments.length === 0) {
-            grid.innerHTML = '<div>Нет записей</div>';
+            grid.innerHTML = studioHTML ? '' : '<div>Нет записей</div>';
         }
     }
 
@@ -5491,6 +5505,13 @@ function deleteOrder(orderId) {
         active.filter(o => getDeadline(o) === todayStr)
             .forEach(o => rows.push(row('today-due', '🏁', `${orderText(o)} <b>— сдать сегодня</b>`, '', `openOrderModal(${JSON.stringify(o.id).replace(/"/g, '&quot;')})`)));
 
+        // 2б. Задачи студии: на сегодня и просроченные, ещё не готовые
+        if (typeof stOpenTasksUntil === 'function') {
+            stOpenTasksUntil(stMyEmail(), todayStr, stShowAll)
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .forEach(t => rows.push(stTaskRowHTML(t, { today: todayStr, showWho: stShowAll })));
+        }
+
         // 3. Задачи помощников со сроком сегодня или раньше, ещё не принятые
         const tasks = [];
         ordersData.forEach(o => (o.services || []).forEach(s => (s.tasks || []).forEach(t => {
@@ -5577,6 +5598,18 @@ function deleteOrder(orderId) {
             };
             dueOrders.forEach(order => addBadge(order, '🏁 '));
             visibleOrders.forEach(order => addBadge(order, ''));
+
+            // Задачи студии этого дня
+            if (typeof stTasksForDate === 'function') {
+                const st = stTasksForDate(stMyEmail(), dateStr, stShowAll);
+                const open = st.filter(t => stStatus(t) !== 'done').length;
+                if (st.length) {
+                    const stBadge = document.createElement('div');
+                    stBadge.style.cssText = 'font-size:10px; margin-top:2px; padding:2px 4px; background:#e7f1ff; color:#185FA5;';
+                    stBadge.textContent = open ? `✔ задач: ${open}` : '✅ задачи готовы';
+                    div.appendChild(stBadge);
+                }
+            }
             
             // Показываем обязательные платежи этого дня
             finPaymentsForDate(dateStr).forEach(({ p, status }) => {
@@ -6607,7 +6640,7 @@ function deleteOrder(orderId) {
 // ========== СЛИЯНИЕ ДАННЫХ С ОБЛАКОМ (БЕЗ ПОТЕРЬ) ==========
 // У облака есть номер версии (rev). Устройство помнит, с какой версией оно синхронизировано
 // (cloud_rev), и есть ли у него неотправленные изменения (cloud_dirty).
-const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'helperPaidBefore', 'attendance', 'helperSchedules'];
+const SYNC_KEYS = ['colors', 'paints', 'films', 'extraRef', 'rates', 'ordersData', 'cashOps', 'bookings', 'materialTypes', 'regularExpenses', 'regularIncomes', 'notes', 'payments', 'financeSettings', 'helperNotices', 'helperPenalties', 'helperPaidBefore', 'attendance', 'helperSchedules', 'studioTaskMarks'];
 
 function syncToArray(value) {
     if (Array.isArray(value)) return value.filter(item => item != null);
@@ -6774,6 +6807,7 @@ function applyCloudVersion(data) {
     helperPaidBefore = syncToArray(data.helperPaidBefore);
     attendance = syncToArray(data.attendance);
     helperSchedules = syncToArray(data.helperSchedules);
+    studioTaskMarks = syncToArray(data.studioTaskMarks);
 }
 
 // ========== РЕЖИМ ВОССТАНОВЛЕНИЯ ==========
@@ -6839,6 +6873,7 @@ function applyMergedVersion(data, preferLocal) {
     helperPaidBefore = merge('helperPaidBefore');
     attendance = merge('attendance');
     helperSchedules = merge('helperSchedules');
+    studioTaskMarks = merge('studioTaskMarks');
 }
 
 window.updateCloudData = function(data) {
