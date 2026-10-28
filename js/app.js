@@ -2887,7 +2887,12 @@ window.localChangesPending = false;
         const taskIdx = (service.tasks || []).findIndex(t => String(t.id) === String(taskId));
         if (taskIdx === -1) return;
         
-        if (!confirm('Удалить эту задачу?')) return;
+        // Принятая задача — уже начисленные помощнику деньги: после удаления начисление пропадёт
+        const doomed = service.tasks[taskIdx];
+        const warn = doomed.status === 'completed'
+            ? `Задача уже принята — помощнику начислено ${formatMoney(parseFloat(doomed.helperPay) || 0)}.\nПосле удаления начисление пропадёт (если уже выплатили — будет «переплата»).\n\nУдалить задачу?`
+            : 'Удалить эту задачу?';
+        if (!confirm(warn)) return;
         
         service.tasks.splice(taskIdx, 1);
         saveAll();
@@ -3933,8 +3938,14 @@ window.localChangesPending = false;
         } else {
             addServiceRow();
         }
+        // Поля задания помощнику — с чистого листа: раньше в новом заказе оставалось задание
+        // из прошлого окна, и «оплата помощнику» занижала показанную прибыль
+        [['orderTaskDescription', ''], ['orderTaskDeadline', ''], ['orderTaskTime', '18:00'], ['orderTaskPay', '']].forEach(([id, v]) => {
+            const el = document.getElementById(id);
+            if (el) el.value = v;
+        });
         updateModalTotals();
-        
+
         // Загружаем помощников и заполняем поле задания
         loadHelpersForSelect(document.getElementById('orderHelperSelect'), false).then(() => {
             if (order) {
@@ -4542,7 +4553,10 @@ window.localChangesPending = false;
         const durationDays = parseInt(document.getElementById('orderDurationDays').value)||1;
         const done = document.getElementById('orderDone').checked;
         const paid = document.getElementById('orderPaid').checked;
-        
+        // Сумму предоплаты вписали, но «Добавить» не нажали — добавляем сами, иначе она молча терялась
+        const typedPrepay = Math.round(parseFloat(document.getElementById('prepayAmount')?.value) || 0);
+        if (typedPrepay > 0) addPrepayment();
+
         // Читаем данные задания помощнику
         const orderHelperSelect = document.getElementById('orderHelperSelect');
         const helperEmail = orderHelperSelect ? orderHelperSelect.value : '';
@@ -7026,6 +7040,8 @@ window.updateCloudData = function(data) {
     // Убираем тестовые заказы; если они были в облаке — облако нужно обновить
     if (syncToArray(data.ordersData).some(isSampleOrder)) needUpload = true;
     ordersData = ordersData.filter(order => !isSampleOrder(order));
+    // Заказов нет (данные очистили) — нумерация с №1: устройство не должно продолжать свой старый счётчик
+    if (!ordersData.length) localStorage.removeItem('lastOrderNumber');
 
     // Склад: «расход» пересчитывается из заказов на каждом устройстве, поэтому синхронизируем
     // позиции и «приход». Позиции объединяются по названию (удалённая может вернуться с другого устройства).
