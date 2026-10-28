@@ -65,7 +65,9 @@
     <!-- Push-уведомления: подписка устройства -->
     <script src="js/fcm.js?v=202610271800" defer></script>
     
-    <script src="js/app.js?v=202610272230" defer></script>
+    <script src="js/app.js?v=202610281200" defer></script>
+    <!-- Вкладка «Обучение»: список видео -->
+    <script src="js/learning.js?v=202610281200" defer></script>
     
     <!-- Мобильная оптимизация -->
     <script src="js/mobile.js?v=202610261600" defer></script>
@@ -175,6 +177,7 @@
         <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
         <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
         <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
+        <button class="tab-btn" data-tab="tab-learn">🎓 Обучение</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -182,6 +185,7 @@
         <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
         <button class="tab-btn" data-tab="helper-attendance">🕐 Посещаемость</button>
         <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
+        <button class="tab-btn" data-tab="tab-learn">🎓 Обучение</button>
     </div>
 
     <!-- Нижняя навигация для мобильных -->
@@ -199,6 +203,7 @@
         <button class="bottom-nav-more-item" data-tab="tab-cash">💰 Деньги</button>
         <button class="bottom-nav-more-item" data-tab="tab-summary">📊 Итоги</button>
         <button class="bottom-nav-more-item" data-tab="tab-ref">📚 Справочники</button>
+        <button class="bottom-nav-more-item" data-tab="tab-learn">🎓 Обучение</button>
         <button class="bottom-nav-more-item" onclick="document.getElementById('bottomNavMoreMenu').classList.remove('visible'); handleLogout()">🚪 Выйти</button>
         <button class="bottom-nav-more-item" onclick="document.getElementById('bottomNavMoreMenu').classList.remove('visible')">❌ Закрыть</button>
     </div>
@@ -208,6 +213,7 @@
         <button class="bottom-nav-item active" data-tab="helper-tasks">📋<br><small>Задачи</small></button>
         <button class="bottom-nav-item" data-tab="helper-attendance">🕐<br><small>Время</small></button>
         <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
+        <button class="bottom-nav-item" data-tab="tab-learn">🎓<br><small>Обучение</small></button>
         <button class="bottom-nav-item" onclick="handleLogout()">🚪<br><small>Выйти</small></button>
     </div>
 
@@ -311,6 +317,7 @@
 
     <!-- Вкладка Календарь -->
     <div id="tab-calendar" class="tab-content">
+        <div id="calendarToday" class="today-panel"></div>
         <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <button onclick="changeMonth(-1)" id="calPrevMonth" title="Предыдущий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">◀</button>
@@ -336,6 +343,13 @@
             <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
             <button class="btn-add" onclick="openNoteModal()" style="background:#6f42c1;">📝 Добавить заметку</button>
         </div>
+    </div>
+
+    <!-- Вкладка Обучение: видео-уроки (список — в js/learning.js) -->
+    <div id="tab-learn" class="tab-content">
+        <h2 style="font-size:18px; color:#1a3c5e; margin:0 0 6px;">🎓 Обучение</h2>
+        <p style="color:#6c757d; margin:0 0 14px; font-size:14px;">Короткие видео: как работать с программой. Смотрите по порядку.</p>
+        <div id="learnList"></div>
     </div>
 
     <!-- Вкладка Справочники -->

@@ -5120,6 +5120,50 @@ function deleteOrder(orderId) {
         return []; // Убрано: регулярные доходы не показываются в календаре
     }
 
+    function isOrderDone(order) {
+        return order.done === true || order.done === 'true' || order.done === 1;
+    }
+
+    function orderMatchesServiceFilter(order) {
+        return currentServiceFilter === 'all' || (order.services || []).some(s => s.serviceName === currentServiceFilter);
+    }
+
+    // Заказы дня: принятые в этот день (start) и те, что в этот день нужно сдать (due)
+    function calendarOrdersForDate(dateStr) {
+        const start = [], due = [];
+        ordersData.forEach(o => {
+            if (!orderMatchesServiceFilter(o)) return;
+            if (o.date === dateStr) start.push(o);
+            else if ((parseInt(o.durationDays) || 0) > 0 && getDeadline(o) === dateStr) due.push(o);
+        });
+        return { start, due };
+    }
+
+    // Цвет дня по незавершённым заказам; если все заказы дня выполнены — серый
+    function calendarDayColor(orders) {
+        if (!orders.length) return '';
+        const colors = orders.filter(o => !isOrderDone(o)).map(o => getOrderColorObj(o));
+        if (!colors.length) return 'done';
+        if (colors.includes('critical')) return 'critical';
+        if (colors.includes('middle')) return 'middle';
+        return 'new';
+    }
+
+    const CAL_MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+    const CAL_WEEKDAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+
+    // «вторник, 27 октября»
+    function formatDateHuman(d) {
+        return `${CAL_WEEKDAYS[d.getDay()]}, ${d.getDate()} ${CAL_MONTHS_GEN[d.getMonth()]}`;
+    }
+
+    function getCalendarWeekMonday() {
+        const monday = new Date(currentDate);
+        const dow = monday.getDay();
+        monday.setDate(monday.getDate() - (dow === 0 ? 6 : dow - 1));
+        return monday;
+    }
+
     function renderCalendar() {
         // Проверяем авторизацию
         if (!window.currentUserData) {
@@ -5133,17 +5177,19 @@ function deleteOrder(orderId) {
         // Обновляем фильтр услуг
         document.getElementById('serviceFilterContainer').innerHTML = getServiceFilterButtons();
         
-        // Обновляем сводку
+        // Обновляем сводку и блок «Сегодня»
         renderCalendarSummary();
-        
+        renderTodayPanel();
+
         // Проверяем уведомления
         checkTomorrowNotifications();
-        
+
         const grid = document.getElementById('calendarGrid');
         if (!grid) return;
-        
+
         if (calendarViewMode === 'week') {
             renderWeekView();
+            renderSchedule();
             return;
         }
         
@@ -5160,72 +5206,67 @@ function deleteOrder(orderId) {
         const offset = firstDay.getDay()===0 ? 6 : firstDay.getDay()-1;
         for (let i=0; i<offset; i++) { const d=document.createElement('div'); d.className='day-cell other-month'; grid.appendChild(d); }
         
+        const todayStr = formatDate(new Date());
         for (let d=1; d<=daysInMonth; d++) {
             const dateObj = new Date(year, month, d);
             const dateStr = formatDate(dateObj);
             const isSelected = selectedDate && dateObj.toDateString() === selectedDate.toDateString();
-            let dayOrders = ordersData.filter(o => o.date === dateStr);
-            
-            // Применяем фильтр по услуге
-            if (currentServiceFilter !== 'all') {
-                dayOrders = dayOrders.filter(o => o.services.some(s => s.serviceName === currentServiceFilter));
-            }
-            
-            const criticalOrder = dayOrders.some(o => getOrderColorObj(o)==='critical');
+            const isToday = dateStr === todayStr;
+            const { start: dayOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
+
             const dayNotes = notes.filter(n => n.date === dateStr);
             // Оплаченные обязательные платежи показываются как платежи (💳), а не как расходы
             const cashPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId);
             const dayDuePayments = finPaymentsForDate(dateStr);
-            
-            // Определяем цвет дня по приоритету
-            let classes = `day-cell${isSelected?' selected':''}`;
-            let dayBadge = { orders: 0, notes: 0, expenses: 0, payments: 0 };
-            
+
+            let classes = `day-cell${isSelected?' selected':''}${isToday?' today':''}`;
+            let dayBadge = { orders: 0, due: 0, notes: 0, expenses: 0, payments: 0 };
+
             // Считаем количество записей
             dayBadge.orders = dayOrders.length;
+            dayBadge.due = dueOrders.filter(o => !isOrderDone(o)).length;
             dayBadge.notes = dayNotes.length;
             dayBadge.expenses = cashPayments.length;
             dayBadge.payments = dayDuePayments.length;
             if (dayDuePayments.some(x => x.status.state === 'overdue')) classes += ' pay-overdue';
-            
-            // Определяем цвет дня (приоритет: красный > жёлтый > зелёный > синий)
-            if (criticalOrder) {
-                // Очень срочный заказ - красный (переопределяет всё)
-                classes += ' color-critical';
-            } else if (dayOrders.length > 0) {
-                const colors = dayOrders.map(o => getOrderColorObj(o));
-                if (colors.includes('critical')) classes += ' color-critical';
-                else if (colors.includes('middle')) classes += ' color-middle';
-                else classes += ' color-new';
-            } else if (dayNotes.length > 0) {
-                classes += ' color-note';
-            }
-            
+
+            // Цвет дня (приоритет: красный > жёлтый > зелёный > серый «всё выполнено» > фиолетовый «заметка»)
+            const dayColor = calendarDayColor(dayOrders.concat(dueOrders));
+            if (dayColor) classes += ' color-' + dayColor;
+            else if (dayNotes.length > 0) classes += ' color-note';
+
             const div = document.createElement('div');
             div.className = classes;
-            
+
             // Вставляем цифру дня
             const dayNum = document.createElement('span');
             dayNum.className = 'day-number';
             dayNum.textContent = d;
             div.appendChild(dayNum);
-            
+            if (isToday) {
+                const label = document.createElement('span');
+                label.className = 'today-label';
+                label.textContent = 'сегодня';
+                div.appendChild(label);
+            }
+
             // Показываем значки с количеством
             let badgeText = [];
             if (dayBadge.orders > 0) badgeText.push(`📋${dayBadge.orders}`);
+            if (dayBadge.due > 0) badgeText.push(`🏁${dayBadge.due}`);
             if (dayBadge.notes > 0) badgeText.push(`📝${dayBadge.notes}`);
             if (dayBadge.expenses > 0) badgeText.push(`💰${dayBadge.expenses}`);
             if (dayBadge.payments > 0) badgeText.push(`💳${dayBadge.payments}`);
-            
+
             if (badgeText.length > 0) {
                 const badge = document.createElement('span');
                 badge.className = 'task-badge';
-                badge.textContent = badgeText.join('+');
+                badge.textContent = badgeText.join(' ');
                 badge.style.cssText = 'font-size:9px; line-height:1.2; padding:2px 4px; max-width:50px; word-wrap:break-word;';
                 div.appendChild(badge);
             }
-            
-            div.title = `${dateStr}\nЗаказов: ${dayBadge.orders}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}` +
+
+            div.title = `${formatDateHuman(dateObj)}\nПринято заказов: ${dayBadge.orders}\nСдать заказов: ${dayBadge.due}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}` +
                 dayDuePayments.map(x => `\n💳 ${x.p.name}: ${formatMoney(x.p.amount)}${x.status.state === 'paid' ? ' ✅' : x.status.state === 'overdue' ? ' — просрочен' : ''}`).join('');
             div.addEventListener('click', () => { selectedDate = dateObj; renderCalendar(); renderSchedule(); });
             grid.appendChild(div);
@@ -5246,10 +5287,10 @@ function deleteOrder(orderId) {
         const title = document.getElementById('selectedDateDisplay');
         const grid = document.getElementById('scheduleGrid');
         if (!selectedDate) { title.textContent='не выбран'; grid.innerHTML=''; return; }
-        title.textContent = formatDate(selectedDate);
         const dateStr = formatDate(selectedDate);
+        title.textContent = formatDateHuman(selectedDate) + (dateStr === formatDate(new Date()) ? ' (сегодня)' : '');
         grid.innerHTML = '';
-        const dayOrders = ordersData.filter(o => o.date === dateStr);
+        const { start: dayOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
         const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId && !op.desc.includes('Оплата заказа'));
         const dayDuePayments = finPaymentsForDate(dateStr);
         // Обязательные платежи по плану на этот день
@@ -5287,17 +5328,20 @@ function deleteOrder(orderId) {
             div.innerHTML = `<div>📝 ${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}</div><button class="btn-del" onclick="deleteNote(${n.id})">✕</button>`;
             grid.appendChild(div);
         });
-        dayOrders.forEach(order => {
+        const addOrderSlot = (order, kind) => {
             const color = getOrderColorObj(order);
             const div = document.createElement('div');
             div.className = `schedule-slot color-${color}`;
-            div.innerHTML = `<div>№${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML(order.services.map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>` +
+            const label = color === 'done' ? '✅ выполнен' : kind === 'due' ? (dateStr === formatDate(new Date()) ? '🏁 сдать сегодня' : '🏁 срок сдачи') : '📥 принят';
+            div.innerHTML = `<div>${label} · №${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML((order.services || []).map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>` +
                 `<button class="btn-extra move-order-btn" title="Перенести на другой день">📅 Перенести</button>`;
             div.querySelector('.move-order-btn').addEventListener('click', e => { e.stopPropagation(); openMoveOrderModal(order.id); });
             div.addEventListener('click', () => openOrderModal(order.id));
             grid.appendChild(div);
-        });
-        if (dayOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0 && dayDuePayments.length === 0) {
+        };
+        dueOrders.forEach(order => addOrderSlot(order, 'due'));
+        dayOrders.forEach(order => addOrderSlot(order, 'start'));
+        if (dayOrders.length === 0 && dueOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0 && dayDuePayments.length === 0) {
             grid.innerHTML = '<div>Нет записей</div>';
         }
     }
@@ -5339,8 +5383,10 @@ function deleteOrder(orderId) {
     window.closeMoveOrderModal = closeMoveOrderModal;
     window.saveMoveOrder = saveMoveOrder;
 
+    // ◀ ▶: в режиме месяца листают месяцы, в режиме недели — недели
     function changeMonth(delta) {
-        currentDate.setMonth(currentDate.getMonth()+delta);
+        if (calendarViewMode === 'week') currentDate.setDate(currentDate.getDate() + 7 * delta);
+        else currentDate.setMonth(currentDate.getMonth()+delta);
         renderCalendar();
     }
     
@@ -5385,109 +5431,152 @@ function deleteOrder(orderId) {
         calendarViewMode = calendarViewMode === 'month' ? 'week' : 'month';
         const btn = document.getElementById('viewToggleBtn');
         btn.textContent = calendarViewMode === 'month' ? '📅 Неделя' : '📅 Месяц';
+        // Неделю открываем на выбранном дне (по умолчанию — сегодня)
+        if (calendarViewMode === 'week' && selectedDate) currentDate = new Date(selectedDate);
         renderCalendar();
     }
-    
+
+    // Сумма заказов за видимый период (месяц или неделя): сколько уже выполнено и сколько ещё ожидается
     function getCalendarSum() {
-        const year = currentDate.getFullYear(), month = currentDate.getMonth();
-        const daysInMonth = new Date(year, month+1, 0).getDate();
-        let totalOrders = 0, totalSum = 0;
-        
-        for (let d = 1; d <= daysInMonth; d++) {
-            const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dayOrders = ordersData.filter(o => o.date === dateStr);
-            dayOrders.forEach(order => {
-                if (currentServiceFilter === 'all' || order.services.some(s => s.serviceName === currentServiceFilter)) {
-                    totalOrders++;
-                    totalSum += parseFloat(order.clientPrice) || 0;
-                }
-            });
+        let from, to;
+        if (calendarViewMode === 'week') {
+            const monday = getCalendarWeekMonday();
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            from = formatDate(monday); to = formatDate(sunday);
+        } else {
+            const year = currentDate.getFullYear(), month = currentDate.getMonth();
+            from = formatDate(new Date(year, month, 1)); to = formatDate(new Date(year, month + 1, 0));
         }
-        
-        return { orders: totalOrders, sum: totalSum };
+        let totalOrders = 0, doneSum = 0, waitSum = 0;
+        ordersData.forEach(order => {
+            if (!order.date || order.date < from || order.date > to || !orderMatchesServiceFilter(order)) return;
+            totalOrders++;
+            const price = parseFloat(order.clientPrice) || 0;
+            if (isOrderDone(order)) doneSum += price; else waitSum += price;
+        });
+        return { orders: totalOrders, doneSum, waitSum };
     }
-    
+
     function renderCalendarSummary() {
         const summary = getCalendarSum();
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+        const period = calendarViewMode === 'week' ? 'за неделю' : 'за месяц';
         document.getElementById('calendarSummary').innerHTML = `
-            <span style="color:#007bff;">📋 Заказов: ${summary.orders}</span>
-            <span style="color:#28a745;">💰 Прогноз: ${formatMoney(summary.sum)}</span>
+            <span style="color:#007bff;">📋 Заказов ${period}: ${summary.orders}</span>
+            <span style="color:#28a745;">✅ Выполнено: ${formatMoney(summary.doneSum)}</span>
+            <span style="color:#b8860b;">⏳ Ещё ожидается: ${formatMoney(summary.waitSum)}</span>
             <span style="color:#6c757d;">📅 ${months[currentDate.getMonth()]} ${currentDate.getFullYear()}</span>
             ${finCalendarPaymentsSummaryHTML(formatDate(currentDate).slice(0, 7))}
         `;
     }
+
+    // ========== БЛОК «СЕГОДНЯ» ==========
+    // Над календарём: просроченные заказы, сдать сегодня, задачи помощников, платежи и заметки на сегодня
+    function renderTodayPanel() {
+        const box = document.getElementById('calendarToday');
+        if (!box) return;
+        const now = new Date();
+        const todayStr = formatDate(now);
+        const rows = [];
+        const row = (cls, icon, html, extra = '', onclick = '') =>
+            `<div class="today-row ${cls}"${onclick ? ` onclick="${onclick}"` : ''}><span class="today-icon">${icon}</span><span class="today-text">${html}</span>${extra}</div>`;
+        const orderText = o => `№${safeHTML(o.orderNumber)} ${safeHTML(o.client || 'без клиента')} – ${safeHTML((o.services || []).map(s => s.serviceName).join(', '))}`;
+
+        // 1. Просроченные заказы и 2. сдать сегодня
+        const active = ordersData.filter(o => !isOrderDone(o) && (parseInt(o.durationDays) || 0) > 0 && getDeadline(o));
+        active.filter(o => getDeadline(o) < todayStr)
+            .sort((a, b) => getDeadline(a).localeCompare(getDeadline(b)))
+            .forEach(o => rows.push(row('today-danger', '🔴', `${orderText(o)} <b>— просрочен с ${formatDateDDMMYYYY(getDeadline(o))}</b>`, '', `openOrderModal(${JSON.stringify(o.id).replace(/"/g, '&quot;')})`)));
+        active.filter(o => getDeadline(o) === todayStr)
+            .forEach(o => rows.push(row('today-due', '🏁', `${orderText(o)} <b>— сдать сегодня</b>`, '', `openOrderModal(${JSON.stringify(o.id).replace(/"/g, '&quot;')})`)));
+
+        // 3. Задачи помощников со сроком сегодня или раньше, ещё не принятые
+        const tasks = [];
+        ordersData.forEach(o => (o.services || []).forEach(s => (s.tasks || []).forEach(t => {
+            if (!t.deadline || t.status === 'completed') return;
+            const day = String(t.deadline).split('T')[0];
+            if (day <= todayStr) tasks.push({ t, o, day });
+        })));
+        tasks.sort((a, b) => String(a.t.deadline).localeCompare(String(b.t.deadline))).forEach(({ t, o, day }) => {
+            const who = t.assignedTo ? safeHTML(String(t.assignedTo).split('@')[0]) : 'не назначено';
+            const time = String(t.deadline).includes('T') ? String(t.deadline).split('T')[1].slice(0, 5) : '';
+            const when = day < todayStr ? `<b>просрочено с ${formatDateDDMMYYYY(day)}</b>` : t.status === 'review' ? 'ждёт проверки' : (time ? `до ${time}` : 'сегодня');
+            rows.push(row(day < todayStr ? 'today-danger' : '', '👷', `${who}: ${safeHTML(t.description || 'задача')} (№${safeHTML(o.orderNumber)}) — ${when}`));
+        });
+
+        // 4. Обязательные платежи: сегодняшние и просроченные в этом месяце
+        if (typeof finPaymentsForDate === 'function') {
+            for (let d = 1; d <= now.getDate(); d++) {
+                const ds = formatDate(new Date(now.getFullYear(), now.getMonth(), d));
+                finPaymentsForDate(ds).forEach(({ p, status }) => {
+                    if (status.state === 'paid') return;
+                    const late = status.state === 'overdue';
+                    rows.push(row(late ? 'today-danger' : 'today-pay', '💳', `${safeHTML(p.name)} — ${formatMoney(p.amount)}${late ? ` <b>просрочен с ${formatDateDDMMYYYY(ds)}</b>` : ''}`,
+                        `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${ds}')">Оплатил</button>`));
+                });
+            }
+        }
+
+        // 5. Заметки на сегодня
+        notes.filter(n => n.date === todayStr).forEach(n => rows.push(row('today-note', '📝', `${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}`)));
+
+        // Длинный список сворачиваем, чтобы календарь не уезжал вниз
+        const LIMIT = 5;
+        const shown = todayPanelExpanded ? rows : rows.slice(0, LIMIT);
+        const more = rows.length > LIMIT
+            ? `<button class="today-more" onclick="toggleTodayPanel()">${todayPanelExpanded ? '▲ Свернуть' : `▼ Показать ещё ${rows.length - LIMIT}`}</button>` : '';
+        box.innerHTML = `<div class="today-head">📌 Сегодня, ${formatDateHuman(now)}</div>` +
+            (rows.length ? shown.join('') + more : '<div class="today-empty">На сегодня дел нет 👍</div>');
+    }
+
+    var todayPanelExpanded = false;
+    function toggleTodayPanel() {
+        todayPanelExpanded = !todayPanelExpanded;
+        renderTodayPanel();
+    }
+    window.toggleTodayPanel = toggleTodayPanel;
 
     // ========== ВИД НЕДЕЛИ ==========
     function renderWeekView() {
         const grid = document.getElementById('calendarGrid');
         grid.innerHTML = '';
         const today = new Date();
-        const dayOfWeek = today.getDay();
-        const monday = new Date(today);
-        monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
-        
+        const monday = getCalendarWeekMonday();
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const calendarTitle = document.getElementById('calendarTitle');
+        if (calendarTitle) calendarTitle.textContent = `${monday.getDate()} ${CAL_MONTHS_GEN[monday.getMonth()]} – ${sunday.getDate()} ${CAL_MONTHS_GEN[sunday.getMonth()]} ${sunday.getFullYear()}`;
+
         const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+        const badgeColors = { critical: ['#f5c6cb', '#dc3545'], middle: ['#ffeeba', '#ffc107'], new: ['#c3e6cb', '#28a745'], done: ['#e9ecef', '#6c757d'] };
         for (let i = 0; i < 7; i++) {
             const date = new Date(monday);
             date.setDate(monday.getDate() + i);
             const dateStr = formatDate(date);
-            const dayOrders = ordersData.filter(o => o.date === dateStr);
-            
-            // Фильтруем по услуге
-            const visibleOrders = dayOrders.filter(o => 
-                currentServiceFilter === 'all' || o.services.some(s => s.serviceName === currentServiceFilter)
-            );
-            
-            // Определяем цвет дня по срочности
-            let bgColor = '#f8f9fa';
-            let borderColor = 'transparent';
-            let colorClass = '';
-            
-            if (visibleOrders.length > 0) {
-                const colors = visibleOrders.map(o => getOrderColorObj(o));
-                if (colors.includes('critical')) {
-                    bgColor = '#f8d7da';
-                    borderColor = '#dc3545';
-                } else if (colors.includes('middle')) {
-                    bgColor = '#fff3cd';
-                    borderColor = '#ffc107';
-                } else if (colors.includes('new')) {
-                    bgColor = '#d4edda';
-                    borderColor = '#28a745';
-                }
-            }
-            
-            // Подсвечиваем сегодня
+            const { start: visibleOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
             const isToday = date.toDateString() === today.toDateString();
-            if (isToday) {
-                borderColor = '#1a3c5e';
-            }
-            
+            const isSelected = selectedDate && date.toDateString() === selectedDate.toDateString();
+            const dayColor = calendarDayColor(visibleOrders.concat(dueOrders));
+
             const div = document.createElement('div');
-            div.className = 'day-cell';
-            if (colorClass) div.className += ' ' + colorClass;
-            div.style.background = bgColor;
-            if (borderColor !== 'transparent') {
-                div.style.borderColor = borderColor;
-                div.style.borderWidth = '2px';
-                div.style.borderStyle = 'solid';
-            }
-            div.innerHTML = `<div style="font-weight:700; font-size:14px;">${dayNames[i]}</div><div style="font-size:12px; color:#6c757d;">${date.getDate()}</div>`;
+            div.className = `day-cell week-cell${dayColor ? ' color-' + dayColor : ''}${isToday ? ' today' : ''}${isSelected ? ' selected' : ''}`;
+            div.innerHTML = `<div style="font-weight:700; font-size:14px;">${dayNames[i]}</div><span class="day-number">${date.getDate()}</span>${isToday ? '<span class="today-label">сегодня</span>' : ''}`;
             div.addEventListener('click', () => {
                 selectedDate = date;
                 renderCalendar();
-                renderSchedule();
             });
-            
-            // Показываем заказы
-            visibleOrders.forEach(order => {
+
+            // Показываем заказы: сначала те, что сдать в этот день, потом принятые
+            const addBadge = (order, prefix) => {
+                const [bg, line] = badgeColors[getOrderColorObj(order)] || badgeColors.new;
                 const badge = document.createElement('div');
-                const color = getOrderColorObj(order);
-                badge.style.cssText = `font-size:10px; margin-top:2px; padding:2px 4px; background:${color === 'critical' ? '#f5c6cb' : color === 'middle' ? '#ffeeba' : '#c3e6cb'}; border-radius:4px; border-left: 2px solid ${color === 'critical' ? '#dc3545' : color === 'middle' ? '#ffc107' : '#28a745'};`;
-                badge.textContent = `№${order.orderNumber} ${order.client}`;
+                badge.style.cssText = `font-size:10px; margin-top:2px; padding:2px 4px; background:${bg}; border-left: 2px solid ${line}; text-align:left;`;
+                badge.textContent = `${prefix}№${order.orderNumber} ${order.client || ''}`;
                 div.appendChild(badge);
-            });
+            };
+            dueOrders.forEach(order => addBadge(order, '🏁 '));
+            visibleOrders.forEach(order => addBadge(order, ''));
             
             // Показываем обязательные платежи этого дня
             finPaymentsForDate(dateStr).forEach(({ p, status }) => {

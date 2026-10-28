@@ -123,6 +123,24 @@
         .calendar-grid .day-cell.color-done { background: #e9ecef; border-color: #6c757d; }
         .calendar-grid .day-cell.color-payment { background: #cce5ff; border-color: #007bff; }
         .calendar-grid .day-cell.color-note { background: #e6d9f5; border-color: #6f42c1; }
+        /* Выбранный день заметен даже поверх цвета срочности */
+        .calendar-grid .day-cell.selected { outline: 3px solid #1a3c5e; outline-offset: -2px; }
+        /* Сегодняшнее число: синий кружок и подпись «сегодня» */
+        .calendar-grid .day-cell.today .day-number { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin: 0 auto 2px; border-radius: 50%; background: #185FA5; color: #fff; }
+        .calendar-grid .day-cell .today-label { display: block; font-size: 10px; font-weight: 600; color: #185FA5; line-height: 1.1; margin-bottom: 2px; }
+        .calendar-grid .day-cell.week-cell { padding: 8px 4px; }
+        /* Блок «Сегодня» над календарём */
+        .today-panel { background: #fff; border: 1px solid #dee2e6; border-left: 4px solid #185FA5; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+        .today-panel .today-head { font-weight: 700; color: #1a3c5e; margin-bottom: 6px; font-size: 15px; }
+        .today-panel .today-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #f0f0f0; font-size: 14px; }
+        .today-panel .today-row[onclick] { cursor: pointer; }
+        .today-panel .today-row[onclick]:hover { background: #f8f9fa; }
+        .today-panel .today-text { flex: 1; min-width: 0; }
+        .today-panel .today-danger .today-text b { color: #dc3545; }
+        .today-panel .today-due .today-text b { color: #185FA5; }
+        .today-panel .today-empty { color: #6c757d; font-size: 14px; }
+        .today-panel .today-more { margin-top: 6px; background: none; border: none; color: #185FA5; font-weight: 600; font-size: 13px; cursor: pointer; padding: 4px 0; }
+        .today-panel .fin-pay-btn { padding: 4px 10px; font-size: 12px; }
         .schedule-slot { border: 1px solid #dee2e6; border-radius: 4px; padding: 8px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
         .schedule-slot.payment-slot { background: #cce5ff; }
         .schedule-slot.note-slot { background: #e6d9f5; }
@@ -1928,3 +1946,24 @@
 .fin-day-totals b { font-size:15px; color:#1a3c5e; }
 .fin-day-totals b.pos { color:#27ae60; }
 .fin-day-totals b.neg { color:#dc3545; }
+
+/* Сегодняшнее число на телефоне: кружок поменьше, подпись прячем */
+@media (max-width: 600px) {
+    .calendar-grid .day-cell.today .day-number { width: 24px; height: 24px; }
+    .calendar-grid .day-cell .today-label { display: none; }
+    .today-panel .today-row { font-size: 13px; }
+}
+
+/* Вкладка «Обучение» */
+.learn-group { font-size: 16px; color: #1a3c5e; margin: 18px 0 10px; }
+.learn-group .learn-progress { font-size: 13px; font-weight: 400; color: #6c757d; margin-left: 6px; }
+.learn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.learn-card { background: #fff; border: 1px solid #dee2e6; border-radius: 10px; overflow: hidden; }
+.learn-card.learn-done { border-color: #28a745; }
+.learn-player { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }
+.learn-soon { aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; background: #f1f3f5; color: #6c757d; font-size: 14px; }
+.learn-info { padding: 10px 12px; }
+.learn-title { font-weight: 700; color: #1a3c5e; margin-bottom: 4px; }
+.learn-badge { font-size: 12px; font-weight: 600; color: #28a745; }
+.learn-desc { font-size: 13px; color: #555; }
+.learn-check { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; cursor: pointer; }
