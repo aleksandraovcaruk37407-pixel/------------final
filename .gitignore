@@ -67,3 +67,7 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
+
+# Резервные копии данных — не выкладывать на сайт
+backup_*.json
+*резерв*.json

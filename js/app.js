@@ -6900,6 +6900,14 @@ function isSampleOrder(order) {
         /^\+7 900 000-00-0\d{1,2}$/.test(order.phone || '');
 }
 
+// Облачная версия совпадает с данными устройства (все списки; у склада — то, что вводят руками)
+function syncSameAsLocal(data) {
+    const local = window.getSyncData();
+    const sameList = key => syncCanonJSON(syncToArray(local[key])) === syncCanonJSON(syncToArray(data[key]));
+    const stockKey = list => JSON.stringify(syncToArray(list).map(s => [s.name, parseFloat(s.income) || 0, parseFloat(s.writeOff) || 0, parseFloat(s.min) || 0]).sort());
+    return SYNC_KEYS.every(sameList) && stockKey(local.stock) === stockKey(data.stock);
+}
+
 // Есть ли в списке записи, которых нет в облачном списке
 function hasRecordsMissingInCloud(list, cloudList) {
     return mergeSyncLists(cloudList, list).length > syncToArray(cloudList).length;
@@ -6986,6 +6994,16 @@ window.updateCloudData = function(data) {
             window.markChanged();
             renderAll();
         }
+        return;
+    }
+
+    // Своя же отправка вернулась из облака раньше подтверждения (гонка): облако уже совпадает
+    // с устройством. Без этой проверки устройство снова «сливало» и отправляло те же данные по кругу.
+    if (dirty && syncSameAsLocal(data)) {
+        localStorage.setItem('cloud_rev', String(cloudRev));
+        window.setSyncBase(data);
+        if (typeof window.clearUnsavedChanges === 'function') window.clearUnsavedChanges();
+        else localStorage.removeItem('cloud_dirty');
         return;
     }
 

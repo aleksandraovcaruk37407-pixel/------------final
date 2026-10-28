@@ -313,6 +313,13 @@ window.markChanged = function() {
   }, 2000);
 };
 
+// Облако уже совпадает с устройством — отправлять нечего (вызывается из updateCloudData в app.js)
+window.clearUnsavedChanges = function() {
+  hasUnsavedChanges = false;
+  clearTimeout(syncTimer);
+  try { localStorage.removeItem('cloud_dirty'); } catch (e) {}
+};
+
 // ========== ДВУСТОРОННЯЯ СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ ==========
 window.syncUsersToCloud = async function() {
   if (!firebaseConnected || !window.db || !window.fbSet || !window.fbRef || !window.fbGet || !window.child) {
