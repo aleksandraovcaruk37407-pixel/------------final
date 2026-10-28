@@ -604,7 +604,7 @@ function renderFinance() {
                     </span>
                     <span class="fin-pay-actions">
                         ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
-                        <button class="btn-extra fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника">${finPayLink(h.email) ? '🔗 ссылка банка ✓' : '🔗 добавить ссылку банка'}</button>
+                        <button class="btn-extra fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника">${!finPayLink(h.email) ? '🔗 как переводить?' : finIsPayPhone(finPayLink(h.email)) ? '📱 перевод по номеру ✓' : '🔗 ссылка банка ✓'}</button>
                     </span>
                 </div>
             </div>`;
@@ -758,26 +758,31 @@ function finPayHelper(email) {
 // ---------- Перевод помощнику через банк ----------
 // Помощник делает в своём банке (ВТБ и др.) «ссылку для перевода», админ вставляет её один раз.
 // После «Выплатить» сумма копируется, а ссылка открывает банк с реквизитами помощника.
+// Вместо ссылки можно вписать номер телефона — тогда перевод по СБП: программа показывает номер и сумму.
 function finPayLink(email) {
     const links = finSettings().payLinks || {};
     return links[email] || '';
 }
 
+function finIsPayPhone(value) {
+    return !/^https?:\/\//i.test(value) && String(value).replace(/\D/g, '').length >= 10;
+}
+
 function finSetPayLink(email) {
     const current = finPayLink(email);
-    const input = prompt(`Ссылка для перевода ${finHelperName(email)}.
+    const input = prompt(`Как переводить ${finHelperName(email)}?
 
-Попросите помощника создать её в банке (ВТБ: «Платежи» → «Ссылка для перевода») и пришлите вам. Пустое поле — удалить ссылку.`, current);
+Вставьте ссылку для перевода из его банка (начинается с https://) или номер телефона для перевода по СБП. Пустое поле — удалить.`, current);
     if (input === null) return;
     const link = input.trim();
-    if (link && !/^https?:\/\//i.test(link)) { alert('Ссылка должна начинаться с https://'); return; }
+    if (link && !/^https?:\/\//i.test(link) && !finIsPayPhone(link)) { alert('Нужна ссылка (https://…) или номер телефона'); return; }
     const s = finSettings();
     const payLinks = { ...(s.payLinks || {}) };
     if (link) payLinks[email] = link; else delete payLinks[email];
     financeSettings = [{ ...s, payLinks }];
     saveAll();
     renderAll();
-    if (typeof showToast === 'function') showToast(link ? '🔗 Ссылка для перевода сохранена' : 'Ссылка удалена');
+    if (typeof showToast === 'function') showToast(!link ? 'Удалено' : finIsPayPhone(link) ? '📱 Номер для перевода по СБП сохранён' : '🔗 Ссылка для перевода сохранена');
 }
 
 function finOpenPayLink(email, amount) {
@@ -786,6 +791,10 @@ function finOpenPayLink(email, amount) {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(() => {});
     if (!link) {
         if (typeof showToast === 'function') showToast(`Выплата записана. Сумма ${sum} ₽ скопирована — переведите её в банке`);
+        return;
+    }
+    if (finIsPayPhone(link)) {
+        alert(`Выплата записана.\n\nПереведите в банке по СБП:\nномер ${link}\nсумма ${sum} ₽ (уже скопирована)`);
         return;
     }
     if (typeof showToast === 'function') showToast(`Сумма ${sum} ₽ скопирована — вставьте её в банке`);
