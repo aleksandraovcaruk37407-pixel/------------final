@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Виджет на телефон</title>
+    <link rel="icon" href="icons/icon-192.png">
+    <style>
+        :root { --bg: #f0f2f5; --card: #fff; --text: #222; --muted: #6c757d; --accent: #185FA5; --title: #1a3c5e; }
+        @media (prefers-color-scheme: dark) { :root { --bg: #111; --card: #1c1c1e; --text: #f2f2f7; --muted: #a1a1aa; --accent: #8ab4f8; --title: #8ab4f8; } }
+        body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+        main { max-width: 560px; margin: 0 auto; padding: 16px; }
+        h1 { font-size: 22px; color: var(--title); margin: 8px 0 4px; }
+        h2 { font-size: 18px; color: var(--title); margin: 0 0 8px; }
+        .card { background: var(--card); border-radius: 14px; padding: 16px; margin: 14px 0; }
+        ol { padding-left: 22px; margin: 6px 0; }
+        li { margin: 6px 0; }
+        .muted { color: var(--muted); font-size: 14px; }
+        .btn { display: block; width: 100%; box-sizing: border-box; text-align: center; padding: 14px; border: none; border-radius: 10px; background: var(--accent); color: #fff; font-size: 16px; font-weight: 600; text-decoration: none; margin: 10px 0; cursor: pointer; }
+        .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+        #status { text-align: center; font-weight: 600; min-height: 22px; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>📅 Календарь ателье на телефоне</h1>
+    <p class="muted">Откройте эту страницу на телефоне. Ниже — для iPhone и для Android.</p>
+
+    <div class="card">
+        <h2>iPhone: виджет на главном экране</h2>
+        <p class="muted">Показывает дела на сегодня: что сдать и принять, задачи, платежи (у помощника — его задачи и напоминание о приходе). Нажатие открывает календарь программы.</p>
+        <ol>
+            <li>Установите бесплатное приложение <b>Scriptable</b> из App Store.
+                <a class="btn secondary" href="https://apps.apple.com/app/scriptable/id1405459188">Открыть Scriptable в App Store</a></li>
+            <li>Нажмите кнопку — код виджета скопируется.
+                <button class="btn" id="copyBtn">📋 Скопировать код виджета</button>
+                <div id="status"></div></li>
+            <li>Откройте Scriptable → <b>«+»</b> вверху → вставьте код (нажать на пустое место → «Вставить»).</li>
+            <li>Нажмите на название «Untitled Script» вверху и назовите <b>Календарь ателье</b> → «Готово».</li>
+            <li>Нажмите ▶ внизу: попросит <b>почту и пароль от программы</b> (пароль не сохраняется) → «Показать виджет» — проверьте, что дела видны.</li>
+            <li>На главном экране: удерживайте пустое место → <b>«+»</b> вверху → найдите <b>Scriptable</b> → выберите размер (лучше средний или большой) → «Добавить виджет».</li>
+            <li>Нажмите на добавленный виджет (или удерживайте → «Изменить виджет») → <b>Script</b> → «Календарь ателье».</li>
+        </ol>
+        <p class="muted">Виджет обновляется сам примерно каждые 15 минут (так решает iPhone). Сменить пользователя — запустить скрипт в Scriptable → «Выйти».</p>
+    </div>
+
+    <div class="card">
+        <h2>Android: значок календаря на рабочем столе</h2>
+        <ol>
+            <li>Откройте календарь в Chrome:
+                <a class="btn" href="calendar.html">📅 Открыть календарь</a></li>
+            <li>Войдите, если попросит.</li>
+            <li>Меню Chrome <b>⋮</b> → <b>«Добавить на главный экран»</b> (или «Установить приложение») → «Добавить».</li>
+        </ol>
+        <p class="muted">Появится значок «Календарь» — открывает сразу календарь со всеми кнопками.</p>
+    </div>
+
+    <div class="card">
+        <h2>iPhone: значок календаря (без виджета)</h2>
+        <ol>
+            <li>Откройте календарь в Safari: <a href="calendar.html">calendar.html</a>, войдите.</li>
+            <li>Кнопка «Поделиться» → <b>«На экран Домой»</b> → «Добавить».</li>
+        </ol>
+    </div>
+</main>
+<script>
+    // Копируем код виджета (widget-iphone.js) в буфер обмена
+    const status = document.getElementById('status');
+    let code = null;
+    fetch('widget-iphone.js', { cache: 'no-store' }).then(r => r.text()).then(t => { code = t; }).catch(() => {});
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+        try {
+            if (!code) code = await (await fetch('widget-iphone.js', { cache: 'no-store' })).text();
+            await navigator.clipboard.writeText(code);
+            status.textContent = '✅ Код скопирован — вставьте его в Scriptable';
+        } catch (e) {
+            status.textContent = 'Не получилось скопировать. Откройте widget-iphone.js, выделите всё и скопируйте.';
+        }
+    });
+</script>
+</body>
+</html>
