@@ -193,8 +193,8 @@ function stTaskRowHTML(task, opts = {}) {
     if (task.type) meta.push(safeHTML(task.type));
     const next = status === 'done'
         ? `<button class="st-btn" onclick="event.stopPropagation(); stSetStatus('${id}', 'todo')" title="Вернуть в работу">↩️</button>`
-        : (status === 'todo' ? `<button class="st-btn" onclick="event.stopPropagation(); stSetStatus('${id}', 'work')">🔄 В работе</button>` : '') +
-          `<button class="st-btn st-done" onclick="event.stopPropagation(); stSetStatus('${id}', 'done')">✅ Готово</button>`;
+        : (status === 'todo' && !opts.compact ? `<button class="st-btn" onclick="event.stopPropagation(); stSetStatus('${id}', 'work')">🔄 В работе</button>` : '') +
+          `<button class="st-btn st-done" onclick="event.stopPropagation(); stSetStatus('${id}', 'done')" title="Готово">✅${opts.compact ? '' : ' Готово'}</button>`;
     return `<div class="st-task st-${status}${late ? ' st-late' : ''}">
         <div class="st-main">
             <div class="st-text">${STUDIO_STATUSES[status].icon} ${safeHTML(task.text)}${late ? ` <b class="st-late-label">просрочено с ${formatDateDDMMYYYY(task.date)}</b>` : ''}</div>

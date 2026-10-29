@@ -67,10 +67,12 @@
     
     <!-- Задачи студии: план из экселя и экран задач (до app.js) -->
     <script src="js/studio-plan.js?v=202610291000" defer></script>
-    <script src="js/studio-tasks.js?v=202610291000" defer></script>
+    <script src="js/studio-tasks.js?v=202610291200" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
+    <!-- Календарь: вид «Список по дням» -->
+    <script src="js/agenda.js?v=202610291200" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202610291100" defer></script>
+    <script src="js/app.js?v=202610291200" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/learning.js?v=202610281200" defer></script>
     
@@ -324,7 +326,13 @@
 
     <!-- Вкладка Календарь -->
     <div id="tab-calendar" class="tab-content">
-        <div id="calendarToday" class="today-panel"></div>
+        <!-- Вид «Список по дням» (js/agenda.js) и обычная сетка месяца — переключаются кнопками -->
+        <div class="cal-switch">
+            <button class="cal-switch-btn" data-calview="agenda" onclick="setCalendarView('agenda')">📋 Список</button>
+            <button class="cal-switch-btn" data-calview="month" onclick="setCalendarView('month')">📅 Месяц</button>
+        </div>
+        <div id="calAgendaView"></div>
+        <div id="calMonthView">
         <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                 <button onclick="changeMonth(-1)" id="calPrevMonth" title="Предыдущий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">◀</button>
@@ -350,6 +358,7 @@
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
             <button class="btn-add" onclick="openNoteModal()" style="background:#6f42c1;">📝 Добавить заметку</button>
+        </div>
         </div>
     </div>
 

@@ -5269,6 +5269,13 @@ function deleteOrder(orderId) {
             return;
         }
         
+        // Основной вид — «Список по дням» (js/agenda.js); сетка месяца — по кнопке «📅 Месяц»
+        if (typeof agendaActive === 'function' && agendaActive()) {
+            renderAgenda();
+            checkTomorrowNotifications();
+            return;
+        }
+
         // Обновляем фильтр услуг
         document.getElementById('serviceFilterContainer').innerHTML = getServiceFilterButtons();
         

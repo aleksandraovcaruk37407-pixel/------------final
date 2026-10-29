@@ -2007,3 +2007,53 @@
 .client-info { font-size: 13px; color: #b8860b; margin: -4px 0 10px; }
 .client-info:empty { display: none; }
 .fin-link-btn { padding: 4px 8px !important; font-size: 12px !important; margin-left: 4px; }
+
+/* Календарь: переключатель «Список / Месяц» и вид «Список по дням» (js/agenda.js) */
+.cal-switch { display: inline-flex; background: #f1f3f5; border-radius: 8px; padding: 3px; margin-bottom: 10px; }
+.cal-switch-btn { border: none; background: transparent; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; color: #6c757d; cursor: pointer; }
+.cal-switch-btn.active { background: #fff; color: #1a3c5e; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.ag-tools { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.ag-btn { padding: 5px 10px; font-size: 13px; border: 1px solid #dee2e6; background: #fff; color: #333; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.ag-btn.ag-main { background: #28a745; border-color: #28a745; color: #fff; font-weight: 600; }
+.ag-btn.ag-ok { background: #28a745; border-color: #28a745; color: #fff; }
+.ag-tools .st-toggle { margin: 0; }
+.ag-day { background: #fff; border: 1px solid #e9ecef; border-radius: 10px; padding: 8px 12px; margin-bottom: 8px; }
+.ag-day.ag-today { border-color: #185FA5; border-width: 2px; }
+.ag-day.ag-day-late { border-color: #f5c2c7; background: #fff8f8; }
+.ag-day-head { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #1a3c5e; font-size: 15px; padding-bottom: 2px; }
+.ag-today .ag-day-head { color: #185FA5; }
+.ag-day-late .ag-day-head { color: #dc3545; }
+.ag-count { font-size: 12px; background: #dc3545; color: #fff; border-radius: 10px; padding: 1px 7px; }
+.ag-plus { margin-left: auto; width: 28px; height: 28px; border-radius: 50%; border: 1px solid #dee2e6; background: #f8f9fa; font-size: 16px; line-height: 1; cursor: pointer; color: #185FA5; }
+.ag-add-menu { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 0; }
+.ag-row { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid #f1f3f5; font-size: 14px; }
+.ag-row[onclick] { cursor: pointer; }
+.ag-row[onclick]:hover { background: #f8f9fa; }
+.ag-tag { flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 6px; background: #e9ecef; color: #495057; }
+.ag-due .ag-tag, .ag-late .ag-tag { background: #f8d7da; color: #842029; }
+.ag-start .ag-tag { background: #d1e7dd; color: #0f5132; }
+.ag-done .ag-tag { background: #e9ecef; color: #6c757d; }
+.ag-helper .ag-tag { background: #e7f1ff; color: #185FA5; }
+.ag-pay .ag-tag { background: #fff3cd; color: #664d03; }
+.ag-note .ag-tag { background: #ede7f6; color: #5e35b1; }
+.ag-text { flex: 1; min-width: 0; }
+.ag-text b { color: #dc3545; font-weight: 600; }
+.ag-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.ag-empty { color: #6c757d; font-size: 13px; padding: 6px 0; }
+.ag-more { text-align: center; padding: 6px 0 12px; }
+.ag-day .st-task { border-top: 1px solid #f1f3f5; }
+/* Кнопки в строках списка — маленькие, в той же строке (мобильные стили кнопок их раздували) */
+.ag-row .ag-btn, .ag-day .st-btn, .ag-plus { min-height: 0 !important; min-width: 0 !important; padding: 4px 9px !important; font-size: 12px !important; line-height: 1.2 !important; }
+.ag-plus { width: 28px; height: 28px; padding: 0 !important; font-size: 16px !important; }
+@media (max-width: 600px) {
+    .ag-row { font-size: 13px; gap: 6px; }
+    .ag-tag { font-size: 10px; padding: 2px 5px; }
+    .ag-day { padding: 6px 10px; }
+    .ag-day .st-task { flex-direction: row; align-items: center; }
+    .ag-day .st-actions { align-self: center; }
+}
+.ag-toggle { margin-top: 6px; border: none; background: none; color: #dc3545; font-weight: 600; padding: 4px 0; }
+.ag-day .st-task { padding: 6px 0; font-size: 14px; align-items: center; }
+.ag-day .st-meta { display: none; }
+.ag-day .st-note { font-size: 12px; margin-top: 1px; }
+.ag-day .st-btn { padding: 3px 7px; }
