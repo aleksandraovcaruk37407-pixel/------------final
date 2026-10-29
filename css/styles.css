@@ -2057,3 +2057,15 @@
 .ag-day .st-meta { display: none; }
 .ag-day .st-note { font-size: 12px; margin-top: 1px; }
 .ag-day .st-btn { padding: 3px 7px; }
+
+/* Режим «виджет» (js/widget.js): только календарь, без вкладок и меню */
+html.widget-mode #adminTabs, html.widget-mode #helperTabs, html.widget-mode .bottom-nav, html.widget-mode .bottom-nav.visible, html.widget-mode .bottom-nav-more-menu,
+.widget-mode .footer-toolbar, .widget-mode .toolbar h1 { display: none !important; }
+.widget-mode body { padding: 0 !important; background: #f0f2f5; }
+.widget-mode .container { max-width: none !important; margin: 0 !important; padding: 8px 10px 16px !important; border-radius: 0 !important; box-shadow: none !important; }
+.widget-mode .toolbar { padding: 0 0 4px !important; margin: 0 !important; min-height: 0 !important; }
+.widget-mode .tab-content { padding-bottom: 10px !important; }
+.widget-mode #helper-attendance > h2 { display: none; }
+.widget-bar { display: flex; align-items: center; gap: 6px; padding: 4px 0 10px; }
+.widget-bar b { flex: 1; color: #1a3c5e; font-size: 16px; }
+.widget-btn { border: 1px solid #dee2e6; background: #fff; border-radius: 6px; padding: 4px 9px !important; font-size: 12px !important; min-height: 0 !important; cursor: pointer; color: #1a3c5e; }

@@ -69,6 +69,8 @@
     <script src="js/studio-plan.js?v=202610291000" defer></script>
     <script src="js/studio-tasks.js?v=202610291200" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
+    <!-- Режим «виджет»: окно только с календарём (index.html?widget=1) -->
+    <script src="js/widget.js?v=202610291500" defer></script>
     <!-- Календарь: вид «Список по дням» -->
     <script src="js/agenda.js?v=202610291200" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
@@ -1621,6 +1623,8 @@
       if (typeof renderHelperTasks === 'function') renderHelperTasks();
       if (typeof renderHelperReport === 'function') renderHelperReport();
     }
+    // Режим «виджет» (js/widget.js): сразу календарь вместо заказов / задач
+    if (typeof window.applyWidgetMode === 'function') window.applyWidgetMode();
   }
   
   // Делаем функции глобально доступными

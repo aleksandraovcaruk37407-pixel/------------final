@@ -1,0 +1,15 @@
+{
+  "name": "Календарь ателье",
+  "short_name": "Календарь",
+  "description": "Календарь программы авто-ателье: дела по дням для админа и помощника",
+  "start_url": "./index.html?widget=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f0f2f5",
+  "theme_color": "#1a3c5e",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
