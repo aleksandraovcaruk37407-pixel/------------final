@@ -69,7 +69,10 @@ function agendaHelperRow({ t, o, day }, today) {
     return agendaRow('helper', '👷 помощник', `${who}: ${safeHTML(t.description || 'задача')} (№${safeHTML(o.orderNumber)})${time}${state}${late}`, '', agendaOrderClick(o));
 }
 
-function agendaPaymentRow(p, ds, late) {
+// Платёж: «Оплатил»; уже оплаченный остаётся серым с «Отменить» — если нажали случайно
+function agendaPaymentRow(p, ds, late, paid) {
+    if (paid) return agendaRow('done', '✅ оплачено', `${safeHTML(p.name)} — ${formatMoney(p.amount)}`,
+        `<button class="ag-btn" onclick="event.stopPropagation(); finUnpayFromCalendar('${escAttr(p.id)}', '${ds}')">Отменить</button>`);
     return agendaRow('pay', '💳 платёж', `${safeHTML(p.name)} — ${formatMoney(p.amount)}${late ? ` · <b>просрочен с ${formatDateDDMMYYYY(ds)}</b>` : ''}`,
         `<button class="ag-btn ag-ok" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${ds}')">Оплатил</button>`);
 }
@@ -84,10 +87,11 @@ function agendaDayRows(ds, today) {
     agendaHelperTasks(day => day === ds).forEach(x => rows.push(agendaHelperRow(x, today)));
     if (typeof stTasksForDate === 'function') stTasksForDate(stMyEmail(), ds, stShowAll).forEach(t => rows.push(stTaskRowHTML(t, { showWho: stShowAll, compact: true })));
     if (typeof finPaymentsForDate === 'function') finPaymentsForDate(ds).forEach(({ p, status }) => {
-        if (status.state === 'paid') return;
         if (status.state === 'overdue' && ds < today) return; // покажется в «Просрочено»
-        rows.push(agendaPaymentRow(p, ds, false));
+        rows.push(agendaPaymentRow(p, ds, false, status.state === 'paid'));
     });
+    // Посещение помощников — админ отмечает «Был / Не был» прямо здесь (js/attendance.js)
+    if (typeof attDayItems === 'function') attDayItems(ds).forEach(x => rows.push(attDayRowHTML(x, ds, false)));
     notes.filter(n => n.date === ds).forEach(n => rows.push(agendaRow('note', '📝 заметка', `${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}`,
         `<button class="ag-btn" title="Удалить заметку" onclick="event.stopPropagation(); deleteNote(${JSON.stringify(n.id).replace(/"/g, '&quot;')})">✕</button>`)));
     return rows;
@@ -109,6 +113,7 @@ function agendaOverdueRows(today) {
             finPaymentsForDate(ds).forEach(({ p, status }) => { if (status.state === 'overdue') rows.push(agendaPaymentRow(p, ds, true)); });
         }
     }
+    if (typeof attMissedRows === 'function') rows.push(...attMissedRows(today));
     return rows;
 }
 
@@ -136,6 +141,7 @@ function renderAgenda() {
         <button class="ag-btn ag-main" onclick="openOrderModal(null)">➕ Заказ</button>
         <button class="ag-btn" onclick="openNoteModal('${today}')">📝 Заметка</button>
         ${typeof stToggleHTML === 'function' ? stToggleHTML(today).replace('<div class="st-tools">', '').replace(/<\/div>$/, '') : ''}
+        ${typeof getServiceFilterButtons === 'function' ? getServiceFilterButtons() : ''}
     </div>`;
 
     const late = agendaOverdueRows(today);

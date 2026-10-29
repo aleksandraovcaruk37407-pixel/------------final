@@ -2,8 +2,11 @@
    ФИНАНСЫ: касса (реальные деньги), копилки, платежи месяца, отчёт и план.
 
    Распределение («водопад») за каждый месяц:
-     Выручка (оплаченные заказы, по дате оплаты)
+     Выручка (оплаты заказов и предоплаты по дате получения + приходы «Оплата за работу», внесённые вручную)
      − Налог (% от выручки)                         → копилка «Налог»
+       Самозанятый (НПД): 4% от всех денег от частных людей, в т. ч. предоплат, по дню получения;
+       бонус 10 000 ₽ у владелицы уже кончился, поэтому без вычета 1%. Налог за месяц платится до 28-го следующего.
+     − Мелкие расходники (% от выручки: перчатки, палочки, ветошь, скотч…) → копилка «Мелкие расходники»
      − Материалы и помощники (по оплаченным заказам)
      = Маржинальная прибыль
      − Постоянные расходы бизнеса (платежи типа «Бизнес» + прочие бизнес-траты)
@@ -23,6 +26,7 @@
 const FIN_DEFAULTS = {
     id: 'settings',
     taxPercent: 4,        // налог, % от выручки
+    suppliesPercent: 3,   // мелкие расходники, % от выручки (их не списать на заказ, но деньги на них нужны)
     reservePercent: 10,   // резерв бизнеса, % от прибыли бизнеса
     reserveMonths: 2,     // цель резерва: столько месяцев постоянных расходов
     devPercent: 5,        // развитие бизнеса, % от прибыли бизнеса
@@ -32,6 +36,7 @@ const FIN_DEFAULTS = {
 
 const FIN_FUNDS = {
     tax:     { name: 'Налог',              icon: '💰' },
+    supplies:{ name: 'Мелкие расходники',  icon: '🧤' },
     reserve: { name: 'Резерв бизнеса',     icon: '🛟' },
     dev:     { name: 'Развитие бизнеса',   icon: '🚀' },
     savings: { name: 'Личные накопления',  icon: '👤' },
@@ -244,7 +249,7 @@ function finDebtRemaining(payment, cash) {
 function finCompute(data) {
     const s = data.settings;
     const t = s.taxPercent / 100, r = s.reservePercent / 100, d = s.devPercent / 100;
-    const sv = s.savingsPercent / 100, iv = s.investPercent / 100;
+    const sv = s.savingsPercent / 100, iv = s.investPercent / 100, sp = finNum(s.suppliesPercent) / 100;
     const ordersById = new Map((data.orders || []).map(o => [String(o.id), o]));
     const cash = data.cash || [];
     const payments = data.payments || [];
@@ -288,8 +293,10 @@ function finCompute(data) {
         // Штрафы помощникам — бизнес столько не платит: за просрочку по оплаченным заказам и выписанные в этом месяце
         (data.penalties || []).forEach(p => { if (p && finMonthKey(p.createdAt) === mk) helperPenalties += finNum(p.amount); });
         helpers -= helperPenalties;
-        const tax = revenue * t;
-        const marginal = revenue - tax - materials - helpers;
+        // Налог считается с копейками, как в «Мой налог»
+        const tax = Math.round(revenue * t * 100) / 100;
+        const supplies = Math.round(revenue * sp * 100) / 100;
+        const marginal = revenue - tax - supplies - materials - helpers;
         // Постоянные расходы бизнеса: план по платежам + прочие траты бизнеса, не из копилок
         const extraOps = cash.filter(o => inMonth(o) && !o.paymentId && !o.fund && finNum(o.expense) > 0);
         const otherBusiness = extraOps.filter(o => o.category === 'business' || o.category === 'other' || !o.category)
@@ -312,12 +319,12 @@ function finCompute(data) {
         const free = salary - savings - invest - personal;
 
         result.months[mk] = {
-            revenue, tax, materials, helpers, helperPenalties, marginal, fixed, otherBusiness, businessProfit,
+            revenue, tax, supplies, materials, helpers, helperPenalties, marginal, fixed, otherBusiness, businessProfit,
             reserve, dev, salary, savings, invest, personal, otherPersonal, free,
             ordersPaid: finalOps.length
         };
         const f = result.funds;
-        f.tax.accrued += tax; f.reserve.accrued += reserve; f.dev.accrued += dev;
+        f.tax.accrued += tax; f.supplies.accrued += supplies; f.reserve.accrued += reserve; f.dev.accrued += dev;
         f.savings.accrued += savings; f.invest.accrued += invest;
     });
 
@@ -331,7 +338,7 @@ function finCompute(data) {
 
 // Сумма «водопада» за период из нескольких месяцев
 function finSumMonths(computed, fromMk, toMk) {
-    const keys = ['revenue', 'tax', 'materials', 'helpers', 'helperPenalties', 'marginal', 'fixed', 'businessProfit',
+    const keys = ['revenue', 'tax', 'supplies', 'materials', 'helpers', 'helperPenalties', 'marginal', 'fixed', 'businessProfit',
         'reserve', 'dev', 'salary', 'savings', 'invest', 'personal', 'free', 'ordersPaid'];
     const sum = {};
     keys.forEach(k => { sum[k] = 0; });
@@ -348,7 +355,8 @@ function finSumMonths(computed, fromMk, toMk) {
  */
 function finPlan(computed, settings, mk, today) {
     const s = settings;
-    const t = s.taxPercent / 100, d = s.devPercent / 100, sv = s.savingsPercent / 100, iv = s.investPercent / 100;
+    const t = s.taxPercent / 100 + finNum(s.suppliesPercent) / 100; // налог и мелкие расходники — доли выручки
+    const d = s.devPercent / 100, sv = s.savingsPercent / 100, iv = s.investPercent / 100;
     const reserveFull = computed.funds.reserve.balance >= computed.reserveTarget && computed.reserveTarget > 0;
     const r = reserveFull ? 0 : s.reservePercent / 100;
 
@@ -526,6 +534,45 @@ function finSetCashDay(delta) {
     renderFinance();
 }
 
+// Раздел вкладки «Деньги»: заголовок нажимается — раздел сворачивается/разворачивается.
+// Что открыто — помнит устройство (fin_open_<key>); по умолчанию открыты только касса за день и платежи.
+const FIN_OPEN_DEFAULT = { day: true, payments: true };
+function finSectionOpen(key) {
+    try { const v = localStorage.getItem('fin_open_' + key); if (v !== null) return v === '1'; } catch (e) {}
+    return !!FIN_OPEN_DEFAULT[key];
+}
+function finToggleSection(key, open) {
+    try { localStorage.setItem('fin_open_' + key, open ? '1' : '0'); } catch (e) {}
+}
+function finSection(key, title, aside, body) {
+    return `<details class="fin-section" ${finSectionOpen(key) ? 'open' : ''} ontoggle="finToggleSection('${key}', this.open)">
+        <summary class="fin-section-head"><span>${title}</span>${aside ? `<span class="fin-section-aside">${aside}</span>` : ''}</summary>
+        <div class="fin-section-body">${body}</div>
+    </details>`;
+}
+
+// Разделы в разметке (вкладка «Помощники»): <details data-key="…" data-open="1"> — то же запоминание
+function finInitStaticSections() {
+    document.querySelectorAll('details[data-key]').forEach(d => {
+        const key = d.dataset.key;
+        if (d.dataset.open === '1' && !(key in FIN_OPEN_DEFAULT)) FIN_OPEN_DEFAULT[key] = true;
+        d.open = finSectionOpen(key);
+        d.addEventListener('toggle', () => finToggleSection(key, d.open));
+    });
+}
+if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('DOMContentLoaded', finInitStaticSections);
+
+// Налог самозанятого: за прошлый месяц платится до 28-го текущего.
+// Возвращает { mk, amount, due, paid } — сумма налога прошлого месяца и сколько из копилки «Налог» уже заплачено после его конца
+function finTaxToPay(computed, today) {
+    const mk = finShiftMonth(finMonthKey(today), -1);
+    const amount = (computed.months[mk] || {}).tax || 0;
+    const due = `${finMonthKey(today)}-28`;
+    const paid = cashOps.filter(o => (o.fund === 'tax' || o.category === 'tax') && finMonthKey(o.date) === finMonthKey(today))
+        .reduce((sum, o) => sum + finNum(o.expense), 0);
+    return { mk, amount, due, paid, left: Math.max(0, Math.round(amount) - paid) };
+}
+
 function renderFinance() {
     const root = document.getElementById('financeRoot');
     if (!root) return;
@@ -537,20 +584,28 @@ function renderFinance() {
     const fundsTotal = Object.values(computed.funds).reduce((sum, f) => sum + Math.max(0, f.balance), 0);
     const free = balance - fundsTotal;
 
-    // --- Сводка ---
+    // --- Сводка (всегда видна) ---
+    const taxDue = finTaxToPay(computed, today);
+    const curTax = (computed.months[finMonthKey(today)] || {}).tax || 0;
     let html = `
         <div class="fin-cards">
             <div class="fin-card"><div class="fin-card-label">💵 В кассе</div><div class="fin-card-value ${balance < 0 ? 'neg' : ''}">${formatMoney(balance)}</div></div>
             <div class="fin-card"><div class="fin-card-label">🐷 Отложено в копилках</div><div class="fin-card-value">${formatMoney(fundsTotal)}</div></div>
             <div class="fin-card"><div class="fin-card-label">✅ Можно тратить</div><div class="fin-card-value ${free < 0 ? 'neg' : 'pos'}">${formatMoney(free)}</div></div>
         </div>
-        ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}`;
+        ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}
+        <div class="fin-tax-line">
+            ${taxDue.left > 0
+                ? `💰 Налог за ${finMonthTitle(taxDue.mk).toLowerCase()}: <b>${formatMoney(taxDue.left)}</b> — заплатить до ${formatDateDDMMYYYY(taxDue.due)} в «Мой налог»
+                   <button class="fin-pay-btn" onclick="openAddCashModal({fund:'tax', amount:${taxDue.left}, desc:'Налог НПД за ${finMonthTitle(taxDue.mk).toLowerCase()}'})">Заплатила</button>`
+                : taxDue.amount > 0 ? `💰 Налог за ${finMonthTitle(taxDue.mk).toLowerCase()} оплачен ✅` : `💰 Налога за ${finMonthTitle(taxDue.mk).toLowerCase()} нет`}
+            <span class="fin-muted"> · за этот месяц уже набежало ${formatMoney(curTax)}</span>
+        </div>`;
 
-    // --- Касса за день и должники ---
+    // --- Касса за день ---
     const day = finCashDay || today;
     const dayData = finCashDayData(cashOps, day);
-    html += `<h3 class="fin-h">📅 Касса за день</h3>
-        <div class="fin-group">
+    html += finSection('day', '📅 Касса за день', `${formatMoney(dayData.income - dayData.expense)}`, `
             <div class="fin-day-nav">
                 <button onclick="finSetCashDay(-1)" title="Предыдущий день">◀</button>
                 <input type="date" id="finCashDayInput" value="${day}" onchange="finCashDay = this.value || null; renderFinance()">
@@ -564,32 +619,29 @@ function renderFinance() {
             </div>
             ${dayData.ops.length ? dayData.ops.map(o => `<div class="fin-op"><div>${safeHTML(o.desc)}</div>
                 <b class="${finNum(o.income) > 0 ? 'pos' : 'neg'}">${finNum(o.income) > 0 ? '+' + formatMoney(o.income) : '−' + formatMoney(o.expense)}</b><span></span></div>`).join('')
-                : `<div class="fin-muted">В этот день денег не было</div>`}
-        </div>`;
+                : `<div class="fin-muted">В этот день денег не было</div>`}`);
+
+    // --- Кто сколько должен ---
     const debtors = ordersData.filter(o => finOrderRemaining(o) > 0)
         .sort((a, b) => finOrderRemaining(b) - finOrderRemaining(a));
     const debtTotal = debtors.reduce((sum, o) => sum + finOrderRemaining(o), 0);
-    html += `<h3 class="fin-h">🧾 Кто сколько должен</h3>
-        <div class="fin-group">
-            <div class="fin-group-head"><b>Клиенты должны всего</b><b class="${debtTotal > 0 ? 'neg' : ''}">${formatMoney(debtTotal)}</b></div>
+    html += finSection('debtors', '🧾 Кто сколько должен', debtTotal > 0 ? `<b class="neg">${formatMoney(debtTotal)}</b>` : 'никто', `
             ${debtors.length ? debtors.slice(0, 15).map(o => `<div class="fin-pay fin-due"><div class="fin-pay-main">
                 <span class="fin-pay-name">№${safeHTML(o.orderNumber)} ${safeHTML(o.client || '')}${o.phone ? ' · ' + safeHTML(o.phone) : ''}</span>
                 <b class="neg">${formatMoney(finOrderRemaining(o))}</b></div>
                 <div class="fin-pay-sub"><span>цена ${formatMoney(o.clientPrice)}${finPrepaidSum(o) ? ` · внесено ${formatMoney(finPrepaidSum(o))}` : ''}${o.done === true || o.done === 'true' ? ' · заказ выполнен' : ''}</span>
                 <span class="fin-pay-actions"><button onclick="openOrderModal(${escAttr(JSON.stringify(o.id))})">Открыть</button></span></div></div>`).join('')
                 : `<div class="fin-muted">Все заказы оплачены</div>`}
-            ${debtors.length > 15 ? `<div class="fin-muted">и ещё ${debtors.length - 15} — фильтр «💳 Не оплачено» во вкладке «Заказы»</div>` : ''}
-        </div>`;
+            ${debtors.length > 15 ? `<div class="fin-muted">и ещё ${debtors.length - 15} — фильтр «💳 Не оплачено» во вкладке «Заказы»</div>` : ''}`);
 
     // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
     const helpers = finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), mk, finHelperPenalties());
     const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
-    html += `<h3 class="fin-h">👷 Помощникам</h3>
-        <div class="fin-group">
-        <div class="fin-group-head"><b>Всего к выплате</b><b class="${owedTotal > 0 ? 'neg' : ''}">${formatMoney(owedTotal)}</b></div>`;
-    if (!helpers.length) html += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
+    let helpersHTML = '';
+    if (!helpers.length) helpersHTML += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
     helpers.forEach(h => {
-        html += `
+        const how = finPayLink(h.email), qr = finPayQr(h.email);
+        helpersHTML += `
             <div class="fin-pay ${h.owed > 0 ? 'fin-due' : 'fin-paid'}">
                 <div class="fin-pay-main">
                     <span class="fin-pay-name">👷 ${safeHTML(finHelperName(h.email))}</span>
@@ -604,34 +656,18 @@ function renderFinance() {
                     </span>
                     <span class="fin-pay-actions">
                         ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
-                        <button class="btn-extra fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника">${!finPayLink(h.email) ? '🔗 как переводить?' : finIsPayPhone(finPayLink(h.email)) ? '📱 перевод по номеру ✓' : '🔗 ссылка банка ✓'}</button>
+                        <button class="fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника или номер СБП">${!how ? '🔗 как переводить?' : finIsPayPhone(how) ? '📱 номер СБП ✓' : '🔗 ссылка банка ✓'}</button>
+                        <button class="fin-link-btn" onclick="finPickPayQr('${escAttr(h.email)}')" title="Картинка QR-кода из банка помощника">${qr ? '🔳 QR ✓' : '🔳 QR-код'}</button>
                     </span>
                 </div>
             </div>`;
     });
-    html += `</div>`;
-
-    // --- Копилки ---
-    html += `<h3 class="fin-h">🐷 Копилки</h3><div class="fin-funds">`;
-    Object.keys(FIN_FUNDS).forEach(key => {
-        const f = computed.funds[key], meta = FIN_FUNDS[key];
-        const target = key === 'reserve' && computed.reserveTarget > 0
-            ? `<div class="fin-progress"><div style="width:${Math.min(100, f.balance / computed.reserveTarget * 100)}%"></div></div>
-               <div class="fin-muted">цель ${formatMoney(computed.reserveTarget)} (${finSettings().reserveMonths} мес. постоянных расходов)</div>` : '';
-        html += `
-            <div class="fin-fund">
-                <div class="fin-fund-head"><span>${meta.icon} ${meta.name}</span><b class="${f.balance < 0 ? 'neg' : ''}">${formatMoney(f.balance)}</b></div>
-                <div class="fin-muted">начислено ${formatMoney(f.accrued)} · потрачено ${formatMoney(f.spent)}</div>
-                ${target}
-                <button class="fin-link" onclick="openAddCashModal({fund:'${key}'})">− Потратить из копилки</button>
-            </div>`;
-    });
-    html += `</div>`;
+    html += finSection('helpers', '👷 Помощникам', owedTotal > 0 ? `к выплате <b class="neg">${formatMoney(owedTotal)}</b>` : 'долгов нет', helpersHTML);
 
     // --- Платежи месяца ---
     const groups = { business: '🏢 Бизнес', personal: '🏠 Личное' };
-    html += `
-        <h3 class="fin-h">📌 Платежи месяца</h3>
+    const mTotals = finMonthPaymentsTotals(mk);
+    let payHTML = `
         <div class="fin-month-nav">
             <button onclick="finSetMonth(-1)">◀</button><b>${finMonthTitle(mk)}</b><button onclick="finSetMonth(1)">▶</button>
             <button class="btn-add fin-add" onclick="openPaymentModal()">➕ Платёж</button>
@@ -640,14 +676,14 @@ function renderFinance() {
         const list = payments.filter(p => p.type === type).sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
         const total = list.reduce((sum, p) => sum + finNum(p.amount), 0);
         const paidSum = list.filter(p => finPaymentStatus(p, mk, cashOps, today).state === 'paid').reduce((sum, p) => sum + finNum(p.amount), 0);
-        html += `<div class="fin-group"><div class="fin-group-head"><b>${groups[type]}</b><span>оплачено ${formatMoney(paidSum)} из ${formatMoney(total)}</span></div>`;
-        if (!list.length) html += `<div class="fin-muted">Нет платежей</div>`;
+        payHTML += `<div class="fin-group"><div class="fin-group-head"><b>${groups[type]}</b><span>оплачено ${formatMoney(paidSum)} из ${formatMoney(total)}</span></div>`;
+        if (!list.length) payHTML += `<div class="fin-muted">Нет платежей</div>`;
         list.forEach(p => {
             const st = finPaymentStatus(p, mk, cashOps, today);
             const debt = finDebtRemaining(p, cashOps);
             const label = st.state === 'paid' ? `✅ оплачено ${formatDateDDMMYYYY(st.op.date)}`
                 : st.state === 'overdue' ? `🔴 просрочен с ${formatDateDDMMYYYY(st.due)}` : `🕒 до ${formatDateDDMMYYYY(st.due)}`;
-            html += `
+            payHTML += `
                 <div class="fin-pay fin-${st.state}">
                     <div class="fin-pay-main">
                         <span class="fin-pay-name">${safeHTML(p.icon || '📌')} ${safeHTML(p.name)}</span>
@@ -665,45 +701,66 @@ function renderFinance() {
                     </div>
                 </div>`;
         });
-        html += `</div>`;
+        payHTML += `</div>`;
     });
+    html += finSection('payments', `📌 Платежи месяца · ${finMonthTitle(mk).toLowerCase()}`,
+        mTotals.left > 0 ? `осталось <b class="neg">${formatMoney(mTotals.left)}</b>` : 'всё оплачено ✅', payHTML);
+
+    // --- Копилки (после платежей месяца) ---
+    let fundsHTML = `<div class="fin-muted fin-funds-help">Как наполняются: с каждой оплаты заказа и с прихода «Оплата за работу» сразу откладывается налог ${finSettings().taxPercent}% и мелкие расходники ${finNum(finSettings().suppliesPercent)}%. Резерв и развитие — % от прибыли месяца (выручка − налог − расходники − материалы − помощники − платежи «Бизнес»), если она больше нуля. Личные накопления и инвестиции — % от остатка (зарплаты владельца). Подробно — вкладка «Итоги».</div>
+        <div class="fin-funds">`;
+    Object.keys(FIN_FUNDS).forEach(key => {
+        const f = computed.funds[key], meta = FIN_FUNDS[key];
+        const target = key === 'reserve' && computed.reserveTarget > 0
+            ? `<div class="fin-progress"><div style="width:${Math.min(100, f.balance / computed.reserveTarget * 100)}%"></div></div>
+               <div class="fin-muted">цель ${formatMoney(computed.reserveTarget)} (${finSettings().reserveMonths} мес. постоянных расходов)</div>` : '';
+        fundsHTML += `
+            <div class="fin-fund">
+                <div class="fin-fund-head"><span>${meta.icon} ${meta.name}</span><b class="${f.balance < 0 ? 'neg' : ''}">${formatMoney(f.balance)}</b></div>
+                <div class="fin-muted">начислено ${formatMoney(f.accrued)} · потрачено ${formatMoney(f.spent)}</div>
+                ${target}
+                <button class="fin-link" onclick="openAddCashModal({fund:'${key}'})">− Потратить из копилки</button>
+            </div>`;
+    });
+    fundsHTML += `</div>`;
+    html += finSection('funds', '🐷 Копилки', formatMoney(fundsTotal), fundsHTML);
 
     // --- Операции ---
     const monthOps = cashOps.filter(o => finMonthKey(o.date) === mk)
         .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-    html += `
-        <h3 class="fin-h">💵 Операции — ${finMonthTitle(mk)}</h3>
-        <button class="btn-add" onclick="openAddCashModal()">➕ Добавить операцию</button>
-        <div class="fin-ops">`;
-    if (!monthOps.length) html += `<div class="fin-muted">Операций в этом месяце нет</div>`;
+    let opsHTML = `<button class="btn-add" onclick="openAddCashModal()">➕ Добавить операцию</button><div class="fin-ops">`;
+    if (!monthOps.length) opsHTML += `<div class="fin-muted">Операций в этом месяце нет</div>`;
     monthOps.forEach(o => {
         const idx = cashOps.indexOf(o);
         const isIncome = finNum(o.income) > 0;
-        const cat = FIN_CATEGORIES[o.category] || (isIncome ? 'Приход' : 'Прочее');
+        const cat = o.category === 'income' && o.orderId == null ? 'Оплата за работу (вручную)' : FIN_CATEGORIES[o.category] || (isIncome ? 'Приход' : 'Прочее');
         const fund = o.fund && FIN_FUNDS[o.fund] ? ` · из копилки «${FIN_FUNDS[o.fund].name}»` : '';
-        html += `
+        // Приходы по заказам и оплаты платежей меняются там же (заказ, «Отменить») — здесь не удаляются
+        const locked = (o.category === 'income' && o.orderId != null) || o.paymentId;
+        opsHTML += `
             <div class="fin-op">
                 <div><div>${safeHTML(o.desc)}</div><div class="fin-muted">${formatDateDDMMYYYY(o.date)} · ${cat}${fund}</div></div>
                 <b class="${isIncome ? 'pos' : 'neg'}">${isIncome ? '+' : '−'}${formatMoney(isIncome ? o.income : o.expense)}</b>
-                ${o.category === 'income' || o.paymentId ? '<span></span>' : `<button class="btn-del" onclick="deleteCashOp(${idx})" title="Удалить">🗑️</button>`}
-            </div>`;
+                ${locked ? '<span></span>' : `<button class="btn-del" onclick="deleteCashOp(${idx})" title="Удалить">🗑️</button>`}
+            </div>
+            ${isIncome && o.category === 'other' && o.orderId == null ? `<div class="fin-op-fix">Этот приход не попал в налог и копилки. <button class="fin-link-btn" onclick="finMakeRevenue('${escAttr(o.id)}')">💼 Это оплата за работу — распределить</button></div>` : ''}`;
     });
-    html += `</div>`;
+    opsHTML += `</div>`;
+    html += finSection('ops', `💵 Операции · ${finMonthTitle(mk).toLowerCase()}`, `${monthOps.length}`, opsHTML);
 
     // --- Настройки распределения ---
     const s = finSettings();
-    const field = (key, label) => `<label class="fin-set"><span>${label}</span><input type="number" min="0" max="100" step="0.5" value="${s[key]}" onchange="finSaveSetting('${key}', this.value)"></label>`;
-    html += `
-        <details class="fin-settings">
-            <summary>⚙️ Настройки распределения</summary>
-            ${field('taxPercent', 'Налог, % от выручки')}
+    const field = (key, label) => `<label class="fin-set"><span>${label}</span><input type="number" min="0" max="100" step="0.5" value="${finNum(s[key])}" onchange="finSaveSetting('${key}', this.value)"></label>`;
+    html += finSection('settings', '⚙️ Настройки распределения', '', `
+            ${field('taxPercent', 'Налог, % от выручки (самозанятый с частными людьми — 4)')}
+            ${field('suppliesPercent', 'Мелкие расходники, % от выручки (перчатки, палочки…)')}
             ${field('reservePercent', 'Резерв бизнеса, % от прибыли бизнеса')}
             ${field('reserveMonths', 'Цель резерва, месяцев постоянных расходов')}
             ${field('devPercent', 'Развитие бизнеса, % от прибыли бизнеса')}
             ${field('savingsPercent', 'Личные накопления, % от зарплаты')}
             ${field('investPercent', 'Инвестиции, % от зарплаты')}
-            <div class="fin-muted">Зарплата владельца — остаток прибыли бизнеса после резерва и развития.</div>
-        </details>`;
+            <div class="fin-muted">Зарплата владельца — остаток прибыли бизнеса после резерва и развития.
+            Мелкие расходники: начните с 3% и раз в 2–3 месяца сравните «начислено» и «потрачено» в копилке — если тратите больше, поднимите процент.</div>`);
 
     root.innerHTML = html;
 }
@@ -756,12 +813,19 @@ function finPayHelper(email) {
 }
 
 // ---------- Перевод помощнику через банк ----------
-// Помощник делает в своём банке (ВТБ и др.) «ссылку для перевода», админ вставляет её один раз.
-// После «Выплатить» сумма копируется, а ссылка открывает банк с реквизитами помощника.
-// Вместо ссылки можно вписать номер телефона — тогда перевод по СБП: программа показывает номер и сумму.
+// Помощник делает в своём банке (ВТБ и др.) «ссылку для перевода» или QR-код, админ добавляет их один раз.
+// После «Выплатить» открывается окно: сумма (уже скопирована), QR-код и кнопка «Перейти в банк».
+// На компьютере QR сканируют камерой телефона — открывается банк; на телефоне — кнопка «Перейти в банк».
+// Вместо ссылки можно вписать номер телефона — тогда перевод по СБП: окно показывает номер и сумму.
 function finPayLink(email) {
     const links = finSettings().payLinks || {};
     return links[email] || '';
+}
+
+// Картинка QR-кода из банка помощника (уменьшенная, data:image/…) — financeSettings.payQr
+function finPayQr(email) {
+    const qr = finSettings().payQr || {};
+    return qr[email] || '';
 }
 
 function finIsPayPhone(value) {
@@ -785,21 +849,112 @@ function finSetPayLink(email) {
     if (typeof showToast === 'function') showToast(!link ? 'Удалено' : finIsPayPhone(link) ? '📱 Номер для перевода по СБП сохранён' : '🔗 Ссылка для перевода сохранена');
 }
 
+// Загрузка картинки QR-кода помощника (скриншот из его банка). Картинка уменьшается до 360 точек,
+// чтобы не раздувать облако. Если QR уже есть — можно заменить или удалить.
+function finPickPayQr(email) {
+    if (finPayQr(email) && confirm(`QR-код ${finHelperName(email)} уже добавлен.\n\nОК — удалить его, Отмена — оставить (или выбрать новую картинку после удаления).`)) {
+        const s = finSettings();
+        const payQr = { ...(s.payQr || {}) };
+        delete payQr[email];
+        financeSettings = [{ ...s, payQr }];
+        saveAll(); renderAll();
+        return;
+    }
+    if (finPayQr(email)) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const img = new Image();
+        img.onload = () => {
+            const k = Math.min(1, 360 / Math.max(img.width, img.height));
+            const c = document.createElement('canvas');
+            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            const s = finSettings();
+            financeSettings = [{ ...s, payQr: { ...(s.payQr || {}), [email]: c.toDataURL('image/jpeg', 0.85) } }];
+            URL.revokeObjectURL(img.src);
+            saveAll(); renderAll();
+            if (typeof showToast === 'function') showToast('🔳 QR-код помощника сохранён');
+        };
+        img.src = URL.createObjectURL(file);
+    };
+    input.click();
+}
+
+// Генератор QR (qrcodejs с cdnjs) — загружается только когда нужен
+function finLoadQrLib() {
+    if (window.QRCode) return Promise.resolve(true);
+    return new Promise(resolve => {
+        const sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+        sc.onload = () => resolve(!!window.QRCode);
+        sc.onerror = () => resolve(false);
+        document.head.appendChild(sc);
+    });
+}
+
+function finIsPhoneDevice() {
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+}
+
+function finClosePayModal() {
+    const m = document.getElementById('finPayModal');
+    if (m) m.remove();
+    document.body.classList.remove('modal-open');
+}
+
+function finCopy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(String(text)).catch(() => {});
+    if (typeof showToast === 'function') showToast('Скопировано: ' + text);
+}
+
+// Окно перевода после «Выплатить»
 function finOpenPayLink(email, amount) {
-    const link = finPayLink(email);
+    const link = finPayLink(email), qrImg = finPayQr(email);
     const sum = String(Math.round(amount));
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(() => {});
-    if (!link) {
-        if (typeof showToast === 'function') showToast(`Выплата записана. Сумма ${sum} ₽ скопирована — переведите её в банке`);
-        return;
-    }
-    if (finIsPayPhone(link)) {
-        alert(`Выплата записана.\n\nПереведите в банке по СБП:\nномер ${link}\nсумма ${sum} ₽ (уже скопирована)`);
-        return;
-    }
-    if (typeof showToast === 'function') showToast(`Сумма ${sum} ₽ скопирована — вставьте её в банке`);
-    const w = window.open(link, '_blank');
-    if (!w) location.href = link;
+    const phone = link && finIsPayPhone(link) ? link : '';
+    const url = link && !phone ? link : '';
+    finClosePayModal();
+    const box = document.createElement('div');
+    box.id = 'finPayModal';
+    box.className = 'modal-overlay active';
+    box.addEventListener('click', e => { if (e.target === box) finClosePayModal(); });
+    box.innerHTML = `<div class="modal fin-paymodal">
+        <h3>💸 Перевод: ${safeHTML(finHelperName(email))}</h3>
+        <div class="fin-paymodal-sum">${formatMoney(amount)} <button class="btn-extra" onclick="finCopy('${sum}')">📋 сумма</button></div>
+        <div class="fin-muted">Выплата уже записана в кассу. Сумма скопирована — вставьте её в банке.</div>
+        ${qrImg ? `<img class="fin-paymodal-qr" src="${qrImg}" alt="QR-код помощника">`
+            : url ? `<div id="finPayQrBox" class="fin-paymodal-qr"></div>` : ''}
+        ${(qrImg || url) && !finIsPhoneDevice() ? `<div class="fin-muted">Наведите камеру телефона на QR-код — откроется банк с реквизитами помощника.</div>` : ''}
+        ${phone ? `<div class="fin-paymodal-sum">📱 ${safeHTML(phone)} <button class="btn-extra" onclick="finCopy('${escAttr(phone)}')">📋 номер</button></div>
+            <div class="fin-muted">В банке: «Перевод по номеру телефона (СБП)» → вставьте номер и сумму.</div>` : ''}
+        ${!link && !qrImg ? `<div class="fin-warn">Как переводить этому помощнику, ещё не указано — нажмите «🔗 как переводить?» или «🔳 QR-код» у помощника.</div>` : ''}
+        <div class="form-actions">
+            <button class="btn-cancel" onclick="finClosePayModal()">Закрыть</button>
+            ${url ? `<a class="btn-save fin-paymodal-go" href="${escAttr(url)}" target="_blank" rel="noopener" onclick="setTimeout(finClosePayModal, 300)">🏦 Перейти в банк</a>` : ''}
+        </div>
+    </div>`;
+    document.body.appendChild(box);
+    document.body.classList.add('modal-open');
+    if (url && !qrImg) finLoadQrLib().then(ok => {
+        const el = document.getElementById('finPayQrBox');
+        if (!el) return;
+        if (ok) new window.QRCode(el, { text: url, width: 220, height: 220, correctLevel: window.QRCode.CorrectLevel.M });
+        else el.remove();
+    });
+}
+
+// Старый ручной приход «Прочее» → выручка: появится налог, расходники и копилки за его месяц
+function finMakeRevenue(opId) {
+    const op = cashOps.find(o => o.id === opId);
+    if (!op || !confirm(`«${op.desc}» — это оплата за работу? С неё отложится налог и пойдёт распределение по копилкам.`)) return;
+    op.category = 'income';
+    saveAll();
+    renderAll();
 }
 
 function finSetMonth(delta) { finPaymentsMonth = finShiftMonth(finPaymentsMonth || finMonthKey(finTodayStr()), delta); renderFinance(); }
@@ -812,25 +967,31 @@ function finSaveSetting(key, value) {
     renderAll();
 }
 
-function finPay(paymentId) {
+// Оплата платежа месяца mk (по умолчанию — показанного во вкладке «Деньги»).
+// Дата операции — сегодня: деньги ушли сегодня, даже если платёж за следующий месяц (раньше записывалась
+// плановая дата следующего месяца, и в «Деньгах» за текущий месяц оплата не была видна).
+function finPay(paymentId, month) {
     const p = payments.find(x => x.id === paymentId);
     if (!p) return;
-    const mk = finPaymentsMonth || finMonthKey(finTodayStr());
-    const today = finTodayStr();
-    const date = finMonthKey(today) === mk ? today : finPaymentDate(p, mk);
+    const mk = month || finPaymentsMonth || finMonthKey(finTodayStr());
+    if (cashOps.some(o => o.paymentId === p.id && o.month === mk)) return;
     cashOps.push({
-        id: `pm-${p.id}-${mk}`, date, desc: p.name, income: 0, expense: finNum(p.amount),
+        id: `pm-${p.id}-${mk}`, date: finTodayStr(), desc: mk === finMonthKey(finTodayStr()) ? p.name : `${p.name} (за ${finMonthTitle(mk).toLowerCase()})`,
+        income: 0, expense: finNum(p.amount),
         category: p.type === 'personal' ? 'personal' : 'business', paymentId: p.id, month: mk
     });
     if (typeof notifyAdminsAboutMoney === 'function') notifyAdminsAboutMoney(`💳 Оплачен платёж «${p.name}»: ${formatMoney(finNum(p.amount))}`);
     saveAll();
     renderAll();
+    if (typeof showToast === 'function') showToast(`✅ «${p.name}» оплачен${mk !== finMonthKey(finTodayStr()) ? ' — за ' + finMonthTitle(mk).toLowerCase() : ''}. Отменить можно тут же или во вкладке «Деньги»`);
 }
 
-function finUnpay(paymentId) {
-    const mk = finPaymentsMonth || finMonthKey(finTodayStr());
+function finUnpay(paymentId, month) {
+    const mk = month || finPaymentsMonth || finMonthKey(finTodayStr());
     const idx = cashOps.findIndex(o => o.paymentId === paymentId && o.month === mk);
     if (idx < 0) return;
+    const p = payments.find(x => x.id === paymentId);
+    if (!confirm(`Отменить оплату «${p ? p.name : 'платежа'}» за ${finMonthTitle(mk).toLowerCase()}? Расход уберётся из кассы.`)) return;
     cashOps.splice(idx, 1);
     saveAll();
     renderAll();
@@ -929,14 +1090,15 @@ function renderFinanceSummary(startDate, endDate) {
     const paidOrders = ordersData.filter(o => o.paidAt && o.paidAt >= startDate && o.paidAt <= endDate);
     const low = paidOrders.map(o => {
         const price = finNum(o.clientPrice);
-        const margin = price - price * s.taxPercent / 100 - getOrderCost(o) - finHelperNetCost(o);
+        const margin = price - price * (s.taxPercent + finNum(s.suppliesPercent)) / 100 - getOrderCost(o) - finHelperNetCost(o);
         return { o, margin, pct: price > 0 ? margin / price * 100 : 0 };
     }).filter(x => x.pct < 30).sort((a, b) => a.pct - b.pct).slice(0, 5);
 
     block.innerHTML = `
         <table class="fin-waterfall">
             ${row('💰 Выручка', m.revenue, 'total', `оплачено заказов: ${m.ordersPaid}`)}
-            ${row(`− Налог ${s.taxPercent}% → в копилку`, m.tax)}
+            ${row(`− Налог ${s.taxPercent}% → в копилку`, m.tax, '', 'самозанятый: с каждой оплаты и предоплаты, платить до 28-го следующего месяца')}
+            ${row(`− Мелкие расходники ${finNum(s.suppliesPercent)}% → в копилку`, m.supplies, '', 'перчатки, палочки, ветошь, скотч — то, что не списать на заказ')}
             ${row('− Материалы', m.materials)}
             ${row('− Помощникам', m.helpers, '', m.helperPenalties ? `за вычетом штрафов ${formatMoney(m.helperPenalties)}` : '')}
             ${row('= Маржинальная прибыль', m.marginal, 'sub')}
@@ -975,7 +1137,7 @@ function renderFinanceSummary(startDate, endDate) {
                 <div class="fin-muted">
                     Из чего план: постоянные расходы бизнеса ${formatMoney(computed.fixedPlanned)}, личные платежи ${formatMoney(computed.personalPlanned)},
                     отложения по настройкам${plan.reserveFull ? ' (резерв уже накоплен — в план не входит)' : ''},
-                    налог ${s.taxPercent}%, материалы и помощники ≈ ${(plan.variableShare * 100).toFixed(0)}% выручки.
+                    налог ${s.taxPercent}%, мелкие расходники ${finNum(s.suppliesPercent)}%, материалы и помощники ≈ ${(plan.variableShare * 100).toFixed(0)}% выручки.
                     Нужная зарплата владельца ${formatMoney(plan.salaryNeeded)}.
                 </div>
             </div>`;
@@ -993,9 +1155,14 @@ function finPaymentsForDate(dateStr) {
         .map(p => ({ p, status: finPaymentStatus(p, mk, cashOps, today) }));
 }
 
+// Оплата из календаря — за месяц того дня, где стоит платёж; «Деньги» открываются на этом месяце
 function finPayFromCalendar(paymentId, dateStr) {
     finPaymentsMonth = finMonthKey(dateStr);
-    finPay(paymentId); // finPay → renderAll: календарь, остаток месяца и остаток долга пересчитываются
+    finPay(paymentId, finMonthKey(dateStr)); // finPay → renderAll: календарь, остаток месяца и остаток долга пересчитываются
+}
+function finUnpayFromCalendar(paymentId, dateStr) {
+    finPaymentsMonth = finMonthKey(dateStr);
+    finUnpay(paymentId, finMonthKey(dateStr));
 }
 
 // Платежи месяца для сводки календаря: сколько всего, оплачено и осталось

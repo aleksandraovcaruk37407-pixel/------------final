@@ -2305,6 +2305,16 @@ window.localChangesPending = false;
         renderNotices();
     }
 
+    // «Удалить все»: убирает мои уведомления (у других — свои остаются); удаление синхронизируется
+    function deleteAllNotices() {
+        const mine = new Set(getMyNotices().map(n => n.id));
+        if (!mine.size || !confirm(`Удалить все уведомления (${mine.size})?`)) return;
+        helperNotices = helperNotices.filter(n => !mine.has(n.id));
+        saveAll();
+        renderNotices();
+    }
+    window.deleteAllNotices = deleteAllNotices;
+
     // Перенос старых уведомлений и штрафов, хранившихся только на этом устройстве
     function migrateHelperLocalData() {
         let changed = false;
@@ -2389,6 +2399,28 @@ window.localChangesPending = false;
     // Новое уведомление, пока программа открыта: на экране — всплывающая подсказка,
     // в фоновой вкладке — системное уведомление (если разрешены). Push по расписанию придёт позже
     // с тем же tag и заменит это уведомление, а не добавит второе.
+    // Короткий сигнал «динь-дон» для нового уведомления, пока программа открыта (без файла — WebAudio)
+    let noticeAudio = null;
+    function playNoticeSound() {
+        try {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) return;
+            noticeAudio = noticeAudio || new Ctx();
+            if (noticeAudio.state === 'suspended') noticeAudio.resume();
+            [[880, 0], [660, 0.18]].forEach(([freq, at]) => {
+                const o = noticeAudio.createOscillator(), g = noticeAudio.createGain();
+                const t = noticeAudio.currentTime + at;
+                o.frequency.value = freq;
+                g.gain.setValueAtTime(0.0001, t);
+                g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+                o.connect(g); g.connect(noticeAudio.destination);
+                o.start(t); o.stop(t + 0.4);
+            });
+            if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate([150, 80, 150]);
+        } catch (e) {}
+    }
+
     function announceNewNotices() {
         const to = myNoticeAddress();
         if (!to) return;
@@ -2400,10 +2432,10 @@ window.localChangesPending = false;
         const fresh = seen ? mine.filter(n => !n.read && !seen.includes(n.id) && Date.now() - Date.parse(n.createdAt) < 10 * 60000) : [];
         try { localStorage.setItem(key, JSON.stringify(mine.map(n => n.id).slice(0, NOTICE_MAX))); } catch (e) {}
         fresh.slice(0, 3).forEach(n => {
-            if (!document.hidden) { showToast(n.message); return; }
+            if (!document.hidden) { showToast(n.message); playNoticeSound(); return; }
             if (IN_APP_ONLY_TYPES.includes(n.type)) return;
             if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            const options = { body: n.message, tag: n.id, icon: 'icons/icon-192.png' };
+            const options = { body: n.message, tag: n.id, icon: 'icons/icon-192.png', silent: false, renotify: true, vibrate: [200, 100, 200] };
             const reg = navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration() : Promise.resolve(null);
             reg.then(r => r ? r.showNotification('Авто-ателье', options) : new Notification('Авто-ателье', options)).catch(() => {});
         });
@@ -2422,7 +2454,10 @@ window.localChangesPending = false;
             container.innerHTML = '<div style="text-align:center;padding:15px;color:#888;">Уведомлений нет</div>';
             return;
         }
-        container.innerHTML = (unread ? `<div style="text-align:right;margin-bottom:6px;"><button class="btn-extra" onclick="markAllNoticesRead()" style="padding:4px 10px;font-size:12px;">Прочитать все</button></div>` : '') +
+        container.innerHTML = `<div class="notice-tools">
+                ${unread ? `<button class="btn-extra" onclick="markAllNoticesRead()">Прочитать все</button>` : ''}
+                <button class="btn-del" onclick="deleteAllNotices()">🗑 Удалить все</button>
+            </div>` +
             notices.map(n => `
                 <div class="notice-item${n.read ? '' : ' unread'}" onclick="markNoticeRead('${escAttr(n.id)}')">
                     <span>${safeHTML(n.message)}</span>
@@ -3261,15 +3296,16 @@ window.localChangesPending = false;
     }
 
     // ========== МОДАЛКИ ОПЕРАЦИЙ И РЕГУЛЯРНЫХ ПЛАТЕЖЕЙ ==========
-    // opts.fund — сразу «потратить из копилки»
+    // opts.fund — сразу «потратить из копилки»; opts.amount, opts.desc — подставить расход и описание
     function openAddCashModal(opts) {
         const fund = opts && opts.fund ? opts.fund : '';
-        const fundCategory = { tax: 'tax', reserve: 'business', dev: 'business', savings: 'personal', invest: 'personal' };
+        const fundCategory = { tax: 'tax', supplies: 'purchase', reserve: 'business', dev: 'business', savings: 'personal', invest: 'personal' };
         document.getElementById('addCashModalTitle').textContent = fund ? '− Трата из копилки' : '➕ Новая операция';
         document.getElementById('cashOpDate').value = formatDate(new Date());
-        document.getElementById('cashOpDesc').value = '';
+        document.getElementById('cashOpDesc').value = (opts && opts.desc) || '';
         document.getElementById('cashOpIncome').value = '0';
-        document.getElementById('cashOpExpense').value = '0';
+        document.getElementById('cashOpExpense').value = opts && opts.amount ? String(opts.amount) : '0';
+        document.getElementById('cashOpIncomeKind').value = 'revenue';
         document.getElementById('cashOpCategory').value = fundCategory[fund] || 'business';
         document.getElementById('cashOpFund').value = fund;
         updateCashOpPreview();
@@ -3292,8 +3328,10 @@ window.localChangesPending = false;
         if (!desc) { alert('❌ Введите описание'); return; }
         if (income <= 0 && expense <= 0) { alert('❌ Укажите приход или расход'); return; }
         
-        // Приход вручную (не оплата заказа) — «Прочее»; выручкой считаются только оплаты заказов
-        const category = income > 0 && expense <= 0 ? 'other' : (document.getElementById('cashOpCategory').value || 'other');
+        // Приход вручную: «Оплата за работу» — выручка (налог 4%, расходники, копилки — как у заказа),
+        // «Не выручка» (вернули долг, вложила свои) — просто деньги в кассе, без налога и распределения
+        const revenue = income > 0 && expense <= 0 && document.getElementById('cashOpIncomeKind').value === 'revenue';
+        const category = income > 0 && expense <= 0 ? (revenue ? 'income' : 'other') : (document.getElementById('cashOpCategory').value || 'other');
         const fund = document.getElementById('cashOpFund').value;
         const op = { id: 'op-' + Date.now(), date, desc, income, expense, category };
         if (fund && expense > 0) op.fund = fund; // трата из копилки не уменьшает прибыль второй раз
@@ -3393,6 +3431,20 @@ window.localChangesPending = false;
         const income = parseFloat(document.getElementById('cashOpIncome').value) || 0;
         const expense = parseFloat(document.getElementById('cashOpExpense').value) || 0;
         const diff = income - expense;
+        // Приход: спрашиваем, выручка это или нет, и показываем, сколько уйдёт в налог и расходники
+        const kindRow = document.getElementById('cashOpIncomeKindRow');
+        const isIncome = income > 0 && expense <= 0;
+        if (kindRow) kindRow.style.display = isIncome ? '' : 'none';
+        const catRow = document.getElementById('cashOpCategoryRow');
+        if (catRow) catRow.style.display = isIncome ? 'none' : '';
+        const hint = document.getElementById('cashOpIncomeHint');
+        if (hint) {
+            const s = typeof finSettings === 'function' ? finSettings() : { taxPercent: 4, suppliesPercent: 3 };
+            const rev = isIncome && document.getElementById('cashOpIncomeKind').value === 'revenue';
+            hint.textContent = rev
+                ? `Налог ${s.taxPercent}%: ${formatMoney(income * s.taxPercent / 100)} и мелкие расходники ${parseFloat(s.suppliesPercent) || 0}%: ${formatMoney(income * (parseFloat(s.suppliesPercent) || 0) / 100)} отложатся в копилки; остальное — в прибыль месяца`
+                : isIncome ? 'Без налога и копилок — просто деньги в кассе' : '';
+        }
         const preview = document.getElementById('cashOpPreview');
         if (diff >= 0) {
             preview.textContent = `+${formatMoney(diff)}`;
@@ -4534,8 +4586,10 @@ window.localChangesPending = false;
         // Как «Маржинальная прибыль» во вкладке «Деньги»: цена − налог − материалы − помощнику
         const taxPercent = typeof finSettings === 'function' ? (parseFloat(finSettings().taxPercent) || 0) : 0;
         const tax = client * taxPercent / 100;
+        const suppliesPercent = typeof finSettings === 'function' ? (parseFloat(finSettings().suppliesPercent) || 0) : 0;
+        const supplies = client * suppliesPercent / 100;
         const profitInput = document.getElementById('orderGrossProfit');
-        profitInput.value = (client - tax - totalCost - taskPay).toFixed(2);
+        profitInput.value = (client - tax - supplies - totalCost - taskPay).toFixed(2);
         let note = document.getElementById('orderProfitNote');
         if (!note) {
             note = document.createElement('small');
@@ -4543,7 +4597,7 @@ window.localChangesPending = false;
             note.style.cssText = 'display:block;color:#6c757d;font-size:11px;margin-top:2px;';
             profitInput.insertAdjacentElement('afterend', note);
         }
-        note.textContent = `${formatMoney(client)} − налог ${taxPercent}% ${formatMoney(tax)} − материалы ${formatMoney(totalCost)} − помощнику ${formatMoney(taskPay)}`;
+        note.textContent = `${formatMoney(client)} − налог ${taxPercent}% ${formatMoney(tax)} − мелкие расходники ${suppliesPercent}% ${formatMoney(supplies)} − материалы ${formatMoney(totalCost)} − помощнику ${formatMoney(taskPay)}`;
     }
 
     function saveOrderModal() {
@@ -5391,71 +5445,95 @@ function deleteOrder(orderId) {
         }
     }
 
+    // Раздел расписания дня: заголовок с числом записей, нажатие — раскрыть/свернуть (помнит устройство)
+    function calSectionOpen(key) {
+        try { return localStorage.getItem('cal_open_' + key) === '1'; } catch (e) { return false; }
+    }
+    function calToggleSection(key, open) {
+        try { localStorage.setItem('cal_open_' + key, open ? '1' : '0'); } catch (e) {}
+    }
+    function calSection(key, title, count, body, warn) {
+        if (!count) return '';
+        return `<details class="cal-section" ${calSectionOpen(key) ? 'open' : ''} ontoggle="calToggleSection('${key}', this.open)">
+            <summary class="cal-section-head"><span>${title}</span><span class="cal-section-count${warn ? ' warn' : ''}">${count}</span></summary>
+            <div class="cal-section-body">${body}</div>
+        </details>`;
+    }
+
+    // Расписание выбранного дня (под сеткой месяца/недели): разделы Заказы, Задачи, Платежи, Заметки, Посещение
     function renderSchedule() {
         const title = document.getElementById('selectedDateDisplay');
         const grid = document.getElementById('scheduleGrid');
         if (!selectedDate) { title.textContent='не выбран'; grid.innerHTML=''; return; }
         const dateStr = formatDate(selectedDate);
-        title.textContent = formatDateHuman(selectedDate) + (dateStr === formatDate(new Date()) ? ' (сегодня)' : '');
-        grid.innerHTML = '';
-        // Задачи студии на этот день (js/studio-tasks.js) — сверху, с переключателем «мои / все»
+        const todayStr = formatDate(new Date());
+        title.textContent = formatDateHuman(selectedDate) + (dateStr === todayStr ? ' (сегодня)' : '');
         const studioBox = document.getElementById('scheduleStudio');
-        const studioHTML = typeof stDayListHTML === 'function' ? stDayListHTML(stMyEmail(), dateStr, stShowAll) : '';
-        if (studioBox) studioBox.innerHTML = (typeof stToggleHTML === 'function' ? stToggleHTML(dateStr) : '') + studioHTML;
+        if (studioBox) studioBox.innerHTML = '';
+        const id = s => JSON.stringify(s).replace(/"/g, '&quot;');
+
+        // Заказы: сдать в этот день и принятые
         const { start: dayOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
-        const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId && !op.desc.includes('Оплата заказа'));
-        const dayDuePayments = finPaymentsForDate(dateStr);
-        // Обязательные платежи по плану на этот день
-        dayDuePayments.forEach(({ p, status }) => {
-            const div = document.createElement('div');
-            div.className = `schedule-slot payment-slot due-${status.state}`;
-            const label = status.state === 'paid' ? `✅ оплачено ${formatDateDDMMYYYY(status.op.date)}`
-                : status.state === 'overdue' ? '🔴 просрочен' : '🕒 к оплате';
-            const debt = finDebtRemaining(p, cashOps);
-            div.innerHTML = `<div>💳 ${safeHTML(p.name)} – ${formatMoney(p.amount)} · ${label}` +
-                (debt !== null ? `<div class="fin-muted">долг: осталось ${formatMoney(debt)}</div>` : '') + `</div>` +
-                (status.state === 'paid' ? '' : `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Оплатил</button>`);
-            grid.appendChild(div);
-        });
-        // Приходы по заказам (оплата, предоплата, доплата) видны в самих заказах — здесь только ручные
-        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !op.desc.includes('Оплата заказа') && !(op.category === 'income' && op.orderId != null));
-        const dayNotes = notes.filter(n => n.date === dateStr);
-        dayPayments.forEach(p => {
-            const div = document.createElement('div');
-            div.className = 'schedule-slot payment-slot';
-            div.innerHTML = `<div>💰 ${safeHTML(p.desc)} – ${formatMoney((parseFloat(p.expense)||0))}</div>`;
-            grid.appendChild(div);
-        });
-        dayIncomes.forEach(income => {
-            const div = document.createElement('div');
-            div.className = 'schedule-slot';
-            div.style.background = '#d4edda';
-            div.style.borderColor = '#28a745';
-            div.innerHTML = `<div>💵 ${safeHTML(income.desc)} – ${formatMoney((parseFloat(income.income)||0))}</div>`;
-            grid.appendChild(div);
-        });
-        dayNotes.forEach(n => {
-            const div = document.createElement('div');
-            div.className = 'schedule-slot note-slot';
-            div.innerHTML = `<div>📝 ${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}</div><button class="btn-del" onclick="deleteNote(${n.id})">✕</button>`;
-            grid.appendChild(div);
-        });
-        const addOrderSlot = (order, kind) => {
+        const orderSlot = (order, kind) => {
             const color = getOrderColorObj(order);
-            const div = document.createElement('div');
-            div.className = `schedule-slot color-${color}`;
-            const label = color === 'done' ? '✅ выполнен' : kind === 'due' ? (dateStr === formatDate(new Date()) ? '🏁 сдать сегодня' : '🏁 срок сдачи') : '📥 принят';
-            div.innerHTML = `<div>${label} · №${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML((order.services || []).map(s=>s.serviceName).join(', '))}</div><div>${formatMoney((parseFloat(order.clientPrice)||0))}</div>` +
-                `<button class="btn-extra move-order-btn" title="Перенести на другой день">📅 Перенести</button>`;
-            div.querySelector('.move-order-btn').addEventListener('click', e => { e.stopPropagation(); openMoveOrderModal(order.id); });
-            div.addEventListener('click', () => openOrderModal(order.id));
-            grid.appendChild(div);
+            const label = color === 'done' ? '✅ выполнен' : kind === 'due' ? (dateStr === todayStr ? '🏁 сдать сегодня' : '🏁 срок сдачи') : '📥 принят';
+            return `<div class="schedule-slot color-${color}" onclick="openOrderModal(${id(order.id)})">
+                <div>${label} · №${safeHTML(order.orderNumber)} ${safeHTML(order.client)} – ${safeHTML((order.services || []).map(s => s.serviceName).join(', '))}</div>
+                <div>${formatMoney(parseFloat(order.clientPrice) || 0)}</div>
+                <button class="btn-extra move-order-btn" title="Перенести на другой день" onclick="event.stopPropagation(); openMoveOrderModal(${id(order.id)})">📅 Перенести</button>
+            </div>`;
         };
-        dueOrders.forEach(order => addOrderSlot(order, 'due'));
-        dayOrders.forEach(order => addOrderSlot(order, 'start'));
-        if (dayOrders.length === 0 && dueOrders.length === 0 && dayPayments.length === 0 && dayIncomes.length === 0 && dayNotes.length === 0 && dayDuePayments.length === 0) {
-            grid.innerHTML = studioHTML ? '' : '<div>Нет записей</div>';
-        }
+        const ordersHTML = dueOrders.map(o => orderSlot(o, 'due')).concat(dayOrders.map(o => orderSlot(o, 'start'))).join('');
+
+        // Задачи: помощникам по заказам со сроком в этот день + задачи студии (если включены)
+        const helperTasks = [];
+        ordersData.forEach(o => (o.services || []).forEach(s => (s.tasks || []).forEach(t => {
+            if (t.deadline && String(t.deadline).split('T')[0] === dateStr) helperTasks.push({ t, o });
+        })));
+        const studio = typeof stTasksForDate === 'function' ? stTasksForDate(stMyEmail(), dateStr, stShowAll) : [];
+        let tasksHTML = helperTasks.map(({ t, o }) => {
+            const who = t.assignedTo ? safeHTML(finHelperName(t.assignedTo)) : 'не назначено';
+            const state = t.status === 'completed' ? '✅ принята' : t.status === 'review' ? '🕓 ждёт проверки' : t.status === 'overdue' ? '🔴 просрочена' : t.startedAt ? '🔧 в работе' : '⏳ ждёт начала';
+            const time = String(t.deadline).includes('T') ? ' до ' + String(t.deadline).split('T')[1].slice(0, 5) : '';
+            return `<div class="schedule-slot task-slot" onclick="openOrderModal(${id(o.id)})"><div>👷 ${who}: ${safeHTML(t.description || 'задача')} (№${safeHTML(o.orderNumber)})${time} · ${state}</div></div>`;
+        }).join('');
+        if (studio.length && typeof stTaskRowHTML === 'function') tasksHTML += studio.map(t => stTaskRowHTML(t, { showWho: stShowAll })).join('');
+        const openTasks = helperTasks.filter(x => x.t.status !== 'completed').length + studio.filter(t => stStatus(t) !== 'done').length;
+
+        // Платежи: обязательные по плану (оплатить / отменить), прочие расходы и ручные приходы этого дня
+        const dayDuePayments = finPaymentsForDate(dateStr);
+        const dayExpenses = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId && !String(op.desc).includes('Оплата заказа'));
+        const dayIncomes = cashOps.filter(op => op.date === dateStr && parseFloat(op.income) > 0 && !String(op.desc).includes('Оплата заказа') && !(op.category === 'income' && op.orderId != null));
+        let payHTML = dayDuePayments.map(({ p, status }) => {
+            const label = status.state === 'paid' ? `✅ оплачено ${formatDateDDMMYYYY(status.op.date)}` : status.state === 'overdue' ? '🔴 просрочен' : '🕒 к оплате';
+            const debt = finDebtRemaining(p, cashOps);
+            return `<div class="schedule-slot payment-slot due-${status.state}">
+                <div>💳 ${safeHTML(p.name)} – ${formatMoney(p.amount)} · ${label}${debt !== null ? `<div class="fin-muted">долг: осталось ${formatMoney(debt)}</div>` : ''}</div>
+                ${status.state === 'paid'
+                    ? `<button class="btn-extra" onclick="event.stopPropagation(); finUnpayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Отменить</button>`
+                    : `<button class="fin-pay-btn" onclick="event.stopPropagation(); finPayFromCalendar('${escAttr(p.id)}', '${dateStr}')">Оплатил</button>`}
+            </div>`;
+        }).join('');
+        payHTML += dayExpenses.map(op => `<div class="schedule-slot payment-slot"><div>💰 ${safeHTML(op.desc)} – ${formatMoney(parseFloat(op.expense) || 0)}</div></div>`).join('');
+        payHTML += dayIncomes.map(op => `<div class="schedule-slot income-slot"><div>💵 ${safeHTML(op.desc)} – ${formatMoney(parseFloat(op.income) || 0)}</div></div>`).join('');
+        const unpaid = dayDuePayments.filter(x => x.status.state !== 'paid').length;
+
+        // Заметки
+        const dayNotes = notes.filter(n => n.date === dateStr);
+        const notesHTML = dayNotes.map(n => `<div class="schedule-slot note-slot"><div>📝 ${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}</div><button class="btn-del" onclick="deleteNote(${id(n.id)})">✕</button></div>`).join('');
+
+        // Посещение помощников (только админ)
+        const att = typeof attDayItems === 'function' ? attDayItems(dateStr) : [];
+        const attHTML = att.map(x => attDayRowHTML(x, dateStr, false)).join('');
+        const attOpen = att.filter(x => !x.rec).length;
+
+        const html =
+            calSection('orders', '📋 Заказы', dueOrders.length + dayOrders.length, ordersHTML) +
+            calSection('tasks', '📌 Задачи', helperTasks.length + studio.length, tasksHTML, openTasks > 0) +
+            calSection('payments', '💳 Платежи и деньги', dayDuePayments.length + dayExpenses.length + dayIncomes.length, payHTML, unpaid > 0) +
+            calSection('notes', '📝 Заметки', dayNotes.length, notesHTML) +
+            calSection('attendance', '👷 Посещение помощников', att.length, attHTML, attOpen > 0);
+        grid.innerHTML = html || '<div class="cal-empty">На этот день записей нет</div>';
     }
 
     // Перенос заказа на другой день: меняется дата заказа, срок сдвигается вместе с ней
@@ -5521,28 +5599,25 @@ function deleteOrder(orderId) {
     }
     
     // ========== ФИЛЬТР ПО УСЛУГАМ ==========
+    // Отбор по услугам — один выпадающий список вместо ряда кнопок (компактно и на телефоне)
     function getServiceFilterButtons() {
         const services = [...new Set(rates.map(r => r.service))];
-        let html = '<span style="font-size:14px; color:#6c757d;">Услуги:</span>';
-        html += '<button class="service-filter-btn active" data-service="all" onclick="filterByService(\'all\')">Все</button>';
-        services.forEach(svc => {
-            html += `<button class="service-filter-btn" data-service="${svc}" onclick="filterByService('${svc}')">${svc}</button>`;
-        });
-        return html;
+        if (currentServiceFilter !== 'all' && !services.includes(currentServiceFilter)) currentServiceFilter = 'all';
+        return `<label class="cal-filter"><span>🔎 Услуга</span><select onchange="filterByService(this.value)">
+            <option value="all">Все услуги</option>
+            ${services.map(svc => `<option value="${escAttr(svc)}"${svc === currentServiceFilter ? ' selected' : ''}>${safeHTML(svc)}</option>`).join('')}
+        </select></label>`;
     }
-    
+
     function filterByService(service) {
-        currentServiceFilter = service;
-        document.querySelectorAll('.service-filter-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.service === service);
-        });
+        currentServiceFilter = service || 'all';
         renderCalendar();
     }
-    
+
     function toggleCalendarView() {
         calendarViewMode = calendarViewMode === 'month' ? 'week' : 'month';
         const btn = document.getElementById('viewToggleBtn');
-        btn.textContent = calendarViewMode === 'month' ? '📅 Неделя' : '📅 Месяц';
+        btn.textContent = calendarViewMode === 'month' ? 'Неделя' : 'Месяц';
         // Неделю открываем на выбранном дне (по умолчанию — сегодня)
         if (calendarViewMode === 'week' && selectedDate) currentDate = new Date(selectedDate);
         renderCalendar();
@@ -5574,12 +5649,13 @@ function deleteOrder(orderId) {
         const summary = getCalendarSum();
         const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
         const period = calendarViewMode === 'week' ? 'за неделю' : 'за месяц';
+        // Компактно, одной строкой: заказов, выполнено, ещё ожидается, платежи (подробности — в подсказке)
+        const pay = finMonthPaymentsTotals(formatDate(currentDate).slice(0, 7));
         document.getElementById('calendarSummary').innerHTML = `
-            <span style="color:#007bff;">📋 Заказов ${period}: ${summary.orders}</span>
-            <span style="color:#28a745;">✅ Выполнено: ${formatMoney(summary.doneSum)}</span>
-            <span style="color:#b8860b;">⏳ Ещё ожидается: ${formatMoney(summary.waitSum)}</span>
-            <span style="color:#6c757d;">📅 ${months[currentDate.getMonth()]} ${currentDate.getFullYear()}</span>
-            ${finCalendarPaymentsSummaryHTML(formatDate(currentDate).slice(0, 7))}
+            <span class="cs-item" title="Заказов ${period}" style="color:#007bff;">📋 ${summary.orders}</span>
+            <span class="cs-item" title="Выполнено ${period}" style="color:#28a745;">✅ ${formatMoney(summary.doneSum)}</span>
+            <span class="cs-item" title="Ещё ожидается ${period}" style="color:#b8860b;">⏳ ${formatMoney(summary.waitSum)}</span>
+            ${payments && payments.length ? `<span class="cs-item" title="Платежи месяца: осталось оплатить ${formatMoney(pay.left)} из ${formatMoney(pay.total)}" style="color:${pay.left > 0 ? '#dc3545' : '#28a745'};">💳 ${formatMoney(pay.left)}${pay.overdue ? ` <small>(${pay.overdue} просроч.)</small>` : ''}</span>` : ''}
         `;
     }
 
@@ -5665,7 +5741,8 @@ function deleteOrder(orderId) {
         const sunday = new Date(monday);
         sunday.setDate(monday.getDate() + 6);
         const calendarTitle = document.getElementById('calendarTitle');
-        if (calendarTitle) calendarTitle.textContent = `${monday.getDate()} ${CAL_MONTHS_GEN[monday.getMonth()]} – ${sunday.getDate()} ${CAL_MONTHS_GEN[sunday.getMonth()]} ${sunday.getFullYear()}`;
+        // Коротко, чтобы вся навигация помещалась в один ряд: «26 окт – 1 ноя»
+        if (calendarTitle) calendarTitle.textContent = `${monday.getDate()} ${CAL_MONTHS_GEN[monday.getMonth()].slice(0, 3)} – ${sunday.getDate()} ${CAL_MONTHS_GEN[sunday.getMonth()].slice(0, 3)}`;
 
         const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
         const badgeColors = { critical: ['#f5c6cb', '#dc3545'], middle: ['#ffeeba', '#ffc107'], new: ['#c3e6cb', '#28a745'], done: ['#e9ecef', '#6c757d'] };

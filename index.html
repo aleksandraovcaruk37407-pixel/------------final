@@ -50,6 +50,12 @@
       mobileCssLink.rel = 'stylesheet';
       mobileCssLink.href = 'css/mobile.css?' + cacheBust;
       document.head.appendChild(mobileCssLink);
+
+      // Единые размеры кнопок, шрифтов и окон по вкладкам — последними, поверх старых правил
+      var uniformCssLink = document.createElement('link');
+      uniformCssLink.rel = 'stylesheet';
+      uniformCssLink.href = 'css/uniform.css?' + cacheBust;
+      document.head.appendChild(uniformCssLink);
     </script>
     
     <!-- Firebase module загружается первым -->
@@ -57,24 +63,24 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202610291200" defer></script>
+    <script src="js/finance.js?v=202610301200" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202610291000" defer></script>
+    <script src="js/attendance.js?v=202610301200" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
     <script src="js/fcm.js?v=202610271800" defer></script>
     
     <!-- Задачи студии: план из экселя и экран задач (до app.js) -->
-    <script src="js/studio-plan.js?v=202610291000" defer></script>
-    <script src="js/studio-tasks.js?v=202610291200" defer></script>
+    <script src="js/studio-plan.js?v=202610300100" defer></script>
+    <script src="js/studio-tasks.js?v=202610300100" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
     <!-- Режим «виджет»: окно только с календарём (index.html?widget=1) -->
     <script src="js/widget.js?v=202610291500" defer></script>
     <!-- Календарь: вид «Список по дням» -->
-    <script src="js/agenda.js?v=202610291200" defer></script>
+    <script src="js/agenda.js?v=202610301200" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202610291200" defer></script>
+    <script src="js/app.js?v=202610301200" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/learning.js?v=202610281200" defer></script>
     
@@ -335,31 +341,26 @@
         </div>
         <div id="calAgendaView"></div>
         <div id="calMonthView">
-        <div class="calendar-nav" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                <button onclick="changeMonth(-1)" id="calPrevMonth" title="Предыдущий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">◀</button>
-                <button onclick="goToday()" title="Текущая дата" style="padding:8px 14px; font-size:13px; font-weight:600; background:#007bff; color:#fff; border:none; border-radius:6px; cursor:pointer;">📍 Сегодня</button>
-                <button onclick="changeMonth(1)" id="calNextMonth" title="Следующий месяц" style="padding:8px 12px; font-size:16px; min-width:40px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:6px; cursor:pointer;">▶</button>
-            </div>
-            <h2 id="calendarTitle" style="font-size:18px; color:#1a3c5e; margin:0; flex:1; text-align:center; min-width:150px;"></h2>
-            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                <button onclick="toggleCalendarView()" id="viewToggleBtn" title="Переключить вид" style="padding:8px 12px; font-size:12px; font-weight:600; background:#6c757d; color:#fff; border:none; border-radius:6px; cursor:pointer;">📅 Неделя</button>
-            </div>
+        <!-- Навигация — одним рядом: ◀ Сегодня ▶ · месяц · Неделя/Месяц -->
+        <div class="calendar-nav cal-nav-row">
+            <button onclick="changeMonth(-1)" id="calPrevMonth" class="cal-nav-arrow" title="Назад">◀</button>
+            <button onclick="goToday()" class="cal-nav-today" title="Текущая дата">Сегодня</button>
+            <button onclick="changeMonth(1)" id="calNextMonth" class="cal-nav-arrow" title="Вперёд">▶</button>
+            <h2 id="calendarTitle" class="cal-nav-title"></h2>
+            <button onclick="toggleCalendarView()" id="viewToggleBtn" class="cal-nav-view" title="Переключить вид">Неделя</button>
         </div>
-        <div id="calendarSummary" style="background:#f8f9fa; padding:10px; border-radius:8px; margin:10px 0; display:flex; gap:15px; flex-wrap:wrap; font-size:14px; font-weight:600;"></div>
-        <div id="serviceFilterContainer" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;">
-            <span style="font-size:14px; color:#6c757d;">Услуги:</span>
-            <button class="service-filter-btn active" data-service="all" onclick="filterByService('all')">Все</button>
-        </div>
+        <div id="calendarSummary" class="cal-summary"></div>
+        <div id="serviceFilterContainer" class="cal-filter-row"></div>
         <div class="calendar-grid" id="calendarGrid"></div>
         <div class="schedule-container">
             <h3>Расписание на <span id="selectedDateDisplay"></span></h3>
+            <!-- Создать — сверху списка; ниже разделы дня сворачиваются (renderSchedule в app.js) -->
+            <div class="cal-actions">
+                <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
+                <button class="btn-add btn-note" onclick="openNoteModal(selectedDate ? formatDate(selectedDate) : undefined)">📝 Создать заметку</button>
+            </div>
             <div id="scheduleStudio"></div>
             <div class="schedule-grid" id="scheduleGrid"></div>
-        </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
-            <button class="btn-add" onclick="openNoteModal()" style="background:#6f42c1;">📝 Добавить заметку</button>
         </div>
         </div>
     </div>
@@ -489,28 +490,42 @@
         <div id="helperPenaltiesContainer"></div>
     </div>
 
-    <!-- Вкладка Задачи помощников (для админа) -->
+    <!-- Вкладка Задачи помощников (для админа). Разделы сворачиваются, что открыто — помнит устройство (details[data-key], js/finance.js) -->
     <div id="tab-helper-admin" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">👥 Задачи помощников</h2>
-        <div style="margin-bottom:15px;">
-            <label style="font-size:14px;font-weight:600;margin-right:8px;">Фильтр по помощнику:</label>
-            <select id="adminHelperFilter" onchange="renderAdminHelperTasks()" style="width:250px;max-width:100%;padding:8px;border-radius:6px;border:1px solid #ced4da;">
-                <option value="all">Все помощники</option>
-            </select>
+        <h2 class="tab-title">👥 Помощники</h2>
+        <div class="helper-actions">
+            <button class="btn-add" onclick="openHelperTaskModalFromAdmin()">➕ Создать задачу</button>
+            <button class="btn-add" onclick="openAddHelperModal()">➕ Добавить помощника</button>
+            <button class="btn-del" onclick="openPenaltyModal()">⚠️ Выписать штраф</button>
         </div>
-        <div id="adminHelperTaskList" style="margin-bottom:20px;"></div>
-        <div style="margin-bottom:15px;">
-            <button class="btn-add" onclick="openHelperTaskModalFromAdmin()" style="padding:10px 20px;font-size:14px;">➕ Создать задачу</button>
-            <button class="btn-add" onclick="openAddHelperModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">➕ Добавить помощника</button>
-            <button class="btn-del" onclick="openPenaltyModal()" style="padding:10px 20px;font-size:14px;margin-left:10px;">⚠️ Выписать штраф</button>
-        </div>
-        <div class="notice-box">
-            <h4>🕐 Посещаемость
-                <select id="attHelperSelect" onchange="attSelectHelper(this.value)" style="margin-left:8px;padding:4px 8px;border-radius:6px;border:1px solid #ced4da;font-weight:400;"></select>
-            </h4>
-            <div id="adminAttendanceContainer"></div>
-        </div>
-        <div id="adminHelperTasksContainer"></div>
+        <details class="fin-section" data-key="h_tasks" data-open="1">
+            <summary class="fin-section-head"><span>📋 Задачи</span></summary>
+            <div class="fin-section-body">
+                <label class="cal-filter"><span>👷 Помощник</span>
+                    <select id="adminHelperFilter" onchange="renderAdminHelperTasks()">
+                        <option value="all">Все помощники</option>
+                    </select>
+                </label>
+                <div id="adminHelperTaskList"></div>
+            </div>
+        </details>
+        <details class="fin-section" data-key="h_att">
+            <summary class="fin-section-head"><span>🕐 Посещаемость</span></summary>
+            <div class="fin-section-body">
+                <div class="helper-actions">
+                    <label class="cal-filter"><span>👷</span><select id="attHelperSelect" onchange="attSelectHelper(this.value)"></select></label>
+                    <button class="btn-add btn-tabel" onclick="attOpenTabel()">📋 Табель</button>
+                    <button class="btn-add" onclick="attDownloadTabel(attMonth)">⬇️ Скачать табель</button>
+                </div>
+                <div id="adminAttendanceContainer"></div>
+            </div>
+        </details>
+        <details class="fin-section" data-key="h_money">
+            <summary class="fin-section-head"><span>💰 Начисления и выплаты</span></summary>
+            <div class="fin-section-body">
+                <div id="adminHelperTasksContainer"></div>
+            </div>
+        </details>
         <div id="helperDbCheckResult" style="margin-top:20px;"></div>
     </div>
 
@@ -787,7 +802,15 @@
                 <label>📝 Описание</label>
                 <input type="text" id="cashOpDesc" placeholder="Например: Оплата поставщику">
             </div>
-            <div class="form-row">
+            <div class="form-group" id="cashOpIncomeKindRow" style="display:none;">
+                <label>💼 Что это за деньги?</label>
+                <select id="cashOpIncomeKind" onchange="updateCashOpPreview()">
+                    <option value="revenue">Оплата за работу — налог 4% и распределение по копилкам</option>
+                    <option value="other">Не выручка — вернули долг, вложила свои</option>
+                </select>
+                <small id="cashOpIncomeHint" style="display:block;color:#6c757d;font-size:12px;margin-top:4px;"></small>
+            </div>
+            <div class="form-row" id="cashOpCategoryRow">
                 <div class="form-group">
                     <label>🏷 Категория</label>
                     <select id="cashOpCategory">
@@ -804,6 +827,7 @@
                     <select id="cashOpFund">
                         <option value="">— нет —</option>
                         <option value="tax">💰 Налог</option>
+                        <option value="supplies">🧤 Мелкие расходники</option>
                         <option value="reserve">🛟 Резерв бизнеса</option>
                         <option value="dev">🚀 Развитие бизнеса</option>
                         <option value="savings">👤 Личные накопления</option>

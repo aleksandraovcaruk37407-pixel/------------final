@@ -56,7 +56,11 @@ function stCustomTasks() {
     return (typeof studioTaskMarks !== 'undefined' ? studioTaskMarks : []).filter(m => m && m.custom && m.date && m.text);
 }
 
+// Выключатель всех задач студии (window.STUDIO_ENABLED в js/studio-plan.js): выключено — задач нет нигде
+function stEnabled() { return window.STUDIO_ENABLED !== false; }
+
 function stPlan() {
+    if (!stEnabled()) return [];
     return (Array.isArray(window.STUDIO_PLAN) ? window.STUDIO_PLAN : []).concat(stOrderTasks(), stCustomTasks());
 }
 
@@ -218,7 +222,7 @@ function stDayListHTML(email, date, all, title) {
 
 // Кнопки «➕ Задача» и «мои / все» (только админу)
 function stToggleHTML(date) {
-    if (!stIsAdmin()) return '';
+    if (!stIsAdmin() || !stEnabled()) return '';
     return `<div class="st-tools"><button class="st-toggle st-add" onclick="stOpenTaskModal('${escAttr(date || '')}')">➕ Задача</button>` +
         `<button class="st-toggle" onclick="stToggleAll()" title="Переключить: только мои / задачи всех">${stShowAll ? '👥 Показаны задачи всех' : '👤 Показаны мои задачи'}</button></div>`;
 }

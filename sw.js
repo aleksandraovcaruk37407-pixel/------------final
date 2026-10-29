@@ -51,6 +51,11 @@ self.addEventListener('push', (event) => {
     badge: ICON,
     // tag = id уведомления: если программа уже показала его сама, push заменит его без второго сигнала
     tag: msg.tag || 'atelier',
+    // Со звуком и вибрацией (звук — системный: на iPhone включается в Настройки → Уведомления → программа → Звуки).
+    // renotify: уведомление с тем же tag тоже звенит, а не заменяется молча
+    silent: false,
+    renotify: true,
+    vibrate: [200, 100, 200],
     data: { url: new URL(msg.url || './', SCOPE).href }
   }));
 });

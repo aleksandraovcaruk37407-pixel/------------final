@@ -1,0 +1,186 @@
+/* ==========================================================================
+   ЕДИНЫЕ РАЗМЕРЫ (29.10.2026): в каждой вкладке — один размер шрифта, кнопок и полей.
+   Подключается последним (после styles.css и mobile.css), поэтому перекрывает разнобой старых правил.
+   Размеры вкладки задаются переменными на самой вкладке:
+     --u-fs   — основной текст        --u-h    — заголовок раздела
+     --u-btn  — высота кнопки          --u-bfs  — шрифт кнопки
+     --u-in   — высота поля ввода      --u-r    — скругление
+   Мелкие кнопки в строках списков (Оплатил, Отменить, ✏️) — отдельный размер --u-sbtn.
+   ========================================================================== */
+
+.tab-content {
+    --u-fs: 15px; --u-h: 17px; --u-btn: 40px; --u-bfs: 14px; --u-in: 40px; --u-r: 8px; --u-sbtn: 30px; --u-sfs: 12px;
+    font-size: var(--u-fs);
+}
+#tab-orders       { --u-fs: 15px; --u-btn: 40px; --u-bfs: 14px; }
+#tab-calendar     { --u-fs: 14px; --u-h: 16px; --u-btn: 36px; --u-bfs: 13px; --u-in: 36px; --u-sbtn: 28px; }
+#tab-cash         { --u-fs: 15px; --u-h: 16px; --u-btn: 38px; --u-bfs: 14px; --u-in: 38px; }
+#tab-summary      { --u-fs: 15px; --u-btn: 38px; --u-bfs: 14px; --u-in: 38px; }
+#tab-helper-admin { --u-fs: 15px; --u-h: 16px; --u-btn: 38px; --u-bfs: 14px; --u-in: 38px; }
+#tab-stock, #tab-purchase, #tab-ref { --u-fs: 14px; --u-btn: 36px; --u-bfs: 13px; --u-in: 36px; }
+#helper-tasks, #helper-attendance, #helper-report { --u-fs: 15px; --u-btn: 44px; --u-bfs: 15px; --u-in: 42px; }
+
+/* Заголовки вкладок и разделов */
+.tab-content > h2, .tab-content .tab-title { font-size: 20px !important; color: #1a3c5e; margin: 0 0 12px !important; }
+.tab-content h3 { font-size: var(--u-h) !important; }
+
+/* Кнопки вкладки: одна высота, шрифт и скругление */
+.tab-content button:not(.ag-plus):not(.color-btn):not(.cal-switch-btn):not(.ag-btn):not(.st-btn):not(.fin-link-btn):not(.btn-del):not(.btn-extra):not(.st-toggle) {
+    min-height: var(--u-btn) !important;
+    font-size: var(--u-bfs) !important;
+    padding: 0 16px !important;
+    border-radius: var(--u-r) !important;
+    line-height: 1.2 !important;
+    margin-top: 0; margin-bottom: 0;
+}
+.tab-content .btn-extra, .tab-content .btn-del, .tab-content .fin-link-btn, .tab-content .ag-btn, .tab-content .st-btn, .tab-content .st-toggle {
+    min-height: var(--u-sbtn) !important;
+    font-size: var(--u-sfs) !important;
+    padding: 0 10px !important;
+    border-radius: 6px !important;
+    line-height: 1.2 !important;
+}
+.tab-content .ag-btn.ag-main { font-size: var(--u-bfs) !important; min-height: var(--u-btn) !important; padding: 0 14px !important; }
+.tab-content input:not([type=checkbox]):not([type=radio]), .tab-content select {
+    min-height: var(--u-in);
+    font-size: var(--u-fs) !important;
+    border-radius: var(--u-r);
+}
+
+/* Окна (модалки): одинаковые во всей программе */
+.modal-overlay .modal { font-size: 15px; border-radius: 14px; }
+.modal-overlay .modal h3 { font-size: 18px !important; margin-bottom: 14px; }
+.modal-overlay .modal label { font-size: 13px; font-weight: 600; }
+.modal-overlay .modal input:not([type=checkbox]):not([type=radio]), .modal-overlay .modal select, .modal-overlay .modal textarea {
+    font-size: 15px !important; min-height: 42px; border-radius: 8px;
+}
+.modal-overlay .modal textarea { min-height: 70px; }
+.modal-overlay .modal .form-actions button, .modal-overlay .modal .form-actions a, .modal .btn-save, .modal .btn-cancel {
+    min-height: 44px !important; font-size: 15px !important; padding: 0 18px !important; border-radius: 10px !important;
+    display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+}
+
+/* ---------- Сворачиваемые разделы («Деньги», «Помощники») ---------- */
+.fin-section { background: #fff; border: 1px solid #e3e7eb; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.fin-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-weight: 700; font-size: var(--u-h); color: #1a3c5e; user-select: none; }
+.fin-section-head::-webkit-details-marker { display: none; }
+.fin-section-head::after { content: '▾'; margin-left: 6px; color: #6c757d; transition: transform .15s; }
+.fin-section:not([open]) .fin-section-head::after { transform: rotate(-90deg); }
+.fin-section-head > span:first-child { flex: 1; }
+.fin-section-aside { font-size: 13px; font-weight: 600; color: #495057; }
+.fin-section[open] .fin-section-head { border-bottom: 1px solid #eef1f4; }
+.fin-section-body { padding: 10px 14px 14px; }
+.fin-section-body .fin-group { margin-bottom: 10px; }
+.fin-tax-line { background: #fff8e1; border: 1px solid #ffe08a; border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fin-tax-line .fin-pay-btn { min-height: 30px !important; padding: 0 12px !important; font-size: 13px !important; border-radius: 6px !important; }
+.fin-funds-help { margin-bottom: 8px; line-height: 1.4; }
+.fin-op-fix { font-size: 12px; color: #8a6d00; background: #fff8e1; border-radius: 6px; padding: 4px 8px; margin: -2px 0 6px; }
+.helper-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+.helper-actions .btn-add, .cal-actions .btn-add { margin: 0 !important; }
+
+/* Окно перевода помощнику */
+.fin-paymodal { max-width: 420px; text-align: center; }
+.fin-paymodal-sum { font-size: 22px; font-weight: 700; margin: 6px 0; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.fin-paymodal-qr { display: flex; justify-content: center; margin: 12px auto; max-width: 240px; width: 100%; }
+.fin-paymodal-qr img, img.fin-paymodal-qr { max-width: 240px; width: 100%; height: auto; border-radius: 8px; }
+.fin-paymodal .form-actions { justify-content: center; }
+.fin-paymodal-go { background: #185FA5 !important; color: #fff !important; }
+
+/* ---------- Календарь ---------- */
+/* Неделя и месяц: 7 равных колонок, содержимое не раздвигает сетку (раньше в «Неделе» вс уезжал за край) */
+.calendar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
+.calendar-grid .day-cell { min-width: 0; overflow: hidden; }
+.calendar-grid .day-cell.week-cell > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+#tab-calendar { overflow-x: hidden; }
+
+/* Отбор по услугам — один выпадающий список */
+.cal-filter-row { margin: 0 0 10px; }
+.cal-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #6c757d; font-weight: 600; max-width: 100%; }
+.cal-filter select { min-height: 32px !important; padding: 2px 8px; border: 1px solid #ced4da; border-radius: 6px; background: #fff; font-size: 13px !important; max-width: 220px; }
+.ag-tools .cal-filter { margin-left: auto; }
+
+/* Расписание дня: кнопки сверху, разделы сворачиваются */
+.cal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.cal-actions .btn-note { background: #6f42c1 !important; }
+.btn-tabel { background: #185FA5 !important; }
+.schedule-grid { display: block !important; }
+.cal-section { border: 1px solid #e3e7eb; border-radius: 10px; margin-bottom: 8px; background: #fff; overflow: hidden; }
+.cal-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 700; color: #1a3c5e; user-select: none; }
+.cal-section-head::-webkit-details-marker { display: none; }
+.cal-section-head > span:first-child { flex: 1; }
+.cal-section-head::after { content: '▾'; color: #6c757d; transition: transform .15s; }
+.cal-section:not([open]) .cal-section-head::after { transform: rotate(-90deg); }
+.cal-section-count { background: #e9ecef; color: #495057; border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.cal-section-count.warn { background: #dc3545; color: #fff; }
+.cal-section-body { padding: 4px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.cal-section-body .schedule-slot { margin: 0; }
+.cal-section-body .ag-row { border-top: 1px solid #f1f3f5; }
+.schedule-slot.income-slot { background: #d4edda; border-color: #28a745; }
+.schedule-slot.task-slot { background: #e7f1ff; border-color: #9ec5fe; cursor: pointer; }
+.cal-empty { color: #6c757d; padding: 10px 0; }
+
+/* Посещение помощников в календаре */
+.ag-att .ag-tag { background: #e7f1ff; color: #185FA5; }
+.ag-att.ag-att-done .ag-tag { background: #d1e7dd; color: #0f5132; }
+.ag-att .ag-text b { color: #1a3c5e; }
+
+/* Табель */
+.att-tabel-modal { max-width: 96vw !important; width: 960px; }
+.att-tb-wrap { overflow-x: auto; margin: 8px 0; border: 1px solid #e3e7eb; border-radius: 8px; }
+.att-tb { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.att-tb th, .att-tb td { border: 1px solid #e9ecef; padding: 3px 4px; text-align: center; white-space: nowrap; }
+.att-tb th { background: #f8f9fa; font-weight: 600; }
+.att-tb th small, .att-tb td small { color: #6c757d; font-weight: 400; }
+.att-tb .att-tb-we { background: #fdecec; }
+.att-tb .att-tb-name { text-align: left; position: sticky; left: 0; background: #fff; z-index: 1; min-width: 90px; }
+.att-tb-cell { cursor: pointer; min-width: 26px; }
+.att-tb-cell:hover { outline: 2px solid #185FA5; outline-offset: -2px; }
+.att-tb-Я { background: #d1e7dd; color: #0f5132; font-weight: 600; }
+.att-tb-НН { background: #f8d7da; color: #842029; font-weight: 600; }
+.att-tb-ДО, .att-tb-Б { background: #fff3cd; color: #664d03; }
+.att-tb-В { color: #adb5bd; }
+
+@media (max-width: 600px) {
+    #tab-calendar { --u-fs: 13px; --u-btn: 36px; }
+    .tab-content button:not(.ag-plus):not(.color-btn):not(.cal-switch-btn):not(.ag-btn):not(.st-btn):not(.fin-link-btn):not(.btn-del):not(.btn-extra):not(.st-toggle) { padding: 0 12px !important; }
+    .fin-section-head { padding: 11px 12px; }
+    .fin-section-body { padding: 8px 10px 12px; }
+    .ag-tools .cal-filter { margin-left: 0; }
+    .cal-filter select { max-width: 60vw; }
+}
+/* Крупные красные кнопки в ряду действий («Выписать штраф») — того же размера, что соседние */
+.tab-content .helper-actions .btn-del { min-height: var(--u-btn) !important; font-size: var(--u-bfs) !important; padding: 0 16px !important; border-radius: var(--u-r) !important; }
+
+/* ---------- 30.10: календарь одним рядом и компактнее ---------- */
+.cal-nav-row, #tab-calendar .calendar-nav.cal-nav-row { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; gap: 6px; margin-bottom: 8px; }
+#tab-calendar .cal-nav-row button { min-height: 34px !important; padding: 0 10px !important; font-size: 13px !important; font-weight: 600; border-radius: 8px !important; flex-shrink: 0; cursor: pointer; }
+#tab-calendar .cal-nav-row .cal-nav-arrow { background: #f8f9fa; border: 1px solid #dee2e6; color: #333; padding: 0 9px !important; }
+#tab-calendar .cal-nav-row .cal-nav-today { background: #007bff; color: #fff; border: none; }
+#tab-calendar .cal-nav-row .cal-nav-view { background: #6c757d; color: #fff; border: none; }
+.cal-nav-title { flex: 1; min-width: 0; margin: 0 !important; text-align: center; font-size: 15px !important; line-height: 1.15; color: #1a3c5e; overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+    #tab-calendar .cal-nav-row { gap: 4px; }
+    #tab-calendar .cal-nav-row button { padding: 0 8px !important; font-size: 12px !important; }
+    #tab-calendar .cal-nav-row .cal-nav-arrow { padding: 0 7px !important; }
+    .cal-nav-title { font-size: 14px !important; }
+}
+.cal-summary { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; margin: 0 0 8px; padding: 0; scrollbar-width: none; }
+.cal-summary::-webkit-scrollbar { display: none; }
+.cal-summary .cs-item { flex-shrink: 0; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 14px; padding: 3px 9px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cal-summary .cs-item small { font-weight: 500; }
+
+/* Посещение: имя помощника в метке, кнопки маленькие, в одну строку */
+.ag-att .ag-tag { max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ag-att .ag-text { font-size: 12px; color: #495057; }
+.ag-att .ag-att-none { color: #b02a37; font-weight: 600; }
+.ag-att .ag-actions { gap: 3px; }
+.tab-content .ag-att .ag-btn { min-height: 26px !important; padding: 0 7px !important; }
+
+/* Уведомления: «Прочитать все» и «Удалить все» */
+.notice-tools { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+.notice-tools button { padding: 4px 10px !important; font-size: 12px !important; min-height: 28px !important; }
+
+/* Закупка: квадратики выбора — обычного размера */
+.purchase-item input[type="checkbox"], .purchase-check, #tab-purchase input[type="checkbox"] {
+    width: 20px !important; height: 20px !important; min-width: 20px !important; min-height: 20px !important; max-width: 20px; margin: 0 !important; padding: 0 !important; flex: 0 0 20px !important; transform: none !important; accent-color: #28a745;
+}

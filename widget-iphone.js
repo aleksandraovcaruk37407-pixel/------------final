@@ -52,6 +52,8 @@ function wMoney(n) { return String(Math.round(parseFloat(n) || 0)).replace(/\B(?
 // План студии из js/studio-plan.js (строки вида {"id": ...},)
 function wParsePlan(text) {
     const out = [];
+    // Задачи студии выключены в программе (window.STUDIO_ENABLED = false) — в виджете их тоже нет
+    if (/STUDIO_ENABLED\s*=\s*false/.test(String(text || ''))) { out.disabled = true; return out; }
     String(text || '').split('\n').forEach(line => {
         const m = line.trim().replace(/,$/, '');
         if (m.startsWith('{') && m.endsWith('}')) { try { out.push(JSON.parse(m)); } catch (e) {} }
@@ -62,6 +64,7 @@ function wParsePlan(text) {
 // Задачи студии: план + съёмка машины Егору по заказам + задачи, поставленные в программе
 function wStudioTasks(data, plan) {
     const marks = wArr(data.studioTaskMarks);
+    if (plan.disabled) return { list: [], status: () => 'todo' };
     const list = plan.slice();
     wArr(data.ordersData).forEach(o => {
         if (o.id == null || !o.date || o.date < W_PHOTO_FROM) return;

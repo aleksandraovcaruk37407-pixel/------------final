@@ -44,7 +44,10 @@ object Today {
     }
 
     /** План студии из js/studio-plan.js: строки вида {"id": …}, */
-    fun parsePlan(text: String): List<JSONObject> = text.lines().mapNotNull { line ->
+    fun parsePlan(text: String): List<JSONObject> =
+        // Задачи студии выключены в программе (window.STUDIO_ENABLED = false) — метка вместо плана
+        if (Regex("STUDIO_ENABLED\\s*=\\s*false").containsMatchIn(text)) listOf(JSONObject().put("__disabled", true))
+        else text.lines().mapNotNull { line ->
         val m = line.trim().removeSuffix(",")
         if (m.startsWith("{") && m.endsWith("}")) try { JSONObject(m) } catch (e: Exception) { null } else null
     }
@@ -103,7 +106,7 @@ object Today {
         }
         marks.filter { it.optBoolean("custom") && str(it, "date").isNotEmpty() && str(it, "text").isNotEmpty() }.forEach { studio += it }
         fun status(t: JSONObject) = marks.firstOrNull { str(it, "id") == str(t, "id") }?.let { str(it, "status") }?.ifEmpty { null } ?: "todo"
-        studio.filter { myName != null && who(it).contains(myName) && str(it, "date") <= today && status(it) != "done" }.forEach {
+        studio.filter { plan.none { p -> p.optBoolean("__disabled") } && myName != null && who(it).contains(myName) && str(it, "date") <= today && status(it) != "done" }.forEach {
             val d = str(it, "date"); val late = d < today
             bump("tasks"); rows += Row("📌", str(it, "text") + if (late) " (с ${ddmm(d)})" else "", late, if (late) 1 else 4)
         }
