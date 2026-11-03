@@ -73,7 +73,7 @@ object Api {
         return token to json.optString("user_id", "")
     }
 
-    class Loaded(val role: String, val email: String, val today: Today.Result)
+    class Loaded(val role: String, val email: String, val today: Today.Result, val month: List<Today.Day>)
 
     /** Данные для виджета: роль, почта, дела на сегодня. Бросает LoginError, если нужно войти. */
     fun load(ctx: Context): Loaded {
@@ -88,6 +88,7 @@ object Api {
         val role = user.optString("role", "helper").ifEmpty { "helper" }
         val saved = email(ctx)
         val userEmail = user.optString("email", saved).ifEmpty { saved }
-        return Loaded(role, userEmail, Today.build(data, plan, userEmail, role, java.time.LocalDate.now().toString()))
+        val today = java.time.LocalDate.now().toString()
+        return Loaded(role, userEmail, Today.build(data, plan, userEmail, role, today), Today.month(data, plan, userEmail, role, today))
     }
 }

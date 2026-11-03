@@ -59,8 +59,9 @@ function stCustomTasks() {
 // Выключатель всех задач студии (window.STUDIO_ENABLED в js/studio-plan.js): выключено — задач нет нигде
 function stEnabled() { return window.STUDIO_ENABLED !== false; }
 
+// Выключатель гасит только план из экселя и съёмку; задачи, поставленные в программе, работают всегда
 function stPlan() {
-    if (!stEnabled()) return [];
+    if (!stEnabled()) return stCustomTasks();
     return (Array.isArray(window.STUDIO_PLAN) ? window.STUDIO_PLAN : []).concat(stOrderTasks(), stCustomTasks());
 }
 
@@ -222,7 +223,7 @@ function stDayListHTML(email, date, all, title) {
 
 // Кнопки «➕ Задача» и «мои / все» (только админу)
 function stToggleHTML(date) {
-    if (!stIsAdmin() || !stEnabled()) return '';
+    if (!stIsAdmin()) return '';
     return `<div class="st-tools"><button class="st-toggle st-add" onclick="stOpenTaskModal('${escAttr(date || '')}')">➕ Задача</button>` +
         `<button class="st-toggle" onclick="stToggleAll()" title="Переключить: только мои / задачи всех">${stShowAll ? '👥 Показаны задачи всех' : '👤 Показаны мои задачи'}</button></div>`;
 }

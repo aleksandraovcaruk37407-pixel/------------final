@@ -64,7 +64,10 @@ function wParsePlan(text) {
 // Задачи студии: план + съёмка машины Егору по заказам + задачи, поставленные в программе
 function wStudioTasks(data, plan) {
     const marks = wArr(data.studioTaskMarks);
-    if (plan.disabled) return { list: [], status: () => 'todo' };
+    const status = t => { const m = marks.find(x => x.id === t.id); return m && m.status ? m.status : 'todo'; };
+    const custom = marks.filter(m => m.custom && m.date && m.text);
+    // Выключатель гасит только план из экселя и съёмку — задачи, поставленные в программе, видны всегда
+    if (plan.disabled) return { list: custom, status };
     const list = plan.slice();
     wArr(data.ordersData).forEach(o => {
         if (o.id == null || !o.date || o.date < W_PHOTO_FROM) return;
@@ -73,8 +76,7 @@ function wStudioTasks(data, plan) {
         const due = wDeadline(o);
         if (due && due !== o.date) list.push({ id: 'photo-out-' + o.id, date: due, who: ['Егор'], text: `📸 Снять машину при выдаче: ${car}` });
     });
-    marks.filter(m => m.custom && m.date && m.text).forEach(m => list.push(m));
-    const status = t => { const m = marks.find(x => x.id === t.id); return m && m.status ? m.status : 'todo'; };
+    custom.forEach(m => list.push(m));
     return { list, status };
 }
 
@@ -131,9 +133,48 @@ function wBuildToday(data, plan, email, role, today) {
         if (!rec) add('🕘', 'Не забудьте отметить приход', false, 0);
         else if (rec.in && !rec.out) add('▶️', `Пришли в ${rec.in}`, false, 9);
     }
-    wArr(data.notes).filter(n => n.date === today).forEach(n => add('📝', `${n.time ? n.time + ' ' : ''}${n.text}`, false, 6));
+    wDayNotes(data, email, role, today).forEach(n => add(n.icon, n.text, false, n.rank));
     rows.sort((a, b) => a.rank - b.rank);
     return { rows, counts };
+}
+
+// Заметки дня, как в программе (js/calendar-extra.js): заметка «для кого» — только им и автору,
+// предзапись 📞 — админам, отпуск 🌴 — каждый его день
+function wDayNotes(data, email, role, today) {
+    const me = String(email || '').toLowerCase(), person = wPerson(email), isAdmin = role === 'admin';
+    const out = [];
+    wArr(data.notes).forEach(n => {
+        if (n.kind === 'vacation') {
+            if (n.date <= today && (n.to || n.date) >= today && (isAdmin || String(n.email || '').toLowerCase() === me))
+                out.push({ icon: '🌴', text: `${n.who || ''} в отпуске до ${wDDMM(n.to || n.date)}`, rank: 6 });
+        } else if (n.kind === 'prebook') {
+            if (isAdmin && n.date === today) out.push({ icon: '📞', text: `${n.time ? n.time + ' ' : ''}${n.client || ''}${n.service ? ', ' + n.service : ''}`, rank: 2 });
+        } else if (n.date === today) {
+            const forList = wArr(n.for);
+            const mine = forList.length ? (person && forList.includes(person)) || String(n.by || '').toLowerCase() === me : isAdmin;
+            if (mine) out.push({ icon: '📝', text: `${n.time ? n.time + ' ' : ''}${n.text}`, rank: 6 });
+        }
+    });
+    return out;
+}
+
+// Месяц для большого виджета: по каждому дню — есть ли дела и важные метки
+function wBuildMonth(data, plan, email, role, today) {
+    const [y, m] = today.slice(0, 7).split('-').map(Number);
+    const first = new Date(y, m - 1, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const days = [];
+    for (let i = 0; i < 42; i++) {
+        const d = new Date(y, m - 1, 1 - offset + i);
+        const ds = wDate(d);
+        const r = wBuildToday(data, plan, email, role, ds);
+        // Просроченное «на сегодня» тянется из прошлых дней — в сетке месяца считаем только дела этого дня
+        const own = r.rows.filter(x => !x.late && x.icon !== '🕘' && x.icon !== '▶️');
+        days.push({ ds, day: d.getDate(), inMonth: d.getMonth() === m - 1, today: ds === today, count: own.length,
+            due: r.counts.due > 0, vacation: own.some(x => x.icon === '🌴'), prebook: own.some(x => x.icon === '📞') });
+        if (i >= 34 && d.getMonth() !== m - 1 && d.getDay() === 0) break; // хватит 5 недель
+    }
+    return { title: ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'][m - 1] + ' ' + y, days };
 }
 // ==КОНЕЦ ЛОГИКИ==
 
@@ -187,7 +228,8 @@ async function wLoad() {
     let plan = [];
     try { plan = wParsePlan(await new Request(SITE + 'js/studio-plan.js').loadString()); } catch (e) {}
     const role = user.role || 'helper';
-    return { role, email: user.email || '', ...wBuildToday(data, plan, user.email, role, wDate(new Date())) };
+    const today = wDate(new Date());
+    return { role, email: user.email || '', ...wBuildToday(data, plan, user.email, role, today), month: wBuildMonth(data, plan, user.email, role, today) };
 }
 
 // ---------- Виджет ----------
@@ -222,7 +264,12 @@ function wWidget(res) {
         w.addSpacer();
         return w;
     }
-    const max = family === 'medium' ? 4 : 11;
+    // Большой виджет: месяц сеткой (день нажимается — открывается календарь на этом дне) и дела сегодня
+    if ((family === 'large' || family === 'extraLarge') && res.month) {
+        wMonthGrid(w, res.month);
+        w.addSpacer(6);
+    }
+    const max = family === 'medium' ? 4 : res.month && family !== 'small' && family !== 'medium' ? 4 : 11;
     if (!res.rows.length) { const t = w.addText('На сегодня дел нет 👍'); t.font = Font.systemFont(14); t.textColor = C.muted; }
     res.rows.slice(0, max).forEach(r => {
         const t = w.addText(`${r.icon} ${r.text}`);
@@ -234,6 +281,35 @@ function wWidget(res) {
     if (res.rows.length > max) { const t = w.addText(`и ещё ${res.rows.length - max}…`); t.font = Font.systemFont(12); t.textColor = C.muted; }
     w.addSpacer();
     return w;
+}
+
+function wMonthGrid(w, month) {
+    const t = w.addText(month.title);
+    t.font = Font.semiboldSystemFont(12); t.textColor = C.muted;
+    w.addSpacer(2);
+    const head = w.addStack();
+    ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].forEach(n => {
+        const c = head.addStack(); c.size = new Size(40, 14); c.centerAlignContent();
+        const x = c.addText(n); x.font = Font.systemFont(9); x.textColor = C.muted;
+    });
+    for (let r = 0; r < month.days.length / 7; r++) {
+        const row = w.addStack();
+        month.days.slice(r * 7, r * 7 + 7).forEach(d => {
+            const c = row.addStack(); c.size = new Size(40, 24); c.layoutVertically(); c.centerAlignContent();
+            c.url = SITE + 'index.html?widget=1&date=' + d.ds;
+            if (d.today) { c.backgroundColor = new Color('#185FA5'); c.cornerRadius = 8; }
+            else if (d.vacation) { c.backgroundColor = new Color('#20c997', 0.2); c.cornerRadius = 8; }
+            const line = c.addStack(); line.addSpacer();
+            const n = line.addText(String(d.day));
+            n.font = d.today ? Font.boldSystemFont(12) : Font.systemFont(12);
+            n.textColor = d.today ? Color.white() : d.inMonth ? C.text : C.muted;
+            line.addSpacer();
+            const dots = c.addStack(); dots.addSpacer();
+            const mark = d.count ? (d.due ? '🏁' : d.prebook ? '📞' : '•') : ' ';
+            const m = dots.addText(mark); m.font = Font.systemFont(7); m.textColor = d.today ? Color.white() : C.title;
+            dots.addSpacer();
+        });
+    }
 }
 
 async function main() {

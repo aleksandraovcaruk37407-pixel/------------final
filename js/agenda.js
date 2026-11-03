@@ -92,7 +92,9 @@ function agendaDayRows(ds, today) {
     });
     // Посещение помощников — админ отмечает «Был / Не был» прямо здесь (js/attendance.js)
     if (typeof attDayItems === 'function') attDayItems(ds).forEach(x => rows.push(attDayRowHTML(x, ds, false)));
-    notes.filter(n => n.date === ds).forEach(n => rows.push(agendaRow('note', '📝 заметка', `${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}`,
+    // Предзапись и отпуск — сверху дня (js/calendar-extra.js)
+    if (typeof calExtraRowsHTML === 'function') rows.unshift(...calExtraRowsHTML(ds, agendaRow));
+    calDayNotes(ds).forEach(n => rows.push(agendaRow('note', '📝 заметка', calNoteHTML(n),
         `<button class="ag-btn" title="Удалить заметку" onclick="event.stopPropagation(); deleteNote(${JSON.stringify(n.id).replace(/"/g, '&quot;')})">✕</button>`)));
     return rows;
 }
@@ -128,8 +130,10 @@ function agendaAddMenu(ds) {
     const id = JSON.stringify(ds).replace(/"/g, '&quot;');
     return `<div class="ag-add-menu">
         <button class="ag-btn" onclick="openOrderModal(null, ${id})">➕ Заказ</button>
+        <button class="ag-btn" onclick="calOpenPrebook(${id})">📞 Предзапись</button>
         <button class="ag-btn" onclick="openNoteModal(${id})">📝 Заметка</button>
         ${typeof stIsAdmin === 'function' && stIsAdmin() ? `<button class="ag-btn" onclick="stOpenTaskModal(${id})">📌 Задача</button>` : ''}
+        <button class="ag-btn" onclick="calOpenVacation(null, ${id})">🌴 Отпуск</button>
     </div>`;
 }
 
@@ -139,7 +143,9 @@ function renderAgenda() {
     const today = formatDate(new Date());
     let html = `<div class="ag-tools">
         <button class="ag-btn ag-main" onclick="openOrderModal(null)">➕ Заказ</button>
+        <button class="ag-btn" onclick="calOpenPrebook('${today}')">📞 Предзапись</button>
         <button class="ag-btn" onclick="openNoteModal('${today}')">📝 Заметка</button>
+        <button class="ag-btn" onclick="calOpenVacation(null, '${today}')">🌴 Отпуск</button>
         ${typeof stToggleHTML === 'function' ? stToggleHTML(today).replace('<div class="st-tools">', '').replace(/<\/div>$/, '') : ''}
         ${typeof getServiceFilterButtons === 'function' ? getServiceFilterButtons() : ''}
     </div>`;

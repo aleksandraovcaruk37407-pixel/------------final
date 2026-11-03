@@ -106,7 +106,9 @@ object Today {
         }
         marks.filter { it.optBoolean("custom") && str(it, "date").isNotEmpty() && str(it, "text").isNotEmpty() }.forEach { studio += it }
         fun status(t: JSONObject) = marks.firstOrNull { str(it, "id") == str(t, "id") }?.let { str(it, "status") }?.ifEmpty { null } ?: "todo"
-        studio.filter { plan.none { p -> p.optBoolean("__disabled") } && myName != null && who(it).contains(myName) && str(it, "date") <= today && status(it) != "done" }.forEach {
+        // Выключатель плана гасит только план из экселя и съёмку — задачи, поставленные в программе, видны всегда
+        val planOff = plan.any { p -> p.optBoolean("__disabled") }
+        studio.filter { (!planOff || it.optBoolean("custom")) && myName != null && who(it).contains(myName) && str(it, "date") <= today && status(it) != "done" }.forEach {
             val d = str(it, "date"); val late = d < today
             bump("tasks"); rows += Row("📌", str(it, "text") + if (late) " (с ${ddmm(d)})" else "", late, if (late) 1 else 4)
         }
@@ -127,10 +129,54 @@ object Today {
             if (rec == null) rows += Row("🕘", "Не забудьте отметить приход", false, 0)
             else if (str(rec, "in").isNotEmpty() && str(rec, "out").isEmpty()) rows += Row("▶️", "Пришли в ${str(rec, "in")}", false, 9)
         }
-        arr(data.opt("notes")).filter { str(it, "date") == today }.forEach {
-            val time = str(it, "time")
-            rows += Row("📝", (if (time.isNotEmpty()) "$time " else "") + str(it, "text"), false, 6)
-        }
+        rows += dayNotes(data, email, role, today)
         return Result(rows.sortedBy { it.rank }, counts)
+    }
+
+    /** Заметки дня, как wDayNotes в widget-iphone.js: «для кого», отпуск 🌴, предзапись 📞 */
+    fun dayNotes(data: JSONObject, email: String, role: String, today: String): List<Row> {
+        val out = mutableListOf<Row>()
+        val me = email.lowercase()
+        val myName = person(email)
+        val isAdmin = role == "admin"
+        arr(data.opt("notes")).forEach { n ->
+            val date = str(n, "date")
+            when (str(n, "kind")) {
+                "vacation" -> {
+                    val to = str(n, "to").ifEmpty { date }
+                    if (date <= today && to >= today && (isAdmin || str(n, "email").lowercase() == me))
+                        out += Row("🌴", "${str(n, "who")} в отпуске до ${ddmm(to)}", false, 6)
+                }
+                "prebook" -> if (isAdmin && date == today) {
+                    val time = str(n, "time"); val service = str(n, "service")
+                    out += Row("📞", (if (time.isNotEmpty()) "$time " else "") + str(n, "client") + (if (service.isNotEmpty()) ", $service" else ""), false, 2)
+                }
+                else -> if (date == today) {
+                    val forList = n.optJSONArray("for")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: emptyList()
+                    val mine = if (forList.isNotEmpty()) (myName != null && forList.contains(myName)) || str(n, "by").lowercase() == me else isAdmin
+                    val time = str(n, "time")
+                    if (mine) out += Row("📝", (if (time.isNotEmpty()) "$time " else "") + str(n, "text"), false, 6)
+                }
+            }
+            Unit
+        }
+        return out
+    }
+
+    class Day(val date: String, val day: Int, val inMonth: Boolean, val today: Boolean, val count: Int, val due: Boolean, val vacation: Boolean, val prebook: Boolean)
+
+    /** Месяц сеткой (с понедельника, 6 недель), как wBuildMonth в widget-iphone.js */
+    fun month(data: JSONObject, plan: List<JSONObject>, email: String, role: String, today: String): List<Day> {
+        val now = LocalDate.parse(today)
+        val first = now.withDayOfMonth(1)
+        val start = first.minusDays((first.dayOfWeek.value - 1).toLong())
+        return (0 until 42).map { i ->
+            val d = start.plusDays(i.toLong())
+            val ds = d.toString()
+            val r = build(data, plan, email, role, ds)
+            val own = r.rows.filter { !it.late && it.icon != "🕘" && it.icon != "▶️" }
+            Day(ds, d.dayOfMonth, d.month == now.month, ds == today, own.size, (r.counts["due"] ?: 0) > 0,
+                own.any { it.icon == "🌴" }, own.any { it.icon == "📞" })
+        }
     }
 }

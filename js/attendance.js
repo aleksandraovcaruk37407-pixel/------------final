@@ -69,6 +69,8 @@ function attDayState(email, date, records, schedules, today) {
         if ((rec.status === 'present' || rec.status === 'late') && rec.in && !rec.out && date === today) return { rec, state: 'open' };
         return { rec, state: rec.status || 'present' };
     }
+    // Отпуск из календаря (js/calendar-extra.js): не пропуск и не рабочий день
+    if (typeof calOnVacation === 'function' && calOnVacation(email, date)) return { rec: null, state: 'vacation' };
     const planned = attIsPlanned(attScheduleOf(email, schedules), date);
     if (!planned) return { rec: null, state: '' };
     return { rec: null, state: date < today ? 'missed' : 'planned' };
@@ -86,7 +88,8 @@ function attMonthSummary(email, mk, records, schedules, today) {
         const date = mk + '-' + String(d).padStart(2, '0');
         if (date > today) break;
         const { rec, state } = attDayState(email, date, records, schedules, today);
-        if (attIsPlanned(attScheduleOf(email, schedules), date)) sum.planned++;
+        if (attIsPlanned(attScheduleOf(email, schedules), date) && state !== 'vacation') sum.planned++;
+        if (state === 'vacation') sum.vacation = (sum.vacation || 0) + 1;
         if (state === 'present' || state === 'late' || state === 'open') { sum.worked++; sum.minutes += attWorkedMinutes(rec); }
         if (rec && rec.status === 'late') sum.late++;
         if (state === 'absent') sum.absent++;
@@ -215,7 +218,9 @@ function attTodayCard(email) {
         ? `График: ${schedule.days.map(d => ATT_WEEKDAYS[d]).join(', ')}, ${safeHTML(schedule.start || '')}–${safeHTML(schedule.end || '')}`
         : 'График не задан';
     let body;
-    if (!rec) {
+    if (!rec && state === 'vacation') {
+        body = `<div class="att-today-text">🌴 Сегодня у вас отпуск. Хорошего отдыха!</div>`;
+    } else if (!rec) {
         body = `<div class="att-today-text">${attIsPlanned(schedule, today) ? 'Сегодня рабочий день — вы ещё не отметились' : 'Вы ещё не отметились сегодня'}</div>
             <button class="btn-add att-big-btn" onclick="attCheckIn()">▶️ Пришёл</button>`;
     } else if (state === 'open') {
@@ -242,6 +247,7 @@ function attCalendarHTML(email, mk, clickable) {
         if (rec && (rec.status === 'present' || rec.status === 'late')) text = `${safeHTML(rec.in || '?')}${rec.out ? '–' + safeHTML(rec.out) : ''}`;
         else if (rec && ATT_STATUSES[rec.status]) text = ATT_STATUSES[rec.status].icon + ' ' + ATT_STATUSES[rec.status].label;
         else if (state === 'missed') text = 'нет отметки';
+        else if (state === 'vacation') text = '🌴 отпуск';
         const title = rec && rec.comment ? ` title="${escAttr(rec.comment)}"` : '';
         // Админ открывает окно отметки; помощник выбирает день, чтобы увидеть дела под календарём
         const click = clickable ? ` onclick="attOpenDay('${escAttr(email)}', '${date}')"` : ` onclick="attSelectDay('${date}')"`;
@@ -465,6 +471,7 @@ function attDayItemText(x) {
     if (x.rec && (x.rec.status === 'present' || x.rec.status === 'late'))
         return `${ATT_STATUSES[x.rec.status].icon} ${safeHTML(x.rec.in || '?')}–${safeHTML(x.rec.out || '…')}${attWorkedMinutes(x.rec) ? ' · ' + attFormatMinutes(attWorkedMinutes(x.rec)) : ''}`;
     if (x.rec && ATT_STATUSES[x.rec.status]) return `${ATT_STATUSES[x.rec.status].icon} ${ATT_STATUSES[x.rec.status].label}`;
+    if (x.state === 'vacation') return '🌴 в отпуске';
     const s = attScheduleOf(x.email, helperSchedules);
     return `<span class="ag-att-none">не отмечен</span>${s && s.start ? ` · ${safeHTML(s.start)}–${safeHTML(s.end || '')}` : ''}`;
 }
@@ -509,6 +516,7 @@ function attTabelCode(email, date, today) {
     if (rec && rec.status === 'dayoff') return { code: 'ДО', minutes: 0 };
     if (rec && rec.status === 'sick') return { code: 'Б', minutes: 0 };
     if (state === 'missed') return { code: 'НН', minutes: 0, missed: true };
+    if (state === 'vacation') return { code: 'ОТ', minutes: 0 };
     return { code: 'В', minutes: 0 };
 }
 
@@ -631,7 +639,7 @@ function attTabelRows(helpers, mk, today) {
         tabel.push(['', '', 'часы', ...hours]);
     });
     const legend = [['Код', 'Что значит'], ['Я', 'Был на работе (явка), во второй строке — сколько часов'], ['НН', 'Не был: отмечено «Не был» или в рабочий день по графику нет отметки'],
-        ['ДО', 'Отгул (с разрешения)'], ['Б', 'Больничный'], ['В', 'Выходной (не рабочий день по графику)'],
+        ['ДО', 'Отгул (с разрешения)'], ['Б', 'Больничный'], ['ОТ', 'Отпуск (поставлен в календаре)'], ['В', 'Выходной (не рабочий день по графику)'],
         ['', ''], ['По графику, ч', 'Сколько часов должен был отработать по графику до даты составления'], ['Недоработано, ч', 'По графику минус отработано (если больше нуля)']];
     return { tabel, days, legend };
 }

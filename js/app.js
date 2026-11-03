@@ -3787,7 +3787,8 @@ window.localChangesPending = false;
         const svc = rates[idx];
         document.getElementById('serviceItemsModalTitle').textContent = `Расходники для "${svc.service}"`;
         const container = document.getElementById('serviceItemsContainer');
-        container.innerHTML = '';
+        // Компактная таблица: заголовки один раз сверху, каждая строка — в одну линию
+        container.innerHTML = `<div class="svc-items-head"><span>Название</span><span>Кол-во</span><span>Ед.</span><span>Цена ₽</span><span title="Норма на каждый метр ткани или плёнки">на м</span><span title="Сам считается в заказе">Вкл.</span><span></span></div>`;
         const items = (svc.items || []).filter(item => {
             const isMarker = !!getMarkerDefinition(item.name);
             return !isMarker || item.enabled !== false;
@@ -3800,9 +3801,7 @@ window.localChangesPending = false;
     function addServiceItemRow(item) {
         const container = document.getElementById('serviceItemsContainer');
         const row = document.createElement('div');
-        row.className = 'extra-item';
-        row.style.gap = '6px';
-        row.style.flexWrap = 'wrap';
+        row.className = 'extra-item svc-item-row';
         const name = item ? item.name || '' : '';
         const quantity = item ? (item.quantity !== undefined ? item.quantity : 1) : '';
         const unit = item ? item.unit || 'мл' : 'мл';
@@ -3812,19 +3811,21 @@ window.localChangesPending = false;
         const marker = getMarkerDefinition(name);
         const isMarker = !!marker;
         row.innerHTML = `
-            <input type="text" class="item-name" placeholder="Название" value="${name}" style="flex:1; min-width:80px;" list="serviceItemDatalist" oninput="handleItemNameInput(this)">
-            <input type="number" class="item-qty" placeholder="Кол-во" value="${quantity}" style="width:70px;">
-            <select class="item-unit" style="width:80px;">
+            <input type="text" class="item-name" placeholder="Название" value="${name}" list="serviceItemDatalist" oninput="handleItemNameInput(this)">
+            <input type="number" class="item-qty" placeholder="Кол-во" value="${quantity}">
+            <select class="item-unit">
                 <option value="м" ${unit === 'м' ? 'selected' : ''}>м</option>
                 <option value="г" ${unit === 'г' ? 'selected' : ''}>г</option>
                 <option value="мл" ${unit === 'мл' ? 'selected' : ''}>мл</option>
                 <option value="шт" ${unit === 'шт' ? 'selected' : ''}>шт</option>
                 <option value="уп." ${unit === 'уп.' ? 'selected' : ''}>уп.</option>
+                ${['м','г','мл','шт','уп.'].includes(unit) ? '' : `<option value="${unit}" selected>${unit}</option>`}
             </select>
-            <input type="number" class="item-price" placeholder="Цена" value="${price}" style="width:80px;" step="0.01">
-            <label><input type="checkbox" class="item-perMeter" ${perMeter ? 'checked' : ''}> на метр</label>
-            <label><input type="checkbox" class="item-enabled" ${enabled ? 'checked' : ''}> Вкл.</label>
-            <button class="btn-del" onclick="this.parentElement.remove()">✕</button>
+            <input type="number" class="item-price" placeholder="Цена" value="${price}" step="0.01">
+            <span class="marker-status">✓ маркер: выбор в заказе</span>
+            <label class="svc-chk" title="На каждый метр ткани или плёнки"><input type="checkbox" class="item-perMeter" ${perMeter ? 'checked' : ''}></label>
+            <label class="svc-chk" title="Сам считается в заказе"><input type="checkbox" class="item-enabled" ${enabled ? 'checked' : ''}></label>
+            <button class="btn-del" onclick="this.parentElement.remove()" title="Убрать">✕</button>
         `;
         if (isMarker) {
             row.dataset.isMarker = 'true';
@@ -3832,8 +3833,6 @@ window.localChangesPending = false;
             row.classList.add('marker-selected');
             const inputs = row.querySelectorAll('.item-name, .item-qty, .item-unit, .item-price');
             inputs.forEach(el => el.disabled = true);
-            const enabledLabel = row.querySelector('.item-enabled').parentElement;
-            enabledLabel.insertAdjacentHTML('beforebegin', '<span class="marker-status">✓ Маркер услуги</span>');
         }
         container.appendChild(row);
     }
@@ -3847,18 +3846,12 @@ window.localChangesPending = false;
             row.dataset.isMarker = 'true';
             row.dataset.markerType = val;
             row.classList.add('marker-selected');
-            const inputs = row.querySelectorAll('.item-name, .item-qty, .item-unit, .item-price');
+            const inputs = row.querySelectorAll('.item-qty, .item-unit, .item-price');
             inputs.forEach(el => el.disabled = true);
-            if (!row.querySelector('.marker-status')) {
-                const enabledLabel = row.querySelector('.item-enabled').parentElement;
-                enabledLabel.insertAdjacentHTML('beforebegin', '<span class="marker-status">✓ Маркер услуги</span>');
-            }
         } else {
             delete row.dataset.isMarker;
             delete row.dataset.markerType;
             row.classList.remove('marker-selected');
-            const markerStatus = row.querySelector('.marker-status');
-            if (markerStatus) markerStatus.remove();
             const inputs = row.querySelectorAll('.item-name, .item-qty, .item-unit, .item-price');
             inputs.forEach(el => el.disabled = false);
             row.style.background = '';
@@ -4727,6 +4720,7 @@ window.localChangesPending = false;
             if (existingOrder && existingOrder.paid) removePaymentDistribution(existingOrder.orderNumber);
             distributePayment(orderData);
         }
+        if (!existingOrder && typeof calPrebookOrderSaved === 'function') calPrebookOrderSaved(); // заказ из предзаписи
         saveAll();
         renderAll();
         closeOrderModal();
@@ -5360,8 +5354,20 @@ function deleteOrder(orderId) {
         const firstDay = new Date(year, month, 1);
         const daysInMonth = new Date(year, month+1, 0).getDate();
         const offset = firstDay.getDay()===0 ? 6 : firstDay.getDay()-1;
-        for (let i=0; i<offset; i++) { const d=document.createElement('div'); d.className='day-cell other-month'; grid.appendChild(d); }
-        
+        // Пустые клетки — дни соседних месяцев (бледно); нажатие открывает тот месяц на этом дне
+        const otherMonthCell = dateObj => {
+            const d = document.createElement('div');
+            d.className = 'day-cell other-month';
+            const ds = formatDate(dateObj);
+            const n = calendarOrdersForDate(ds);
+            const count = n.start.length + n.due.filter(o => !isOrderDone(o)).length + calDayNotes(ds).length + calDayPrebooks(ds).length;
+            d.innerHTML = `<span class="day-number">${dateObj.getDate()}</span>${count ? `<span class="task-badge other-badge">•${count}</span>` : ''}`;
+            d.title = formatDateHuman(dateObj);
+            d.addEventListener('click', () => { currentDate = new Date(dateObj); selectedDate = new Date(dateObj); renderCalendar(); });
+            return d;
+        };
+        for (let i=0; i<offset; i++) grid.appendChild(otherMonthCell(new Date(year, month, i - offset + 1)));
+
         const todayStr = formatDate(new Date());
         for (let d=1; d<=daysInMonth; d++) {
             const dateObj = new Date(year, month, d);
@@ -5370,7 +5376,7 @@ function deleteOrder(orderId) {
             const isToday = dateStr === todayStr;
             const { start: dayOrders, due: dueOrders } = calendarOrdersForDate(dateStr);
 
-            const dayNotes = notes.filter(n => n.date === dateStr);
+            const dayNotes = calDayNotes(dateStr);
             // Оплаченные обязательные платежи показываются как платежи (💳), а не как расходы
             const cashPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0 && !op.paymentId);
             const dayDuePayments = finPaymentsForDate(dateStr);
@@ -5419,6 +5425,9 @@ function deleteOrder(orderId) {
             if (dayBadge.payments > 0) badgeText.push(`💳${dayBadge.payments}`);
             if (dayBadge.studio > 0) badgeText.push(`✔${dayBadge.studio}`);
             else if (dayBadge.studioDone) badgeText.push('✅');
+            const dayPre = calDayPrebooks(dateStr), dayVac = calDayVacations(dateStr);
+            if (dayPre.length) badgeText.push(`📞${dayPre.length}`);
+            if (dayVac.length) { badgeText.push('🌴'); classes += ' has-vacation'; div.className = classes; }
 
             if (badgeText.length > 0) {
                 const badge = document.createElement('span');
@@ -5430,9 +5439,14 @@ function deleteOrder(orderId) {
 
             div.title = `${formatDateHuman(dateObj)}\nПринято заказов: ${dayBadge.orders}\nСдать заказов: ${dayBadge.due}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}` +
                 dayDuePayments.map(x => `\n💳 ${x.p.name}: ${formatMoney(x.p.amount)}${x.status.state === 'paid' ? ' ✅' : x.status.state === 'overdue' ? ' — просрочен' : ''}`).join('');
+            if (dayVac.length) div.title += dayVac.map(v => `\n🌴 ${v.who} в отпуске`).join('');
+            if (dayPre.length) div.title += dayPre.map(p => `\n📞 ${p.time ? p.time + ' ' : ''}${p.client}`).join('');
             div.addEventListener('click', () => { selectedDate = dateObj; renderCalendar(); renderSchedule(); });
             grid.appendChild(div);
         }
+        // Хвост сетки до конца недели — первые дни следующего месяца
+        const tail = (7 - (offset + daysInMonth) % 7) % 7;
+        for (let i = 1; i <= tail; i++) grid.appendChild(otherMonthCell(new Date(year, month + 1, i)));
         renderSchedule();
     }
     
@@ -5519,8 +5533,12 @@ function deleteOrder(orderId) {
         const unpaid = dayDuePayments.filter(x => x.status.state !== 'paid').length;
 
         // Заметки
-        const dayNotes = notes.filter(n => n.date === dateStr);
-        const notesHTML = dayNotes.map(n => `<div class="schedule-slot note-slot"><div>📝 ${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}</div><button class="btn-del" onclick="deleteNote(${id(n.id)})">✕</button></div>`).join('');
+        const dayNotes = calDayNotes(dateStr);
+        const notesHTML = dayNotes.map(n => `<div class="schedule-slot note-slot"><div>📝 ${calNoteHTML(n)}</div><button class="btn-del" onclick="deleteNote(${id(n.id)})">✕</button></div>`).join('');
+        // Предзаписи и отпуска (js/calendar-extra.js)
+        const extraRows = calExtraRowsHTML(dateStr, (kind, label, html, actions) =>
+            `<div class="schedule-slot ${kind}-slot"><div>${kind === 'prebook' ? '📞 ' : ''}${html}</div><span class="ag-actions">${actions}</span></div>`);
+        const preCount = calDayPrebooks(dateStr).length, vacCount = extraRows.length - preCount;
 
         // Посещение помощников (только админ)
         const att = typeof attDayItems === 'function' ? attDayItems(dateStr) : [];
@@ -5528,6 +5546,8 @@ function deleteOrder(orderId) {
         const attOpen = att.filter(x => !x.rec).length;
 
         const html =
+            calSection('prebook', '📞 Предзапись', preCount, extraRows.slice(vacCount).join('')) +
+            calSection('vacation', '🌴 Отпуск', vacCount, extraRows.slice(0, vacCount).join('')) +
             calSection('orders', '📋 Заказы', dueOrders.length + dayOrders.length, ordersHTML) +
             calSection('tasks', '📌 Задачи', helperTasks.length + studio.length, tasksHTML, openTasks > 0) +
             calSection('payments', '💳 Платежи и деньги', dayDuePayments.length + dayExpenses.length + dayIncomes.length, payHTML, unpaid > 0) +
@@ -5714,7 +5734,9 @@ function deleteOrder(orderId) {
         }
 
         // 5. Заметки на сегодня
-        notes.filter(n => n.date === todayStr).forEach(n => rows.push(row('today-note', '📝', `${safeHTML(n.time ? n.time + ' ' : '')}${safeHTML(n.text)}`)));
+        calDayNotes(todayStr).forEach(n => rows.push(row('today-note', '📝', calNoteHTML(n))));
+        calDayPrebooks(todayStr).forEach(p => rows.push(row('today-note', '📞', calPrebookHTML(p))));
+        calDayVacations(todayStr).forEach(v => rows.push(row('today-note', '🌴', calVacationHTML(v).replace(/^🌴 /, ''))));
 
         // Длинный список сворачиваем, чтобы календарь не уезжал вниз
         const LIMIT = 5;
@@ -5796,7 +5818,7 @@ function deleteOrder(orderId) {
             });
 
             // Показываем заметки
-            const dayNotes = notes.filter(n => n.date === dateStr);
+            const dayNotes = calDayNotes(dateStr);
             if (dayNotes.length > 0) {
                 const noteBadge = document.createElement('div');
                 noteBadge.style.cssText = 'font-size:9px; margin-top:2px; padding:2px 4px; background:#e6d9f5; border-radius:4px; color:#6f42c1;';
@@ -5880,7 +5902,7 @@ function deleteOrder(orderId) {
         if (shown.includes(tomorrowStr)) return;
         
         const tomorrowOrders = ordersData.filter(o => o.date === tomorrowStr);
-        const tomorrowNotes = notes.filter(n => n.date === tomorrowStr);
+        const tomorrowNotes = calDayNotes(tomorrowStr).concat(calDayPrebooks(tomorrowStr));
         const tomorrowPayments = getRegularPaymentsForDate(tomorrowStr);
         
         if (tomorrowOrders.length > 0 || tomorrowNotes.length > 0 || tomorrowPayments.length > 0) {
@@ -5894,6 +5916,7 @@ function deleteOrder(orderId) {
         document.getElementById('noteDate').value = dateStr || (selectedDate ? formatDate(selectedDate) : '');
         document.getElementById('noteTime').value = '';
         document.getElementById('noteText').value = '';
+        if (typeof calRenderNoteFor === 'function') calRenderNoteFor([]); // «Для кого» (js/calendar-extra.js)
         document.getElementById('noteModal').classList.add('active');
         document.body.classList.add('modal-open');
     }
@@ -5906,7 +5929,17 @@ function deleteOrder(orderId) {
         const time = document.getElementById('noteTime').value;
         const text = document.getElementById('noteText').value.trim();
         if (!date || !text) { alert('Введите дату и текст'); return; }
-        notes.push({id: Date.now(), date, time, text});
+        const note = {id: Date.now(), date, time, text, by: window.currentUserData ? window.currentUserData.email : null};
+        const forList = typeof calReadNoteFor === 'function' ? calReadNoteFor() : [];
+        if (forList.length) note.for = forList; // нет «для кого» — заметка всем админам
+        notes.push(note);
+        // Тем, для кого заметка, — в колокольчик (админам — общий, помощнику — личный)
+        if (typeof addNotice === 'function') {
+            const msg = `📝 Заметка на ${formatDateDDMMYYYY(date)}${time ? ' ' + time : ''}: ${text}`.slice(0, 200);
+            const helpers = typeof calHelpers === 'function' ? calHelpers() : [];
+            forList.forEach(name => { const h = helpers.find(x => x.name === name); if (h) addNotice(h.email, 'note', msg, null); });
+            if (!forList.length || forList.some(name => !helpers.some(h => h.name === name))) addNotice('admin', 'note', msg + (forList.length ? ` (для: ${forList.join(', ')})` : ''), null);
+        }
         saveAll();
         closeNoteModal();
         renderAll();
@@ -7030,9 +7063,33 @@ function backupLocalData(reason) {
 // Сливает локальные данные с облачными без потерь.
 // preferLocal: при совпадении записи берётся версия устройства (у него неотправленные правки),
 // иначе — облачная (чтобы правки с других устройств доходили).
-function applyMergedVersion(data, preferLocal) {
+// Время создания записи из её id (id — метка Date.now(), бывает с приставкой: 'op-1761…'); нет — null
+function syncRecordTime(item) {
+    const m = String(item && item.id != null ? item.id : '').match(/(\d{12,})/);
+    return m ? Number(m[1].slice(0, 13)) : null;
+}
+
+// Устаревшее устройство без базы слияния (например, виджет на iPhone: «На экран Домой» копирует
+// старые данные Safari): записи, которых нет в облаке, — это удалённые на других устройствах,
+// а не новые. Оставляем только созданные недавно (их могли ввести без связи), остальные убираем —
+// иначе старые заказы «воскресали» в программе у всех.
+const SYNC_STALE_KEEP_MS = 3 * 24 * 60 * 60 * 1000;
+function dropStaleLocalOnly(localList, cloudList, now) {
+    const inCloud = new Set(syncToArray(cloudList).map(syncItemKey));
+    return syncToArray(localList).filter(item => {
+        if (inCloud.has(syncItemKey(item))) return true;
+        const t = syncRecordTime(item);
+        return t === null || t >= now - SYNC_STALE_KEEP_MS;
+    });
+}
+
+function applyMergedVersion(data, preferLocal, stale) {
     const local = window.getSyncData();
     const base = loadSyncBase();
+    if (!base && stale) {
+        const now = Date.now();
+        SYNC_KEYS.forEach(key => { local[key] = dropStaleLocalOnly(local[key], data[key], now); });
+    }
     // Есть база — трёхстороннее слияние по каждой записи; нет (первый раз) — объединение
     const merge = key => base
         ? mergeThreeWay(local[key], base[key], data[key])
@@ -7116,7 +7173,7 @@ window.updateCloudData = function(data) {
         // Сливаем без потерь: записи устройства сохраняются
         console.log('[Sync] Сливаю локальные данные с облачной версией', cloudRev);
         backupLocalData('перед слиянием с версией ' + cloudRev);
-        applyMergedVersion(data, dirty || !everSynced);
+        applyMergedVersion(data, dirty || !everSynced, everSynced && cloudRev > localRev);
         // Отправляем, только если у устройства есть записи, которых нет в облаке
         // (иначе устройства бесконечно перекладывали бы одно и то же)
         needUpload = SYNC_KEYS.some(key => hasRecordsMissingInCloud(window.getSyncData()[key], data[key]));

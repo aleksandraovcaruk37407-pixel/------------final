@@ -20,6 +20,13 @@ function applyWidgetMode() {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === tabId));
     const title = document.getElementById('widgetTitle');
     if (title) title.textContent = isAdmin ? '📅 Календарь' : '📅 Мой календарь';
+    // Нажали день в виджете iPhone (…&date=ГГГГ-ММ-ДД) — сетка месяца на этом дне
+    const date = new URLSearchParams(location.search).get('date');
+    if (isAdmin && /^\d{4}-\d{2}-\d{2}$/.test(date || '')) {
+        currentDate = new Date(date + 'T12:00:00');
+        selectedDate = new Date(date + 'T12:00:00');
+        try { localStorage.setItem('calendar_view', 'month'); } catch (e) {}
+    }
     widgetRefresh();
 }
 

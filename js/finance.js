@@ -267,8 +267,11 @@ function finCompute(data) {
     const months = [];
     for (let mk = firstMk; mk <= lastMk; mk = finShiftMonth(mk, 1)) months.push(mk);
 
+    // Касса обнулена с даты cashStart: копилки копятся заново с её месяца, траты — с этой даты
+    const cashStart = data.cashStart || '';
+    const counts = o => !cashStart || String(o.date || '') >= cashStart;
     const spentBefore = (fund, mkLimit) => cash
-        .filter(o => o.fund === fund && finMonthKey(o.date) < mkLimit)
+        .filter(o => o.fund === fund && counts(o) && finMonthKey(o.date) < mkLimit)
         .reduce((sum, o) => sum + finNum(o.expense), 0);
 
     const result = { months: {}, funds: {}, reserveTarget, fixedPlanned, personalPlanned };
@@ -312,7 +315,7 @@ function finCompute(data) {
             dev = businessProfit * d;
             salary = businessProfit - reserve - dev;
         }
-        reserveAccrued += reserve;
+        if (!cashStart || mk >= finMonthKey(cashStart)) reserveAccrued += reserve; // до обнуления в копилку не идёт
         const savings = salary > 0 ? salary * sv : 0;
         const invest = salary > 0 ? salary * iv : 0;
         const personal = personalPlanned + otherPersonal;
@@ -323,6 +326,7 @@ function finCompute(data) {
             reserve, dev, salary, savings, invest, personal, otherPersonal, free,
             ordersPaid: finalOps.length
         };
+        if (cashStart && mk < finMonthKey(cashStart)) return;
         const f = result.funds;
         f.tax.accrued += tax; f.supplies.accrued += supplies; f.reserve.accrued += reserve; f.dev.accrued += dev;
         f.savings.accrued += savings; f.invest.accrued += invest;
@@ -330,7 +334,7 @@ function finCompute(data) {
 
     Object.keys(result.funds).forEach(k => {
         const fund = result.funds[k];
-        fund.spent = cash.filter(o => o.fund === k).reduce((sum, o) => sum + finNum(o.expense), 0);
+        fund.spent = cash.filter(o => o.fund === k && counts(o)).reduce((sum, o) => sum + finNum(o.expense), 0);
         fund.balance = fund.accrued - fund.spent;
     });
     return result;
@@ -484,10 +488,27 @@ function finPaymentsFromLegacy(budget) {
 function finTodayStr() { return formatDate(new Date()); }
 function finSettings() { return finSettingsFrom(financeSettings); }
 
+// Касса обнулена с 1 ноября 2026 (просьба владелицы): остаток и копилки считаются с этой даты,
+// долги клиентов — по заказам, как всегда. Дату можно поменять в «Настройках распределения».
+const FIN_CASH_START_DEFAULT = '2026-11-01';
+function finCashStart() {
+    const s = finSettings();
+    return s.cashStart === undefined ? FIN_CASH_START_DEFAULT : String(s.cashStart || '');
+}
+function finCashBalance(cash, start) {
+    return (cash || []).filter(o => !start || String(o.date || '') >= start)
+        .reduce((sum, o) => sum + finNum(o.income) - finNum(o.expense), 0);
+}
+// Материалы в неоплаченных заказах: деньги уже потрачены на закупку, клиент вернёт их при оплате
+function finMaterialsInUnpaid(orders) {
+    return (orders || []).filter(o => finOrderRemaining(o) > 0)
+        .reduce((sum, o) => sum + Math.min(getOrderCost(o), finOrderRemaining(o)), 0);
+}
+
 function finComputeNow() {
     return finCompute({
         orders: ordersData, cash: cashOps, payments, settings: finSettings(),
-        getOrderCost, today: finTodayStr(), penalties: finHelperPenalties()
+        getOrderCost, today: finTodayStr(), penalties: finHelperPenalties(), cashStart: finCashStart()
     });
 }
 
@@ -580,20 +601,28 @@ function renderFinance() {
     if (!finPaymentsMonth) finPaymentsMonth = finMonthKey(today);
     const mk = finPaymentsMonth;
     const computed = finComputeNow();
-    const balance = cashOps.reduce((sum, o) => sum + finNum(o.income) - finNum(o.expense), 0);
+    const cashStart = finCashStart();
+    const balance = finCashBalance(cashOps, cashStart);
     const fundsTotal = Object.values(computed.funds).reduce((sum, f) => sum + Math.max(0, f.balance), 0);
     const free = balance - fundsTotal;
+    // Закупили материалы, а клиент платит при выдаче: это не долг кассы, а деньги «в заказах»
+    const clientsOwe = ordersData.reduce((sum, o) => sum + finOrderRemaining(o), 0);
+    const inMaterials = finMaterialsInUnpaid(ordersData);
+    const withClients = balance + clientsOwe;
 
     // --- Сводка (всегда видна) ---
     const taxDue = finTaxToPay(computed, today);
     const curTax = (computed.months[finMonthKey(today)] || {}).tax || 0;
     let html = `
         <div class="fin-cards">
-            <div class="fin-card"><div class="fin-card-label">💵 В кассе</div><div class="fin-card-value ${balance < 0 ? 'neg' : ''}">${formatMoney(balance)}</div></div>
+            <div class="fin-card"><div class="fin-card-label">💵 В кассе${cashStart ? ` <span class="fin-muted">с ${formatDateDDMMYYYY(cashStart)}</span>` : ''}</div><div class="fin-card-value ${balance < 0 ? 'neg' : ''}">${formatMoney(balance)}</div></div>
+            <div class="fin-card"><div class="fin-card-label">🧾 Клиенты должны</div><div class="fin-card-value">${formatMoney(clientsOwe)}</div></div>
+            <div class="fin-card"><div class="fin-card-label">📊 Касса + долги клиентов</div><div class="fin-card-value ${withClients < 0 ? 'neg' : 'pos'}">${formatMoney(withClients)}</div></div>
             <div class="fin-card"><div class="fin-card-label">🐷 Отложено в копилках</div><div class="fin-card-value">${formatMoney(fundsTotal)}</div></div>
             <div class="fin-card"><div class="fin-card-label">✅ Можно тратить</div><div class="fin-card-value ${free < 0 ? 'neg' : 'pos'}">${formatMoney(free)}</div></div>
         </div>
-        ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}.</div>` : ''}
+        ${inMaterials > 0 ? `<div class="fin-info">🧵 В материалах неоплаченных заказов: <b>${formatMoney(inMaterials)}</b> — это не убыток: закупку вернут клиенты, когда заберут заказы. Минус в кассе от такой закупки закрывается строкой «Касса + долги клиентов».</div>` : ''}
+        ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}${clientsOwe > 0 ? `; клиенты должны ${formatMoney(clientsOwe)}` : ''}.</div>` : ''}
         <div class="fin-tax-line">
             ${taxDue.left > 0
                 ? `💰 Налог за ${finMonthTitle(taxDue.mk).toLowerCase()}: <b>${formatMoney(taxDue.left)}</b> — заплатить до ${formatDateDDMMYYYY(taxDue.due)} в «Мой налог»
@@ -752,6 +781,7 @@ function renderFinance() {
     const s = finSettings();
     const field = (key, label) => `<label class="fin-set"><span>${label}</span><input type="number" min="0" max="100" step="0.5" value="${finNum(s[key])}" onchange="finSaveSetting('${key}', this.value)"></label>`;
     html += finSection('settings', '⚙️ Настройки распределения', '', `
+            <label class="fin-set"><span>Касса и копилки считаются с даты (раньше — только история; долги клиентов не обнуляются)</span><input type="date" value="${cashStart}" onchange="finSaveCashStart(this.value)"></label>
             ${field('taxPercent', 'Налог, % от выручки (самозанятый с частными людьми — 4)')}
             ${field('suppliesPercent', 'Мелкие расходники, % от выручки (перчатки, палочки…)')}
             ${field('reservePercent', 'Резерв бизнеса, % от прибыли бизнеса')}
@@ -959,6 +989,14 @@ function finMakeRevenue(opId) {
 
 function finSetMonth(delta) { finPaymentsMonth = finShiftMonth(finPaymentsMonth || finMonthKey(finTodayStr()), delta); renderFinance(); }
 
+function finSaveCashStart(value) {
+    const s = finSettings();
+    s.cashStart = value || '';
+    financeSettings = [s];
+    saveAll();
+    renderAll();
+}
+
 function finSaveSetting(key, value) {
     const s = finSettings();
     s[key] = Math.max(0, parseFloat(value) || 0);
@@ -1144,6 +1182,110 @@ function renderFinanceSummary(startDate, endDate) {
     }
     const goals = document.getElementById('goalsContainer');
     if (goals) goals.innerHTML = '';
+}
+
+// ========== ОТЧЁТ В EXCEL ЗА ПЕРИОД ==========
+// Листы: «Итог» (водопад по месяцам), «Движение денег» (все операции с остатком), «Откуда и куда»
+// (суммы по статьям), «Заказы» (маржа каждого оплаченного заказа), «Долги клиентов».
+function finCategoryName(o) {
+    if (o.category === 'income') return o.orderId == null ? 'Оплата за работу (вручную)' : (o.prepay ? 'Предоплата заказа' : 'Оплата заказа');
+    if (o.fund && FIN_FUNDS[o.fund]) return `Из копилки «${FIN_FUNDS[o.fund].name}»`;
+    if (o.paymentId) {
+        const p = (typeof payments !== 'undefined' ? payments : []).find(x => x.id === o.paymentId);
+        return p ? `Платёж: ${p.name}` : 'Платёж месяца';
+    }
+    return FIN_CATEGORIES[o.category] || (finNum(o.income) > 0 ? 'Приход' : 'Прочее');
+}
+
+function finReportData(startDate, endDate) {
+    const s = finSettings();
+    const computed = finComputeNow();
+    const fromMk = finMonthKey(startDate), toMk = finMonthKey(endDate);
+    const r2 = v => Math.round(finNum(v) * 100) / 100;
+    const title = `Отчёт ${formatDateDDMMYYYY(startDate)} — ${formatDateDDMMYYYY(endDate)}`;
+
+    // 1. Итог: водопад по месяцам периода + итог
+    const mks = Object.keys(computed.months).filter(mk => mk >= fromMk && mk <= toMk).sort();
+    const lines = [
+        ['💰 Выручка (оплаты заказов)', 'revenue', 1], [`− Налог ${s.taxPercent}%`, 'tax', -1], [`− Мелкие расходники ${finNum(s.suppliesPercent)}%`, 'supplies', -1],
+        ['− Материалы оплаченных заказов', 'materials', -1], ['− Помощникам', 'helpers', -1], ['= Маржинальная прибыль', 'marginal', 1],
+        ['− Постоянные расходы бизнеса', 'fixed', -1], ['= Прибыль бизнеса', 'businessProfit', 1], [`− Резерв ${s.reservePercent}%`, 'reserve', -1],
+        [`− Развитие ${s.devPercent}%`, 'dev', -1], ['= Зарплата владельца', 'salary', 1], [`− Личные накопления ${s.savingsPercent}%`, 'savings', -1],
+        [`− Инвестиции ${s.investPercent}%`, 'invest', -1], ['− Личные платежи', 'personal', -1], ['= Свободный остаток', 'free', 1]
+    ];
+    const total = finSumMonths(computed, fromMk, toMk);
+    const summary = [[title], [], ['Статья', ...mks.map(finMonthTitle), 'Итого за период']];
+    lines.forEach(([label, key]) => summary.push([label, ...mks.map(mk => r2(computed.months[mk][key])), r2(total[key])]));
+    summary.push(['Оплачено заказов', ...mks.map(mk => computed.months[mk].ordersPaid), total.ordersPaid]);
+
+    // 2. Движение денег: остаток на начало периода + все операции периода
+    const all = (cashOps || []).filter(o => o.date).slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const before = all.filter(o => o.date < startDate).reduce((sum, o) => sum + finNum(o.income) - finNum(o.expense), 0);
+    const inPeriod = all.filter(o => o.date >= startDate && o.date <= endDate);
+    let rest = before, inSum = 0, outSum = 0;
+    const flow = [[title], [], ['Дата', 'Описание', 'Статья', 'Приход', 'Расход', 'Остаток'], ['', 'Остаток на начало периода', '', '', '', r2(before)]];
+    inPeriod.forEach(o => {
+        const inc = finNum(o.income), exp = finNum(o.expense);
+        rest += inc - exp; inSum += inc; outSum += exp;
+        flow.push([formatDateDDMMYYYY(o.date), o.desc || '', finCategoryName(o), inc ? r2(inc) : '', exp ? r2(exp) : '', r2(rest)]);
+    });
+    flow.push([], ['', 'Итого за период', '', r2(inSum), r2(outSum), r2(rest)]);
+
+    // 3. Откуда пришло и куда ушло — по статьям
+    const byCat = new Map();
+    inPeriod.forEach(o => {
+        const k = finCategoryName(o);
+        const row = byCat.get(k) || { inc: 0, exp: 0, n: 0 };
+        row.inc += finNum(o.income); row.exp += finNum(o.expense); row.n++;
+        byCat.set(k, row);
+    });
+    const cats = [[title], [], ['Статья', 'Пришло', 'Ушло', 'Итог (+/−)', 'Операций']];
+    [...byCat.entries()].sort((a, b) => (b[1].inc - b[1].exp) - (a[1].inc - a[1].exp))
+        .forEach(([k, v]) => cats.push([k, r2(v.inc), r2(v.exp), r2(v.inc - v.exp), v.n]));
+    cats.push([], ['Всего', r2(inSum), r2(outSum), r2(inSum - outSum), inPeriod.length]);
+    const purchasesUnpaid = finMaterialsInUnpaid(ordersData);
+    cats.push([], ['Материалы в неоплаченных заказах (вернут клиенты при выдаче)', r2(purchasesUnpaid)]);
+
+    // 4. Заказы, оплаченные в периоде: маржа каждого
+    const orders = [[title], [], ['№', 'Клиент', 'Услуги', 'Оплачен', 'Цена', 'Налог и расходники %', 'Материалы', 'Помощникам', 'Маржа', 'Маржа %']];
+    ordersData.filter(o => o.paidAt && o.paidAt >= startDate && o.paidAt <= endDate)
+        .sort((a, b) => String(a.paidAt).localeCompare(String(b.paidAt))).forEach(o => {
+            const price = finNum(o.clientPrice);
+            const pct = price * (s.taxPercent + finNum(s.suppliesPercent)) / 100;
+            const mat = getOrderCost(o), help = finHelperNetCost(o);
+            const margin = price - pct - mat - help;
+            orders.push([o.orderNumber, o.client || '', (o.services || []).map(x => x.serviceName).filter(Boolean).join(', '),
+                formatDateDDMMYYYY(o.paidAt), r2(price), r2(pct), r2(mat), r2(help), r2(margin), price > 0 ? Math.round(margin / price * 100) : 0]);
+        });
+
+    // 5. Долги клиентов (на сегодня)
+    const debts = [['Долги клиентов на ' + formatDateDDMMYYYY(finTodayStr())], [], ['№', 'Клиент', 'Телефон', 'Дата заказа', 'Цена', 'Внесено', 'Должен', 'Материалы в заказе', 'Выполнен']];
+    ordersData.filter(o => finOrderRemaining(o) > 0).forEach(o => debts.push([o.orderNumber, o.client || '', o.phone || '',
+        formatDateDDMMYYYY(o.date), r2(o.clientPrice), r2(finPrepaidSum(o)), r2(finOrderRemaining(o)), r2(getOrderCost(o)),
+        o.done === true || o.done === 'true' ? 'да' : 'нет']));
+
+    return { title, summary, flow, cats, orders, debts, monthsCount: mks.length };
+}
+
+function finDownloadReport() {
+    const { startDate, endDate } = calculateSummaryPeriodDates();
+    const d = finReportData(startDate, endDate);
+    const name = `Финансы ${startDate} — ${endDate}`;
+    attLoadXlsx().then(ok => {
+        if (!ok) { alert('Не удалось загрузить модуль Excel — проверьте интернет и попробуйте ещё раз'); return; }
+        const X = window.XLSX, wb = X.utils.book_new();
+        const add = (rows, sheet, cols) => {
+            const ws = X.utils.aoa_to_sheet(rows);
+            ws['!cols'] = cols.map(wch => ({ wch }));
+            X.utils.book_append_sheet(wb, ws, sheet);
+        };
+        add(d.summary, 'Итог', [34, ...Array(d.monthsCount).fill(14), 16]);
+        add(d.flow, 'Движение денег', [11, 50, 28, 12, 12, 12]);
+        add(d.cats, 'Откуда и куда', [44, 13, 13, 13, 10]);
+        add(d.orders, 'Заказы', [6, 20, 30, 11, 11, 12, 11, 12, 11, 9]);
+        add(d.debts, 'Долги клиентов', [6, 20, 15, 11, 11, 11, 11, 13, 9]);
+        X.writeFile(wb, name + '.xlsx');
+    });
 }
 
 // ========== КАЛЕНДАРЬ: обязательные платежи ==========

@@ -25,7 +25,7 @@ class CalendarWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "ru.autoatelier.calendar.REFRESH"
-        private const val MAX_ROWS = 12
+        private const val MAX_ROWS = 5
 
         /** Перерисовать все виджеты (из приложения после входа / выхода) */
         fun refreshAll(ctx: Context) {
@@ -79,6 +79,7 @@ class CalendarWidget : AppWidgetProvider() {
             }
         }
         v.setTextViewText(R.id.body, text)
+        renderMonth(context, v, data?.month ?: emptyList(), today)
         v.setTextViewText(R.id.updated, "обновлено " + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")))
 
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -90,5 +91,30 @@ class CalendarWidget : AppWidgetProvider() {
         val refresh = Intent(context, CalendarWidget::class.java).setAction(ACTION_REFRESH)
         v.setOnClickPendingIntent(R.id.refresh, PendingIntent.getBroadcast(context, 2, refresh, flags))
         return v
+    }
+
+    /** Сетка месяца: число и метка дел (🏁 сдать, 📞 предзапись, • прочее); нажатие — календарь на этом дне */
+    private fun renderMonth(context: Context, v: RemoteViews, days: List<Today.Day>, today: LocalDate) {
+        val title = today.format(DateTimeFormatter.ofPattern("LLLL yyyy", Locale("ru")))
+        v.setTextViewText(R.id.month_title, title.replaceFirstChar { it.uppercase() })
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val loggedIn = Api.isLoggedIn(context)
+        for (i in 0 until 42) {
+            val id = context.resources.getIdentifier("d$i", "id", context.packageName)
+            if (id == 0) continue
+            val d = days.getOrNull(i)
+            if (d == null) { v.setTextViewText(id, ""); continue }
+            val mark = when { d.count == 0 -> ""; d.due -> "🏁"; d.prebook -> "📞"; else -> "•" }
+            v.setTextViewText(id, if (mark.isEmpty()) "${d.day}" else "${d.day}\n$mark")
+            v.setTextColor(id, Color.parseColor(when { d.today -> "#FFFFFF"; d.inMonth -> "#222222"; else -> "#B0B5BC" }))
+            v.setInt(id, "setBackgroundResource", when { d.today -> R.drawable.cell_today; d.vacation -> R.drawable.cell_vacation; else -> 0 })
+            val open = if (loggedIn) Intent(Intent.ACTION_VIEW, Uri.parse(Api.CALENDAR_URL + "&date=" + d.date))
+                       else Intent(context, MainActivity::class.java)
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            v.setOnClickPendingIntent(id, PendingIntent.getActivity(context, 100 + i, open, flags))
+        }
+        // Шестая неделя нужна не каждый месяц
+        val lastWeekUsed = days.drop(35).any { it.inMonth }
+        v.setViewVisibility(R.id.week5, if (lastWeekUsed) android.view.View.VISIBLE else android.view.View.GONE)
     }
 }

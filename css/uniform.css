@@ -184,3 +184,48 @@
 .purchase-item input[type="checkbox"], .purchase-check, #tab-purchase input[type="checkbox"] {
     width: 20px !important; height: 20px !important; min-width: 20px !important; min-height: 20px !important; max-width: 20px; margin: 0 !important; padding: 0 !important; flex: 0 0 20px !important; transform: none !important; accent-color: #28a745;
 }
+
+/* Расходники услуги: компактная таблица, одна строка на расходник */
+#serviceItemsModal .modal { max-width: 640px; }
+#serviceItemsModal .svc-items-head, #serviceItemsModal .svc-item-row {
+    display: grid !important; grid-template-columns: minmax(90px, 1fr) 58px 58px 70px 34px 34px 30px; gap: 4px; align-items: center;
+}
+#serviceItemsModal .svc-items-head { font-size: 11px; font-weight: 700; color: #6c757d; padding: 0 4px 2px; }
+#serviceItemsModal .svc-items-head span:nth-child(n+5) { text-align: center; }
+#serviceItemsModal .svc-item-row { margin: 0 0 3px; padding: 2px 4px; border: 1px solid transparent; border-radius: 6px; flex-direction: row !important; }
+#serviceItemsModal .svc-item-row input:not([type=checkbox]), #serviceItemsModal .svc-item-row select {
+    min-height: 32px !important; height: 32px; font-size: 13px !important; padding: 2px 6px !important; width: 100% !important; min-width: 0; margin: 0; border-radius: 6px;
+}
+#serviceItemsModal .svc-item-row select { padding: 2px !important; }
+#serviceItemsModal .svc-chk { display: flex; justify-content: center; margin: 0; }
+#serviceItemsModal .svc-chk input { width: 20px !important; height: 20px !important; min-width: 20px !important; min-height: 20px !important; max-width: 20px; margin: 0 !important; padding: 0 !important; transform: none !important; flex: 0 0 20px !important; accent-color: #28a745; }
+#serviceItemsModal .svc-help { font-size: 12px; color: #6c757d; margin: 0 0 8px; line-height: 1.35; }
+#serviceItemsModal .svc-item-row .btn-del { width: 28px !important; min-width: 0 !important; height: 28px; min-height: 28px !important; box-sizing: border-box; padding: 0 !important; font-size: 12px !important; border-radius: 6px; }
+#serviceItemsModal .svc-item-row .marker-status { display: none; font-size: 11px; }
+#serviceItemsModal .svc-item-row.marker-selected { background: #e8f5e9; border-color: #81c784; padding: 2px 4px; }
+#serviceItemsModal .svc-item-row.marker-selected .item-qty,
+#serviceItemsModal .svc-item-row.marker-selected .item-unit,
+#serviceItemsModal .svc-item-row.marker-selected .item-price { display: none; }
+#serviceItemsModal .svc-item-row.marker-selected .marker-status { display: block; grid-column: span 3; white-space: normal; line-height: 1.2; }
+#serviceItemsModal .svc-item-row.marker-selected .item-name { background: transparent; border-color: transparent; font-weight: 700; color: #2e7d32; }
+@media (max-width: 480px) {
+    #serviceItemsModal .svc-items-head, #serviceItemsModal .svc-item-row { grid-template-columns: minmax(70px, 1fr) 46px 48px 56px 26px 26px 28px; gap: 3px; }
+}
+@media (max-width: 600px) { .fin-cards { grid-template-columns: repeat(2, 1fr) !important; } }
+
+/* Календарь: дни соседних месяцев, отпуск, предзапись, свайп */
+.calendar-grid .day-cell.other-month { opacity: .45; background: #f8f9fa !important; border-color: #eef0f2 !important; cursor: pointer; }
+.calendar-grid .day-cell.other-month .other-badge { font-size: 9px; color: #6c757d; background: none; padding: 0; }
+.calendar-grid .day-cell.has-vacation { box-shadow: inset 0 -3px 0 #20c997; }
+.att-vacation { background: #e6fcf5 !important; }
+.ag-vacation .ag-tag { background: #e6fcf5; color: #087f5b; }
+.ag-prebook .ag-tag { background: #fff3bf; color: #8a6d00; }
+.schedule-slot.vacation-slot { background: #e6fcf5; border-left: 4px solid #20c997; }
+.schedule-slot.prebook-slot { background: #fff9db; border-left: 4px solid #fab005; display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.schedule-slot.vacation-slot { display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.cal-for { font-size: 12px; color: #6f42c1; white-space: nowrap; }
+.calendar-grid { touch-action: pan-y; }
+@keyframes calSlideL { from { transform: translateX(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes calSlideR { from { transform: translateX(-30px); opacity: .4; } to { transform: none; opacity: 1; } }
+.calendar-grid.cal-slide-left { animation: calSlideL .2s ease-out; }
+.calendar-grid.cal-slide-right { animation: calSlideR .2s ease-out; }

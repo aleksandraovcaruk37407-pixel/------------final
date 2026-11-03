@@ -84,7 +84,8 @@ function dailySummary(data, today) {
   // Заказы дня в календаре (дата заказа) и срок сдачи — как getDeadline в app.js: дата + durationDays
   const dayOrders = orders.filter(o => o.date === today && !isDone(o));
   const due = orders.filter(o => o.date && !isDone(o) && parseInt(o.durationDays) > 0 && addDays(o.date, parseInt(o.durationDays)) === today);
-  const notes = toList(data.notes).filter(n => n.date === today)
+  // Заметки и предзаписи дня; отпуск (kind 'vacation', date…to) — каждый его день
+  const notes = toList(data.notes).filter(n => n.date === today || (n.kind === 'vacation' && n.date <= today && (n.to || n.date) >= today))
     .sort((x, y) => String(x.time || '').localeCompare(String(y.time || '')));
   const mk = today.slice(0, 7);
   const payments = toList(data.payments).filter(p => !paymentPaid(p, mk, data.cashOps));
