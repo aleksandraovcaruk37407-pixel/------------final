@@ -233,20 +233,24 @@ async function wLoad() {
 }
 
 // ---------- Виджет ----------
-const C = { bg: new Color('#ffffff'), bgDark: new Color('#1c1c1e'), title: new Color('#1a3c5e'), titleDark: new Color('#8ab4f8'),
-    text: Color.dynamic(new Color('#222222'), new Color('#f2f2f7')), muted: Color.dynamic(new Color('#6c757d'), new Color('#a1a1aa')), late: new Color('#dc3545') };
+// Цвета BACK ALIVE: чёрный фон с фиолетовым кенди сверху, белый текст, свет фары #A97CF5
+const C = { title: new Color('#FFFFFF'), text: new Color('#ECEAF2'), muted: new Color('#8A8F98'), late: new Color('#F2A0A6'), lamp: new Color('#A97CF5'),
+    load: ['#16181B', '#22093F', '#2E0A5E', '#3E1485', '#5A1CB0'] };
 
 function wWidget(res) {
     const w = new ListWidget();
-    w.backgroundColor = Color.dynamic(C.bg, C.bgDark);
+    const g = new LinearGradient();
+    g.colors = [new Color('#2E0A5E'), new Color('#0B0B0E')]; g.locations = [0, 0.45];
+    g.startPoint = new Point(0, 0); g.endPoint = new Point(0, 1);
+    w.backgroundGradient = g;
     w.url = SITE + 'index.html?widget=1';
     w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
     w.setPadding(12, 14, 12, 14);
     const family = config.widgetFamily || 'large';
     const now = new Date();
-    const head = w.addText(`📅 Сегодня, ${now.getDate()} ${['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][now.getMonth()]}`);
+    const head = w.addText(`BACK ALIVE · сегодня, ${now.getDate()} ${['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][now.getMonth()]}`);
     head.font = Font.boldSystemFont(family === 'small' ? 13 : 15);
-    head.textColor = Color.dynamic(C.title, C.titleDark);
+    head.textColor = C.title;
     w.addSpacer(6);
 
     if (res.error) {
@@ -297,16 +301,17 @@ function wMonthGrid(w, month) {
         month.days.slice(r * 7, r * 7 + 7).forEach(d => {
             const c = row.addStack(); c.size = new Size(40, 24); c.layoutVertically(); c.centerAlignContent();
             c.url = SITE + 'index.html?widget=1&date=' + d.ds;
-            if (d.today) { c.backgroundColor = new Color('#185FA5'); c.cornerRadius = 8; }
-            else if (d.vacation) { c.backgroundColor = new Color('#20c997', 0.2); c.cornerRadius = 8; }
+            // Как в программе: чем больше дел, тем ярче фиолетовый; сегодня — рамка света фары
+            c.backgroundColor = new Color(C.load[Math.min(4, d.count <= 2 ? d.count : d.count <= 4 ? 3 : 4)]); c.cornerRadius = 3;
+            if (d.today) { c.borderColor = C.lamp; c.borderWidth = 2; }
             const line = c.addStack(); line.addSpacer();
             const n = line.addText(String(d.day));
             n.font = d.today ? Font.boldSystemFont(12) : Font.systemFont(12);
-            n.textColor = d.today ? Color.white() : d.inMonth ? C.text : C.muted;
+            n.textColor = d.inMonth ? C.text : new Color('#4A4E57');
             line.addSpacer();
             const dots = c.addStack(); dots.addSpacer();
             const mark = d.count ? (d.due ? '🏁' : d.prebook ? '📞' : '•') : ' ';
-            const m = dots.addText(mark); m.font = Font.systemFont(7); m.textColor = d.today ? Color.white() : C.title;
+            const m = dots.addText(d.vacation && mark === '•' ? '🌴' : mark); m.font = Font.systemFont(7); m.textColor = C.lamp;
             dots.addSpacer();
         });
     }
