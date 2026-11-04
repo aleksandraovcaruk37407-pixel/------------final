@@ -6210,80 +6210,147 @@ function deleteOrder(orderId) {
         return list;
     }
 
+    // ===== СКЛАД: карточки материалов (05.11.2026) =====
+    // В карточке — сколько осталось и кнопки «+ Пришло» / «− Списать»: вписывается только новое количество,
+    // программа сама прибавляет к приходу (item.income) или списанию (item.writeOff). Расход считается из заказов.
+    let stockOpen = null; // материал, у которого раскрыты подробности «⋯»
+
+    function stockRank(it) { const r = stockRemain(it); return r < 0 ? 0 : ((parseFloat(it.min)||0) > 0 && r < parseFloat(it.min) ? 1 : 2); }
+
     function renderStock() {
-        const tbody = document.getElementById('stockBody');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-        const stock = loadStock();
-        const showAll = !!document.getElementById('stockShowAll')?.checked;
-        // По умолчанию — только то, что приходило или расходовалось; «все из справочников» — для ввода прихода новой позиции
-        const items = stock.filter(s => showAll || (parseFloat(s.income)||0) || (parseFloat(s.used)||0) || (parseFloat(s.writeOff)||0) || (parseFloat(s.min)||0));
-        if (showAll) {
-            const names = new Set(stock.map(s => s.name));
-            stockRefItems().forEach(r => { if (!names.has(r.name)) { names.add(r.name); items.push({...r, income:0, used:0, writeOff:0, min:0}); } });
-        }
-        // Проблемные сверху: не хватает, затем заканчивается, остальные по алфавиту
-        const rank = it => { const r = stockRemain(it); return r < 0 ? 0 : ((parseFloat(it.min)||0) > 0 && r < parseFloat(it.min) ? 1 : 2); };
-        items.sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name), 'ru'));
-        let totalValue = 0, short = 0, low = 0;
-        items.forEach(item => {
-            const remain = stockRemain(item);
-            const r = rank(item);
-            if (r === 0) short++; else if (r === 1) low++;
+        const box = document.getElementById('stockCards');
+        if (!box) return;
+        const items = loadStock().filter(s => (parseFloat(s.income)||0) || (parseFloat(s.used)||0) || (parseFloat(s.writeOff)||0) || (parseFloat(s.min)||0) || s.manual);
+        items.sort((a, b) => stockRank(a) - stockRank(b) || String(a.name).localeCompare(String(b.name), 'ru'));
+        let totalValue = 0, low = 0;
+        const id = n => escAttr(JSON.stringify(n));
+        box.innerHTML = items.map(item => {
+            const remain = stockRemain(item), r = stockRank(item);
+            if (r < 2) low++;
             const value = Math.max(0, remain) * (parseFloat(item.price)||0);
             totalValue += value;
-            const status = r === 0 ? '<span class="stock-badge short">не хватает</span>' : (r === 1 ? '<span class="stock-badge low">заканчивается</span>' : '');
-            const tr = document.createElement('tr');
-            if (r < 2) tr.className = r === 0 ? 'stock-short' : 'stock-low';
-            // data-label — подписи ячеек для вида карточками на телефоне
-            tr.innerHTML = `
-                <td class="stock-name" data-label="Материал">${safeHTML(item.name)} ${status}</td>
-                <td data-label="Ед.">${safeHTML(item.unit || '')}</td>
-                <td data-label="Цена">${formatMoney(item.price)}</td>
-                <td data-label="Приход"><input type="number" step="0.01" class="stock-income" value="${parseFloat(item.income)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
-                <td data-label="Расход по заказам">${formatNumber(parseFloat(item.used)||0)}</td>
-                <td data-label="Списано"><input type="number" step="0.01" class="stock-writeoff" value="${parseFloat(item.writeOff)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
-                <td data-label="Остаток" style="font-weight:700;color:${remain < 0 ? '#dc3545' : 'inherit'};">${formatNumber(remain)}</td>
-                <td data-label="Мин."><input type="number" step="0.01" class="stock-min" value="${parseFloat(item.min)||0}" data-name="${escAttr(item.name)}" data-unit="${escAttr(item.unit || 'шт')}" data-price="${parseFloat(item.price)||0}"></td>
-                <td data-label="Сумма остатка" style="font-weight:600;color:#27ae60;">${formatMoney(value)}</td>
-                <td class="stock-del"><button class="btn-del" onclick="deleteStockItem(${escAttr(JSON.stringify(item.name))})" title="Удалить">🗑️</button></td>`;
-            tbody.appendChild(tr);
-        });
-        if (!items.length) tbody.innerHTML = '<tr><td colspan="10" class="fin-muted">На складе пока пусто. Приход появится после «Закупил» во вкладке «Закупка» или включите «все из справочников», чтобы ввести его вручную.</td></tr>';
+            const unit = safeHTML(item.unit || 'шт');
+            const tag = r === 0 ? '<span class="stk-tag short">не хватает</span>' : r === 1 ? '<span class="stk-tag low">заканчивается</span>' : '';
+            const open = stockOpen === item.name;
+            return `<div class="stk-card${r === 0 ? ' short' : r === 1 ? ' low' : ''}" data-name="${escAttr(item.name.toLowerCase())}">
+                <div class="stk-head"><span class="stk-name">${safeHTML(item.name)}</span>${tag}</div>
+                <div class="stk-main"><span class="stk-left">${formatNumber(remain)} ${unit}</span>
+                    <span class="stk-side">${(parseFloat(item.min)||0) > 0 ? `мин. ${formatNumber(parseFloat(item.min))} · ` : ''}${formatMoney(value)}</span></div>
+                <div class="stk-btns">
+                    <button class="stk-plus" onclick="openStockMove(${id(item.name)}, 'in')">+ Пришло</button>
+                    <button onclick="openStockMove(${id(item.name)}, 'out')">− Списать</button>
+                    <button class="stk-more" onclick="toggleStockDetails(${id(item.name)})" title="Подробности">${open ? '▲' : '⋯'}</button>
+                </div>
+                ${open ? `<div class="stk-details">
+                    <div><span>Пришло всего</span><b>${formatNumber(parseFloat(item.income)||0)} ${unit}</b></div>
+                    <div><span>Ушло в заказы</span><b>${formatNumber(parseFloat(item.used)||0)} ${unit}</b></div>
+                    <div><span>Списано (брак)</span><b>${formatNumber(parseFloat(item.writeOff)||0)} ${unit}</b></div>
+                    <div><span>Цена за ${unit}</span><b>${formatMoney(item.price)}</b></div>
+                    <label><span>Минимальный запас</span><input type="number" step="0.01" min="0" value="${parseFloat(item.min)||0}" onchange="setStockMin(${id(item.name)}, this.value)"></label>
+                    <button class="btn-del" onclick="deleteStockItem(${id(item.name)})">🗑️ Убрать со склада</button>
+                </div>` : ''}
+            </div>`;
+        }).join('') || '<div class="fin-muted">На складе пока пусто. Нажмите «➕ Добавить материал» или «Закупил» во вкладке «Закупка».</div>';
         const summary = document.getElementById('stockSummary');
         if (summary) summary.innerHTML = `
-            <div class="stock-tile"><div>💰 На складе на сумму</div><b>${formatMoney(totalValue)}</b></div>
-            <div class="stock-tile ${short ? 'short' : ''}"><div>⛔ Не хватает</div><b>${short}</b></div>
-            <div class="stock-tile ${low ? 'low' : ''}"><div>⚠️ Заканчивается</div><b>${low}</b></div>`;
+            <div class="stock-tile"><div>💰 На складе</div><b>${formatMoney(totalValue)}</b></div>
+            <div class="stock-tile ${low ? 'low' : ''}"><div>⚠️ Заканчивается</div><b>${low}</b></div>
+            <div class="stock-tile"><div>📦 Позиций</div><b>${items.length}</b></div>`;
         renderStockPurchases();
         applyStockSearch();
-        // Делегирование: обработчик вешаем один раз (раньше он добавлялся при каждой перерисовке)
-        if (tbody.dataset.bound) return;
-        tbody.dataset.bound = '1';
-        tbody.addEventListener('change', (e) => {
-            const input = e.target;
-            if (!input || !input.dataset.name) return;
-            const name = input.dataset.name;
-            const val = parseFloat(input.value) || 0;
+    }
+
+    function toggleStockDetails(name) {
+        stockOpen = stockOpen === name ? null : name;
+        renderStock();
+    }
+
+    function setStockMin(name, value) {
+        const stock = loadStock();
+        const item = stock.find(s => s.name === name);
+        if (!item) return;
+        const before = JSON.parse(JSON.stringify(stock));
+        item.min = Math.max(0, parseFloat(value) || 0);
+        saveStock(stock);
+        notifyAdminsAboutStock(before);
+        if (typeof window.markChanged === 'function') window.markChanged();
+        saveAll();
+        renderStock();
+    }
+
+    // Окно «+ Пришло» / «− Списать» / «➕ Добавить материал»
+    let stockMove = null; // { name, kind: 'in' | 'out' | 'new' }
+    function openStockMove(name, kind) {
+        stockMove = { name, kind };
+        const item = name ? loadStock().find(s => s.name === name) : null;
+        const isIn = kind !== 'out';
+        document.getElementById('stockMoveTitle').textContent = kind === 'new' ? '➕ Добавить материал' : (isIn ? '+ Пришло: ' : '− Списать: ') + name;
+        document.getElementById('stockMovePick').style.display = kind === 'new' ? '' : 'none';
+        document.getElementById('stockMoveName').value = '';
+        document.getElementById('stockMoveNames').innerHTML = stockRefItems().map(r => `<option value="${escAttr(r.name)}">`).join('');
+        document.getElementById('stockMoveQty').value = '';
+        document.getElementById('stockMoveUnit').textContent = item ? (item.unit || 'шт') : '';
+        document.getElementById('stockMovePriceRow').style.display = isIn ? '' : 'none';
+        document.getElementById('stockMovePrice').value = item && parseFloat(item.price) ? parseFloat(item.price) : '';
+        document.getElementById('stockMoveCash').checked = false;
+        document.getElementById('stockMoveCashRow').style.display = isIn ? '' : 'none';
+        document.getElementById('stockMoveNote').textContent = isIn ? 'Впишите только сколько привезли сейчас — программа сама прибавит к остатку.' : 'Брак, потери, пролили — впишите сколько ушло мимо заказов.';
+        openModal('stockMoveModal');
+        setTimeout(() => document.getElementById(kind === 'new' ? 'stockMoveName' : 'stockMoveQty').focus(), 60);
+    }
+    function closeStockMove() { closeModalById('stockMoveModal'); stockMove = null; }
+    function stockMovePicked(input) {
+        const ref = stockRefItems().find(r => r.name === input.value) || loadStock().find(s => s.name === input.value);
+        document.getElementById('stockMoveUnit').textContent = ref ? (ref.unit || 'шт') : '';
+        if (ref && parseFloat(ref.price)) document.getElementById('stockMovePrice').value = parseFloat(ref.price);
+    }
+    function saveStockMove() {
+        if (!stockMove) return;
+        const qty = parseFloat(document.getElementById('stockMoveQty').value) || 0;
+        const price = parseFloat(document.getElementById('stockMovePrice').value) || 0;
+        let name = stockMove.name;
+        if (stockMove.kind === 'new') {
+            name = document.getElementById('stockMoveName').value.trim();
+            if (!name) { alert('Выберите или впишите материал'); return; }
+        }
+        if (qty <= 0 && stockMove.kind !== 'new') { alert('Впишите количество'); return; }
+        if (stockMove.kind === 'out') {
             const stock = loadStock();
-            let item = stock.find(s => s.name === name);
-            if (!item) {
-                // Материала ещё нет в учёте склада — заводим, иначе введённое значение терялось
-                item = {name, unit: input.dataset.unit || 'шт', price: parseFloat(input.dataset.price) || 0, income:0, used:0, remain:0};
-                stock.push(item);
-            }
-            const stockBefore = JSON.parse(JSON.stringify(stock));
-            if (input.classList.contains('stock-income')) item.income = val;
-            else if (input.classList.contains('stock-writeoff')) item.writeOff = val;
-            else if (input.classList.contains('stock-min')) item.min = val;
+            const item = stock.find(s => s.name === name);
+            if (!item) return;
+            const before = JSON.parse(JSON.stringify(stock));
+            item.writeOff = (parseFloat(item.writeOff) || 0) + qty;
             item.remain = stockRemain(item);
             saveStock(stock);
-            notifyAdminsAboutStock(stockBefore);
-            if (typeof window.markChanged === 'function') window.markChanged(); // склад синхронизируется
+            notifyAdminsAboutStock(before);
+            if (typeof window.markChanged === 'function') window.markChanged();
             saveAll();
-            renderStock();
-        });
+            showToast(`− ${formatNumber(qty)} ${item.unit || ''}: ${name}`, 'success');
+        } else {
+            const ref = loadStock().find(s => s.name === name) || stockRefItems().find(r => r.name === name) || {};
+            const unit = ref.unit || 'шт';
+            if (qty > 0) {
+                // Тот же приход, что у «Закупил»: склад, цена справочника и (по желанию) расход в кассу
+                recordPurchase([{ name, unit, qty, price: price || parseFloat(ref.price) || 0 }], formatDate(new Date()),
+                    document.getElementById('stockMoveCash').checked, 'на склад');
+            } else {
+                // Новый материал без прихода — просто заводим строку (например, чтобы задать минимум)
+                const stock = loadStock();
+                if (!stock.find(s => s.name === name)) { stock.push({ name, unit, price: price || parseFloat(ref.price) || 0, income: 0, used: 0, remain: 0, manual: true }); saveStock(stock); }
+                if (typeof window.markChanged === 'function') window.markChanged();
+                saveAll();
+            }
+            showToast(qty > 0 ? `+ ${formatNumber(qty)} ${unit}: ${name}` : `Добавлено: ${name}`, 'success');
+        }
+        closeStockMove();
+        renderStock();
     }
+    window.openStockMove = openStockMove;
+    window.closeStockMove = closeStockMove;
+    window.saveStockMove = saveStockMove;
+    window.stockMovePicked = stockMovePicked;
+    window.toggleStockDetails = toggleStockDetails;
+    window.setStockMin = setStockMin;
 
     // История закупок — операции кассы «Закупка материалов» из кнопки «Закупил»
     function renderStockPurchases() {
@@ -6303,10 +6370,8 @@ function deleteOrder(orderId) {
     function applyStockSearch() {
         const input = document.getElementById('stockSearch');
         const query = (input ? input.value : '').trim().toLowerCase();
-        document.querySelectorAll('#stockBody tr').forEach(tr => {
-            const nameCell = tr.querySelector('.stock-name');
-            const name = nameCell ? nameCell.textContent.toLowerCase() : '';
-            tr.style.display = !query || !nameCell || name.includes(query) ? '' : 'none';
+        document.querySelectorAll('#stockCards .stk-card').forEach(card => {
+            card.style.display = !query || (card.dataset.name || '').includes(query) ? '' : 'none';
         });
     }
     window.applyStockSearch = applyStockSearch;
