@@ -63,7 +63,7 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202611031200" defer></script>
+    <script src="js/finance.js?v=202611041200" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
     <script src="js/attendance.js?v=202611031200" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
@@ -78,10 +78,10 @@
     <!-- Режим «виджет»: окно только с календарём (index.html?widget=1) -->
     <script src="js/widget.js?v=202611031200" defer></script>
     <!-- Календарь: вид «Список по дням» -->
-    <script src="js/calendar-extra.js?v=202611031200" defer></script>
-    <script src="js/agenda.js?v=202611031200" defer></script>
+    <script src="js/calendar-extra.js?v=202611041200" defer></script>
+    <script src="js/agenda.js?v=202611041200" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611031200" defer></script>
+    <script src="js/app.js?v=202611041200" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/learning.js?v=202610281200" defer></script>
     
@@ -363,7 +363,6 @@
                 <button class="btn-add btn-note" onclick="openNoteModal(selectedDate ? formatDate(selectedDate) : undefined)">📝 Создать заметку</button>
                 <button class="btn-add btn-note" onclick="calOpenPrebook(selectedDate ? formatDate(selectedDate) : undefined)">📞 Предзапись</button>
                 <button class="btn-add btn-note" onclick="stOpenTaskModal(selectedDate ? formatDate(selectedDate) : undefined)">📌 Задача</button>
-                <button class="btn-add btn-note" onclick="calOpenVacation(null, selectedDate ? formatDate(selectedDate) : undefined)">🌴 Отпуск</button>
             </div>
             <div id="scheduleStudio"></div>
             <div class="schedule-grid" id="scheduleGrid"></div>
@@ -688,7 +687,12 @@
             <div class="form-group"><label>Дата</label><input type="date" id="noteDate"></div>
             <div class="form-group"><label>Время (необязательно)</label><input type="time" id="noteTime"></div>
             <div class="form-group"><label>Текст заметки</label><textarea id="noteText" rows="3"></textarea></div>
-            <div class="form-group"><label>Для кого</label><div id="noteFor" class="st-who"></div></div>
+            <div class="form-group"><label for="noteFor">Для кого</label><select id="noteFor" class="note-for"></select></div>
+            <!-- Редкое — в свёрнутом «Дополнительно»: отпуск админу или помощнику -->
+            <details class="note-extra">
+                <summary>Дополнительно</summary>
+                <button type="button" class="btn-extra" onclick="closeNoteModal(); calOpenVacation(null, document.getElementById('noteDate').value || undefined)">🌴 Поставить отпуск</button>
+            </details>
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeNoteModal()">Отмена</button>
                 <button class="btn-save" onclick="saveNote()">Сохранить</button>

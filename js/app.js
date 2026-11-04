@@ -5917,6 +5917,8 @@ function deleteOrder(orderId) {
         document.getElementById('noteTime').value = '';
         document.getElementById('noteText').value = '';
         if (typeof calRenderNoteFor === 'function') calRenderNoteFor([]); // «Для кого» (js/calendar-extra.js)
+        const extra = document.querySelector('#noteModal .note-extra');
+        if (extra) extra.open = false;
         document.getElementById('noteModal').classList.add('active');
         document.body.classList.add('modal-open');
     }

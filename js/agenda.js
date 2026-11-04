@@ -133,7 +133,6 @@ function agendaAddMenu(ds) {
         <button class="ag-btn" onclick="calOpenPrebook(${id})">📞 Предзапись</button>
         <button class="ag-btn" onclick="openNoteModal(${id})">📝 Заметка</button>
         ${typeof stIsAdmin === 'function' && stIsAdmin() ? `<button class="ag-btn" onclick="stOpenTaskModal(${id})">📌 Задача</button>` : ''}
-        <button class="ag-btn" onclick="calOpenVacation(null, ${id})">🌴 Отпуск</button>
     </div>`;
 }
 
@@ -145,7 +144,6 @@ function renderAgenda() {
         <button class="ag-btn ag-main" onclick="openOrderModal(null)">➕ Заказ</button>
         <button class="ag-btn" onclick="calOpenPrebook('${today}')">📞 Предзапись</button>
         <button class="ag-btn" onclick="openNoteModal('${today}')">📝 Заметка</button>
-        <button class="ag-btn" onclick="calOpenVacation(null, '${today}')">🌴 Отпуск</button>
         ${typeof stToggleHTML === 'function' ? stToggleHTML(today).replace('<div class="st-tools">', '').replace(/<\/div>$/, '') : ''}
         ${typeof getServiceFilterButtons === 'function' ? getServiceFilterButtons() : ''}
     </div>`;

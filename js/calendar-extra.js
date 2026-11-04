@@ -81,25 +81,18 @@ function calExtraRowsHTML(ds, rowFn) {
     return rows;
 }
 
-// ---------- «Для кого» в окне заметки ----------
+// ---------- «Для кого» в окне заметки: выпадающий список, по умолчанию «Все админы» ----------
 function calRenderNoteFor(selected) {
     const box = document.getElementById('noteFor');
     if (!box) return;
     const list = Array.isArray(selected) ? selected : [];
     const people = calAdmins().concat(calHelpers().filter(h => h.name && !calAdmins().some(a => a.name === h.name)));
-    box.innerHTML = `<label class="st-who-item"><input type="checkbox" value="" ${list.length ? '' : 'checked'} onchange="calNoteForAll(this)"> Все админы</label>` +
-        people.map(p => `<label class="st-who-item"><input type="checkbox" value="${escAttr(p.name)}" ${list.includes(p.name) ? 'checked' : ''} onchange="calNoteForOne()"> ${safeHTML(p.name)}</label>`).join('');
-}
-function calNoteForAll(input) {
-    if (input.checked) document.querySelectorAll('#noteFor input[value]:not([value=""])').forEach(i => { i.checked = false; });
-}
-function calNoteForOne() {
-    const any = [...document.querySelectorAll('#noteFor input:not([value=""])')].some(i => i.checked);
-    const all = document.querySelector('#noteFor input[value=""]');
-    if (all) all.checked = !any;
+    box.innerHTML = `<option value="">Все админы</option>` +
+        people.map(p => `<option value="${escAttr(p.name)}"${list[0] === p.name ? ' selected' : ''}>${safeHTML(p.name)}</option>`).join('');
 }
 function calReadNoteFor() {
-    return [...document.querySelectorAll('#noteFor input:checked')].map(i => i.value).filter(Boolean);
+    const box = document.getElementById('noteFor');
+    return box && box.value ? [box.value] : [];
 }
 
 // ---------- Отпуск ----------
@@ -242,5 +235,3 @@ window.calClosePrebook = calClosePrebook;
 window.calSavePrebook = calSavePrebook;
 window.calPrebookToOrder = calPrebookToOrder;
 window.calDeleteItem = calDeleteItem;
-window.calNoteForAll = calNoteForAll;
-window.calNoteForOne = calNoteForOne;

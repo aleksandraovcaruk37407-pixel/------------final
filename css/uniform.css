@@ -78,14 +78,6 @@
 .helper-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
 .helper-actions .btn-add, .cal-actions .btn-add { margin: 0 !important; }
 
-/* Окно перевода помощнику */
-.fin-paymodal { max-width: 420px; text-align: center; }
-.fin-paymodal-sum { font-size: 22px; font-weight: 700; margin: 6px 0; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
-.fin-paymodal-qr { display: flex; justify-content: center; margin: 12px auto; max-width: 240px; width: 100%; }
-.fin-paymodal-qr img, img.fin-paymodal-qr { max-width: 240px; width: 100%; height: auto; border-radius: 8px; }
-.fin-paymodal .form-actions { justify-content: center; }
-.fin-paymodal-go { background: #185FA5 !important; color: #fff !important; }
-
 /* ---------- Календарь ---------- */
 /* Неделя и месяц: 7 равных колонок, содержимое не раздвигает сетку (раньше в «Неделе» вс уезжал за край) */
 .calendar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
@@ -180,10 +172,7 @@
 .notice-tools { display: flex; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
 .notice-tools button { padding: 4px 10px !important; font-size: 12px !important; min-height: 28px !important; }
 
-/* Закупка: квадратики выбора — обычного размера */
-.purchase-item input[type="checkbox"], .purchase-check, #tab-purchase input[type="checkbox"] {
-    width: 20px !important; height: 20px !important; min-width: 20px !important; min-height: 20px !important; max-width: 20px; margin: 0 !important; padding: 0 !important; flex: 0 0 20px !important; transform: none !important; accent-color: #28a745;
-}
+/* Закупка: квадратики выбора — размер общий для всей программы (конец файла) */
 
 /* Расходники услуги: компактная таблица, одна строка на расходник */
 #serviceItemsModal .modal { max-width: 640px; }
@@ -198,7 +187,6 @@
 }
 #serviceItemsModal .svc-item-row select { padding: 2px !important; }
 #serviceItemsModal .svc-chk { display: flex; justify-content: center; margin: 0; }
-#serviceItemsModal .svc-chk input { width: 20px !important; height: 20px !important; min-width: 20px !important; min-height: 20px !important; max-width: 20px; margin: 0 !important; padding: 0 !important; transform: none !important; flex: 0 0 20px !important; accent-color: #28a745; }
 #serviceItemsModal .svc-help { font-size: 12px; color: #6c757d; margin: 0 0 8px; line-height: 1.35; }
 #serviceItemsModal .svc-item-row .btn-del { width: 28px !important; min-width: 0 !important; height: 28px; min-height: 28px !important; box-sizing: border-box; padding: 0 !important; font-size: 12px !important; border-radius: 6px; }
 #serviceItemsModal .svc-item-row .marker-status { display: none; font-size: 11px; }
@@ -229,3 +217,24 @@
 @keyframes calSlideR { from { transform: translateX(-30px); opacity: .4; } to { transform: none; opacity: 1; } }
 .calendar-grid.cal-slide-left { animation: calSlideL .2s ease-out; }
 .calendar-grid.cal-slide-right { animation: calSlideR .2s ease-out; }
+
+/* Окно заметки: «для кого» — небольшой выпадающий список; отпуск — в свёрнутом «Дополнительно» */
+.modal-overlay .modal select.note-for { display: block; width: auto !important; min-width: 170px; max-width: 100%; min-height: 36px !important; padding: 4px 8px !important; font-size: 14px !important; }
+.note-extra { margin: 4px 0 12px; border-top: 1px dashed #dee2e6; padding-top: 8px; }
+.note-extra summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #6c757d; user-select: none; }
+.note-extra .btn-extra { margin-top: 8px; padding: 6px 12px !important; font-size: 14px !important; min-height: 34px; }
+
+/* Квадратики-галочки во всей программе: по высоте строки текста, по центру строки (в конце файла — главнее прежних 20–22px) */
+input[type="checkbox"] {
+    width: 16px !important; height: 16px !important; min-width: 16px !important; min-height: 16px !important;
+    max-width: 16px !important; max-height: 16px !important; flex: 0 0 16px !important;
+    margin: 0 !important; padding: 0 !important; transform: none !important; box-sizing: border-box;
+    vertical-align: middle; accent-color: #28a745; cursor: pointer;
+}
+label:not([class]):has(> input[type="checkbox"]) { display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 768px) {
+    input[type="checkbox"] {
+        width: 18px !important; height: 18px !important; min-width: 18px !important; min-height: 18px !important;
+        max-width: 18px !important; max-height: 18px !important; flex: 0 0 18px !important;
+    }
+}

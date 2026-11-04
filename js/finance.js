@@ -669,7 +669,6 @@ function renderFinance() {
     let helpersHTML = '';
     if (!helpers.length) helpersHTML += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
     helpers.forEach(h => {
-        const how = finPayLink(h.email), qr = finPayQr(h.email);
         helpersHTML += `
             <div class="fin-pay ${h.owed > 0 ? 'fin-due' : 'fin-paid'}">
                 <div class="fin-pay-main">
@@ -685,8 +684,6 @@ function renderFinance() {
                     </span>
                     <span class="fin-pay-actions">
                         ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
-                        <button class="fin-link-btn" onclick="finSetPayLink('${escAttr(h.email)}')" title="Ссылка для перевода из банка помощника или номер СБП">${!how ? '🔗 как переводить?' : finIsPayPhone(how) ? '📱 номер СБП ✓' : '🔗 ссылка банка ✓'}</button>
-                        <button class="fin-link-btn" onclick="finPickPayQr('${escAttr(h.email)}')" title="Картинка QR-кода из банка помощника">${qr ? '🔳 QR ✓' : '🔳 QR-код'}</button>
                     </span>
                 </div>
             </div>`;
@@ -839,143 +836,7 @@ function finPayHelper(email) {
     saveAll();
     renderAll();
     if (typeof renderAdminHelperTasks === 'function') renderAdminHelperTasks();
-    finOpenPayLink(email, amount);
-}
-
-// ---------- Перевод помощнику через банк ----------
-// Помощник делает в своём банке (ВТБ и др.) «ссылку для перевода» или QR-код, админ добавляет их один раз.
-// После «Выплатить» открывается окно: сумма (уже скопирована), QR-код и кнопка «Перейти в банк».
-// На компьютере QR сканируют камерой телефона — открывается банк; на телефоне — кнопка «Перейти в банк».
-// Вместо ссылки можно вписать номер телефона — тогда перевод по СБП: окно показывает номер и сумму.
-function finPayLink(email) {
-    const links = finSettings().payLinks || {};
-    return links[email] || '';
-}
-
-// Картинка QR-кода из банка помощника (уменьшенная, data:image/…) — financeSettings.payQr
-function finPayQr(email) {
-    const qr = finSettings().payQr || {};
-    return qr[email] || '';
-}
-
-function finIsPayPhone(value) {
-    return !/^https?:\/\//i.test(value) && String(value).replace(/\D/g, '').length >= 10;
-}
-
-function finSetPayLink(email) {
-    const current = finPayLink(email);
-    const input = prompt(`Как переводить ${finHelperName(email)}?
-
-Вставьте ссылку для перевода из его банка (начинается с https://) или номер телефона для перевода по СБП. Пустое поле — удалить.`, current);
-    if (input === null) return;
-    const link = input.trim();
-    if (link && !/^https?:\/\//i.test(link) && !finIsPayPhone(link)) { alert('Нужна ссылка (https://…) или номер телефона'); return; }
-    const s = finSettings();
-    const payLinks = { ...(s.payLinks || {}) };
-    if (link) payLinks[email] = link; else delete payLinks[email];
-    financeSettings = [{ ...s, payLinks }];
-    saveAll();
-    renderAll();
-    if (typeof showToast === 'function') showToast(!link ? 'Удалено' : finIsPayPhone(link) ? '📱 Номер для перевода по СБП сохранён' : '🔗 Ссылка для перевода сохранена');
-}
-
-// Загрузка картинки QR-кода помощника (скриншот из его банка). Картинка уменьшается до 360 точек,
-// чтобы не раздувать облако. Если QR уже есть — можно заменить или удалить.
-function finPickPayQr(email) {
-    if (finPayQr(email) && confirm(`QR-код ${finHelperName(email)} уже добавлен.\n\nОК — удалить его, Отмена — оставить (или выбрать новую картинку после удаления).`)) {
-        const s = finSettings();
-        const payQr = { ...(s.payQr || {}) };
-        delete payQr[email];
-        financeSettings = [{ ...s, payQr }];
-        saveAll(); renderAll();
-        return;
-    }
-    if (finPayQr(email)) return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = () => {
-        const file = input.files && input.files[0];
-        if (!file) return;
-        const img = new Image();
-        img.onload = () => {
-            const k = Math.min(1, 360 / Math.max(img.width, img.height));
-            const c = document.createElement('canvas');
-            c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-            const s = finSettings();
-            financeSettings = [{ ...s, payQr: { ...(s.payQr || {}), [email]: c.toDataURL('image/jpeg', 0.85) } }];
-            URL.revokeObjectURL(img.src);
-            saveAll(); renderAll();
-            if (typeof showToast === 'function') showToast('🔳 QR-код помощника сохранён');
-        };
-        img.src = URL.createObjectURL(file);
-    };
-    input.click();
-}
-
-// Генератор QR (qrcodejs с cdnjs) — загружается только когда нужен
-function finLoadQrLib() {
-    if (window.QRCode) return Promise.resolve(true);
-    return new Promise(resolve => {
-        const sc = document.createElement('script');
-        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
-        sc.onload = () => resolve(!!window.QRCode);
-        sc.onerror = () => resolve(false);
-        document.head.appendChild(sc);
-    });
-}
-
-function finIsPhoneDevice() {
-    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
-}
-
-function finClosePayModal() {
-    const m = document.getElementById('finPayModal');
-    if (m) m.remove();
-    document.body.classList.remove('modal-open');
-}
-
-function finCopy(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(String(text)).catch(() => {});
-    if (typeof showToast === 'function') showToast('Скопировано: ' + text);
-}
-
-// Окно перевода после «Выплатить»
-function finOpenPayLink(email, amount) {
-    const link = finPayLink(email), qrImg = finPayQr(email);
-    const sum = String(Math.round(amount));
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(() => {});
-    const phone = link && finIsPayPhone(link) ? link : '';
-    const url = link && !phone ? link : '';
-    finClosePayModal();
-    const box = document.createElement('div');
-    box.id = 'finPayModal';
-    box.className = 'modal-overlay active';
-    box.addEventListener('click', e => { if (e.target === box) finClosePayModal(); });
-    box.innerHTML = `<div class="modal fin-paymodal">
-        <h3>💸 Перевод: ${safeHTML(finHelperName(email))}</h3>
-        <div class="fin-paymodal-sum">${formatMoney(amount)} <button class="btn-extra" onclick="finCopy('${sum}')">📋 сумма</button></div>
-        <div class="fin-muted">Выплата уже записана в кассу. Сумма скопирована — вставьте её в банке.</div>
-        ${qrImg ? `<img class="fin-paymodal-qr" src="${qrImg}" alt="QR-код помощника">`
-            : url ? `<div id="finPayQrBox" class="fin-paymodal-qr"></div>` : ''}
-        ${(qrImg || url) && !finIsPhoneDevice() ? `<div class="fin-muted">Наведите камеру телефона на QR-код — откроется банк с реквизитами помощника.</div>` : ''}
-        ${phone ? `<div class="fin-paymodal-sum">📱 ${safeHTML(phone)} <button class="btn-extra" onclick="finCopy('${escAttr(phone)}')">📋 номер</button></div>
-            <div class="fin-muted">В банке: «Перевод по номеру телефона (СБП)» → вставьте номер и сумму.</div>` : ''}
-        ${!link && !qrImg ? `<div class="fin-warn">Как переводить этому помощнику, ещё не указано — нажмите «🔗 как переводить?» или «🔳 QR-код» у помощника.</div>` : ''}
-        <div class="form-actions">
-            <button class="btn-cancel" onclick="finClosePayModal()">Закрыть</button>
-            ${url ? `<a class="btn-save fin-paymodal-go" href="${escAttr(url)}" target="_blank" rel="noopener" onclick="setTimeout(finClosePayModal, 300)">🏦 Перейти в банк</a>` : ''}
-        </div>
-    </div>`;
-    document.body.appendChild(box);
-    document.body.classList.add('modal-open');
-    if (url && !qrImg) finLoadQrLib().then(ok => {
-        const el = document.getElementById('finPayQrBox');
-        if (!el) return;
-        if (ok) new window.QRCode(el, { text: url, width: 220, height: 220, correctLevel: window.QRCode.CorrectLevel.M });
-        else el.remove();
-    });
+    if (typeof showToast === 'function') showToast(`💸 Выплата ${formatMoney(amount)} записана в кассу`);
 }
 
 // Старый ручной приход «Прочее» → выручка: появится налог, расходники и копилки за его месяц
