@@ -178,3 +178,17 @@ html.ba-dark .fin-waterfall tr.total td, html.ba-dark .fin-waterfall tr.sub td {
 /* Фиолетовый и тёмно-жёлтый текст на чёрном не читается — светлее */
 html.ba-dark .cs-item, html.ba-dark [style*="color:#5A1CB0" i], html.ba-dark [style*="color: #5A1CB0" i] { color: #B9A0F2 !important; }
 html.ba-dark [style*="color:#856404" i], html.ba-dark [style*="color: #856404" i] { color: #C9B8F2 !important; }
+
+/* Экран входа: если уже входили на этом устройстве — «Загрузка…», пока вход восстанавливается */
+.brand-login-loading { display: none; color: #A9A3B8; letter-spacing: 2px; font-size: 13px; }
+html.ba-wasin .brand-login-loading { display: block; }
+html.ba-wasin #loginScreen .btn-add, html.ba-wasin #loginScreen p:not(.brand-login-loading):not(.brand-login-sub) { display: none !important; }
+
+/* Телефон: программа на весь экран — без полей по краям, шапка под вырезом экрана (safe area), меню над полосой жестов */
+@media (max-width: 768px) {
+    html, body { background: var(--ba-black) !important; }
+    body { padding: 0 !important; margin: 0 !important; }
+    .container { max-width: none !important; width: 100% !important; margin: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+        padding: calc(6px + var(--safe-top)) calc(8px + var(--safe-right)) calc(84px + var(--safe-bottom)) calc(8px + var(--safe-left)) !important; box-sizing: border-box; }
+    .bottom-nav { padding-bottom: var(--safe-bottom) !important; }
+}

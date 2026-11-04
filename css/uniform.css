@@ -252,3 +252,21 @@ label:not([class]):has(> input[type="checkbox"]) { display: inline-flex; align-i
 .hr-date { color: #6c757d; font-size: 13px; }
 .hr-plus { color: #27ae60; } .hr-minus { color: #dc3545; } .hr-paid { color: #5A1CB0; }
 .hr-total { border-bottom: none; font-weight: 700; }
+
+/* Выбор периода (выпадающий список) и отбор задач помощника */
+.per-pick { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; background: #F6F1FE; border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+.per-label { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 600; margin: 0; }
+.per-label select { min-height: 36px !important; padding: 4px 8px; border-radius: 8px; font-size: 14px !important; }
+.per-dates { display: flex; gap: 6px; align-items: center; }
+.per-dates input { min-height: 36px !important; padding: 2px 6px; }
+.per-title { font-weight: 700; color: #2E0A5E; font-size: 14px; }
+.ht-filters { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 8px; scrollbar-width: none; }
+.ht-chip { flex: 0 0 auto; padding: 6px 12px; border: 1px solid #C9B8F2; background: #fff; color: #2E0A5E; border-radius: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.ht-chip b { margin-left: 4px; }
+.ht-chip.active { background: #5A1CB0; color: #fff; border-color: #5A1CB0; }
+
+/* Календарь помощника (05.11.2026): отмеченный день — фиолетовый, неотмеченный — без заливки, день с задачами — рамка */
+.att-cell.att-present, .att-cell.att-open, .att-cell.att-late, .att-cell.att-dayoff, .att-cell.att-sick { background: #E9DDFB !important; border-color: #9163EA !important; }
+.att-cell.att-absent { background: #fbe4e6 !important; }
+.att-cell.att-missed, .att-cell.att-planned, .att-cell.att-none { background: #f8f9fa !important; border-color: #eee !important; }
+.att-cell.has-tasks { border: 2px solid #9163EA !important; }

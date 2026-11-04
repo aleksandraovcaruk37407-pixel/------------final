@@ -130,7 +130,6 @@ function agendaAddMenu(ds) {
     const id = JSON.stringify(ds).replace(/"/g, '&quot;');
     return `<div class="ag-add-menu">
         <button class="ag-btn" onclick="openOrderModal(null, ${id})">➕ Заказ</button>
-        <button class="ag-btn" onclick="calOpenPrebook(${id})">📞 Предзапись</button>
         <button class="ag-btn" onclick="openNoteModal(${id})">📝 Заметка</button>
         ${typeof stIsAdmin === 'function' && stIsAdmin() ? `<button class="ag-btn" onclick="stOpenTaskModal(${id})">📌 Задача</button>` : ''}
     </div>`;
@@ -140,11 +139,15 @@ function renderAgenda() {
     const box = document.getElementById('calAgendaView');
     if (!box) return;
     const today = formatDate(new Date());
-    let html = `<div class="ag-tools">
-        <button class="ag-btn ag-main" onclick="openOrderModal(null)">➕ Заказ</button>
-        <button class="ag-btn" onclick="calOpenPrebook('${today}')">📞 Предзапись</button>
-        <button class="ag-btn" onclick="openNoteModal('${today}')">📝 Заметка</button>
-        ${typeof stToggleHTML === 'function' ? stToggleHTML(today).replace('<div class="st-tools">', '').replace(/<\/div>$/, '') : ''}
+    // Одна линия: Заказ · Заметка · Задача; ниже — «мои / все задачи» и фильтр услуг
+    const admin = typeof stIsAdmin === 'function' && stIsAdmin();
+    let html = `<div class="cal-actions cal-actions-line">
+        <button class="btn-add" onclick="openOrderModal(null)">➕ Заказ</button>
+        <button class="btn-add btn-note" onclick="openNoteModal('${today}')">📝 Заметка</button>
+        ${admin ? `<button class="btn-add btn-note" onclick="stOpenTaskModal('${today}')">📌 Задача</button>` : ''}
+    </div>
+    <div class="ag-tools">
+        ${admin ? `<button class="st-toggle" onclick="stToggleAll()" title="Переключить: только мои / задачи всех">${stShowAll ? '👥 Задачи всех' : '👤 Мои задачи'}</button>` : ''}
         ${typeof getServiceFilterButtons === 'function' ? getServiceFilterButtons() : ''}
     </div>`;
 

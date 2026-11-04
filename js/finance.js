@@ -84,13 +84,10 @@ function finHelperCost(order) {
     return hasTasks ? sum : finNum(order.helperPay);
 }
 
-// Штрафы за просроченные задачи заказа: помощник их «возвращает» из своих начислений
+// Штрафы «за просрочку» в задаче убраны 05.11.2026: штраф выписывает админ отдельно, с причиной
+// (helperPenalties). Просроченная задача просто не оплачивается; старые task.penalty не считаются.
 function finOrderPenalties(order) {
-    let sum = 0;
-    (order.services || []).forEach(s => (s.tasks || []).forEach(t => {
-        if (t.status === 'overdue') sum += finNum(t.penalty);
-    }));
-    return sum;
+    return 0;
 }
 
 // Сколько бизнес на самом деле платит помощникам за заказ: оплата задач − штрафы по ним
@@ -192,7 +189,7 @@ function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties, resets) 
             h.earned += finNum(t.helperPay); h.done++;
             if (mk && finMonthKey(t.completedAt) === mk) { h.monthEarned += finNum(t.helperPay); h.monthDone++; }
         } else if (t.status === 'overdue') {
-            h.penalties += finNum(t.penalty); h.overdue++;
+            h.overdue++; // штраф за просрочку больше не начисляется сам — только выписанный админом
         } else if (t.status === 'review') {
             // Помощник отметил выполненной, ждёт подтверждения админа — ещё не начислено
             h.review++; h.reviewPay += finNum(t.helperPay);

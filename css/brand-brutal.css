@@ -45,7 +45,7 @@ html.ba-dark .filter-btn {
     font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .08em; font-size: 10px !important; font-weight: 400 !important;
 }
 html.ba-dark .filter-btn[data-filter="new"] { border-color: #2E8B57 !important; }
-html.ba-dark .filter-btn[data-filter="middle"] { border-color: #9163EA !important; }
+html.ba-dark .filter-btn[data-filter="middle"] { border-color: #FFC107 !important; }
 html.ba-dark .filter-btn[data-filter="critical"], html.ba-dark .filter-btn[data-filter="unpaid"] { border-color: #D93036 !important; }
 html.ba-dark .filter-btn.active { background: #FFFFFF !important; color: #0B0B0E !important; border-color: #FFFFFF !important; }
 
@@ -59,7 +59,7 @@ html.ba-dark input[type=checkbox] { accent-color: var(--ba-violet); }
 /* Плашки заказов: графит, рамка цвета срочности, номер в цветной плашке */
 html.ba-dark .order-item, html.ba-dark .order-item[style] { background: #16181B !important; border: 1px solid var(--ba-line) !important; border-radius: var(--ba-r) !important; }
 html.ba-dark .order-item.status-new { border-color: #2E8B57 !important; }
-html.ba-dark .order-item.status-middle { border-color: #9163EA !important; }
+html.ba-dark .order-item.status-middle { border-color: #FFC107 !important; }
 html.ba-dark .order-item.status-critical { border-color: #D93036 !important; }
 html.ba-dark .order-item.status-done { opacity: .55; }
 html.ba-dark .order-item .order-number {
@@ -68,7 +68,7 @@ html.ba-dark .order-item .order-number {
     padding: 4px 8px; border-radius: var(--ba-r); background: #3A3D44; flex: 0 0 auto; justify-self: start;
 }
 html.ba-dark .order-item.status-new .order-number { background: #2E8B57; }
-html.ba-dark .order-item.status-middle .order-number { background: #7A3BE0; }
+html.ba-dark .order-item.status-middle .order-number { background: #FFC107; color: #0B0B0E !important; }
 html.ba-dark .order-item.status-critical .order-number { background: #D93036; }
 html.ba-dark .order-item .order-client { color: #FFFFFF !important; font-weight: 700 !important; }
 html.ba-dark .order-item .order-sum { font-family: var(--ba-head); font-weight: 400 !important; letter-spacing: .02em; }
@@ -147,7 +147,7 @@ html.ba-dark .cal-dots { display: flex; gap: 3px; position: absolute; left: 7px;
 html.ba-dark .cal-dots b { font-size: 9px; color: #C9B8F2; font-weight: 600; line-height: 1; }
 html.ba-dark .cal-dot { width: 6px; height: 6px; border-radius: 50%; display: block; }
 html.ba-dark .dot-new { background: #2E8B57; }
-html.ba-dark .dot-middle { background: #C9B8F2; }
+html.ba-dark .dot-middle { background: #FFC107; }
 html.ba-dark .dot-critical { background: #E5484D; }
 html.ba-dark .dot-done { background: #4A4E57; }
 html.ba-dark .dot-prebook { background: transparent; box-shadow: inset 0 0 0 1.5px #C9B8F2; }
@@ -184,3 +184,108 @@ html.ba-dark .hr-period-title { color: #FFFFFF; font-family: var(--ba-head); fon
 html.ba-dark .hr-row { border-bottom-color: var(--ba-line); }
 html.ba-dark .hr-date { color: var(--ba-muted); }
 html.ba-dark .hr-plus { color: #7FD3A0; } html.ba-dark .hr-minus { color: #F2A0A6; } html.ba-dark .hr-paid { color: #C9B8F2; }
+
+/* Выбор периода и отбор задач — тёмная тема */
+html.ba-dark .per-pick { background: #121417 !important; border: 1px solid var(--ba-line); border-radius: var(--ba-r) !important; }
+html.ba-dark .per-label { color: var(--ba-muted); font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .06em; font-size: 10px; font-weight: 400; }
+html.ba-dark .per-title { color: #FFFFFF; font-family: var(--ba-head); font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+html.ba-dark .ht-chip { background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important; border-radius: var(--ba-r) !important;
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .06em; font-size: 10px !important; }
+html.ba-dark .ht-chip.active { background: #FFFFFF !important; color: #0B0B0E !important; border-color: #FFFFFF !important; }
+
+/* Календарь помощника — тёмная тема */
+html.ba-dark .att-cell { background: #16181B !important; border: 1px solid var(--ba-line) !important; border-radius: var(--ba-r) !important; color: var(--ba-text); }
+html.ba-dark .att-cell.att-present, html.ba-dark .att-cell.att-open, html.ba-dark .att-cell.att-late, html.ba-dark .att-cell.att-dayoff, html.ba-dark .att-cell.att-sick {
+    background: #5A1CB0 !important; border-color: #7A3BE0 !important; color: #FFFFFF; }
+html.ba-dark .att-cell.att-absent { background: #3A1418 !important; }
+html.ba-dark .att-cell.att-vacation { background: #0E2A24 !important; }
+html.ba-dark .att-cell.has-tasks { box-shadow: inset 0 0 0 2px var(--ba-lamp) !important; }
+html.ba-dark .att-cell.today .att-day { background: var(--ba-lamp); color: #0B0B0E; border-radius: 3px; padding: 0 4px; display: inline-block; }
+html.ba-dark .att-cell.att-selected { outline: 2px solid #FFFFFF !important; outline-offset: -2px; }
+html.ba-dark .att-cell .att-text { color: inherit; }
+
+/* Кнопки под календарём — одна линия, одинаковой ширины (05.11.2026) */
+.cal-actions.cal-actions-line { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 6px; margin: 8px 0 10px; }
+.cal-actions.cal-actions-line .btn-add { width: 100%; min-width: 0; margin: 0 !important; padding: 0 6px !important; min-height: 40px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; justify-content: center; }
+html.ba-dark .cal-actions.cal-actions-line .btn-note { background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important;
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .06em; font-size: 11px !important; font-weight: 400 !important; }
+.order-prebook { margin: 6px 0; }
+.order-prebook .btn-extra { width: 100%; }
+
+/* Выбранный день в месяце — белым, чтобы не сливался с фиолетовыми днями */
+html.ba-dark .calendar-grid .day-cell.selected { background: #FFFFFF !important; box-shadow: none !important; }
+html.ba-dark .calendar-grid .day-cell.selected .day-number { color: #0B0B0E !important; }
+html.ba-dark .calendar-grid .day-cell.selected .dot-note, html.ba-dark .calendar-grid .day-cell.selected .dot-done { background: #4A4E57; }
+html.ba-dark .calendar-grid .day-cell.selected .dot-pay { box-shadow: inset 0 0 0 1.5px #4A4E57; }
+html.ba-dark .calendar-grid .day-cell.selected.today .day-number { background: var(--ba-violet) !important; color: #FFFFFF !important; }
+html.ba-dark .calendar-grid .day-cell.selected .cal-dots b { color: #5A1CB0; }
+
+/* Подсказки под лампочкой 💡 (js/hints.js) */
+.ba-hint-text { display: none !important; }
+.ba-hint-text.ba-hint-shown { display: block !important; }
+.ba-hint-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; min-height: 30px !important; padding: 0 !important;
+    margin: 2px 0 6px; border-radius: 50% !important; border: 1px solid #C9B8F2 !important; background: transparent !important; font-size: 15px !important; cursor: pointer; line-height: 1; }
+.ba-hint-btn.on { background: #A97CF5 !important; border-color: #A97CF5 !important; }
+.ba-hint-btn::before { display: none !important; }
+html.ba-dark .ba-hint-btn { border-color: #3A3D44 !important; }
+html.ba-dark .ba-hint-text.ba-hint-shown { background: #1C1A2E !important; border-left: 3px solid var(--ba-lamp) !important; border-radius: 0 !important; padding: 10px 12px !important; color: #E6DAFB !important; }
+
+/* Заказы: компактные фильтры (все видны на экране телефона) и небольшая кнопка «+ Добавить заказ» */
+#tab-orders .order-filters .filter-btn { min-height: 30px !important; padding: 0 10px !important; font-size: 10px !important; }
+#tab-orders .order-actions .btn-add { min-height: 34px !important; padding: 0 14px !important; font-size: 10px !important; }
+@media (max-width: 768px) {
+    #tab-orders .order-filters { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px !important; overflow: visible !important; width: 100%; }
+    #tab-orders .order-filters .filter-btn { width: 100%; min-width: 0 !important; min-height: 30px !important; padding: 0 2px !important; font-size: 9px !important;
+        letter-spacing: .02em !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 !important; }
+    #tab-orders .order-actions { width: 100%; justify-content: space-between; }
+    #tab-orders .order-actions .btn-add { min-height: 32px !important; padding: 0 12px !important; font-size: 10px !important; width: auto !important; }
+}
+@media (max-width: 768px) { #tab-orders .order-actions .btn-add { min-width: max-content !important; flex: 0 0 auto !important; max-width: none !important; } }
+
+/* Настройки (js/settings.js) */
+.set-account { display: grid; gap: 6px; margin-bottom: 14px; }
+.set-account > div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef0f2; font-size: 14px; }
+.set-label { color: #6c757d; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.set-pass { display: grid; gap: 8px; margin: 6px 0 14px; }
+.set-subtitle { font-weight: 700; margin: 12px 0 6px; font-size: 14px; }
+.set-error { min-height: 18px; font-size: 13px; color: #dc3545; }
+.set-error.ok { color: #2E8B57; }
+.set-logout { width: 100%; }
+.set-user { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid #eef0f2; }
+.set-user-name { font-weight: 700; font-size: 14px; }
+.set-user-mail { font-size: 12px; color: #6c757d; }
+.set-me { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: #5A1CB0; margin-left: 6px; }
+html.ba-dark .set-account > div, html.ba-dark .set-user { border-bottom-color: var(--ba-line); }
+html.ba-dark .set-label, html.ba-dark .set-user-mail { color: var(--ba-muted); }
+html.ba-dark .set-subtitle { color: #FFFFFF; font-family: var(--ba-head); font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 11px; }
+html.ba-dark .set-me { color: var(--ba-lamp); }
+html.ba-dark .set-error.ok { color: #7FD3A0; }
+
+/* Вкладка «Помощник»: верхние кнопки одной ширины, кнопки в карточке задачи — компактно в ряд */
+#tab-helper-admin .helper-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 6px; }
+#tab-helper-admin .helper-actions > * { width: 100% !important; margin: 0 !important; min-height: 40px !important; }
+html.ba-dark .helper-task-card button { min-height: 34px !important; padding: 0 10px !important; font-size: 10px !important; margin: 0 !important; }
+html.ba-dark .helper-task-card .btn-add, html.ba-dark .helper-task-card .btn-del, html.ba-dark .helper-task-card .btn-extra { width: auto !important; }
+html.ba-dark .helper-task-card div[style*="display:flex;gap:8px"] { gap: 6px !important; }
+html.ba-dark .helper-task-card { background: #16181B !important; border-radius: var(--ba-r) !important; box-shadow: none !important; }
+html.ba-dark .helper-task-card button[onclick^="openEditTaskModal"] { background: transparent !important; border: 1px solid #3A3D44 !important; color: var(--ba-text) !important; }
+html.ba-dark .helper-task-card button[onclick*="'completed')"] { background: transparent !important; border: 1px solid #2E8B57 !important; color: #7FD3A0 !important; }
+html.ba-dark .helper-task-card button[onclick^="openPenaltyModal"] { background: transparent !important; border: 1px solid #9E2329 !important; color: #F2A0A6 !important; }
+.att-legend .att-legend-mark { background: #E9DDFB; } .att-legend .att-legend-task { border: 2px solid #9163EA; }
+html.ba-dark .att-legend span { background: #16181B; border: 1px solid var(--ba-line); color: var(--ba-text); }
+html.ba-dark .att-legend .att-legend-mark { background: #5A1CB0; border-color: #7A3BE0; }
+html.ba-dark .att-legend .att-legend-task { box-shadow: inset 0 0 0 2px var(--ba-lamp); }
+html.ba-dark .att-legend .att-vacation { background: #0E2A24 !important; }
+
+/* «Срочный» — снова жёлтый (решение владелицы 05.11.2026): кнопка в окне заказа */
+.color-btn.middle { background: #FFC107 !important; }
+
+/* «Задание помощнику» в окне заказа — сворачивается */
+.order-task-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; margin-top: 15px; }
+.order-task-head { cursor: pointer; padding: 12px 15px; font-weight: 700; color: #2E0A5E; list-style: none; display: flex; justify-content: space-between; }
+.order-task-head::after { content: '▾'; transition: transform .2s; }
+.order-task-box:not([open]) .order-task-head::after { transform: rotate(-90deg); }
+.order-task-body { padding: 0 15px 15px; }
+html.ba-dark .order-task-box { background: #121417 !important; border-color: var(--ba-line) !important; border-radius: var(--ba-r) !important; }
+html.ba-dark .order-task-head { color: #FFFFFF; font-family: var(--ba-head); font-weight: 400; text-transform: uppercase; letter-spacing: .06em; font-size: 12px; }
+html.ba-dark .btn-warning:not(.filter-btn) { color: #0B0B0E !important; }

@@ -161,6 +161,21 @@ function calSavePrebook() {
     calClosePrebook();
     calAfterChange(`📞 Предзапись: ${client}, ${formatDateDDMMYYYY(date)}${time ? ' ' + time : ''}`);
 }
+// Из окна нового заказа: «Это предзапись» — переносим имя, телефон, услугу и дату в окно предзаписи
+function calOrderToPrebook() {
+    const val = id => (document.getElementById(id) || {}).value || '';
+    const service = (document.querySelector('#servicesList .service-row select') || {}).value || '';
+    const date = val('orderDate'), client = val('orderClient'), phone = val('orderPhone');
+    closeOrderModal();
+    setTimeout(() => {
+        calOpenPrebook(date || undefined);
+        if (client) document.getElementById('preClient').value = client;
+        if (phone) document.getElementById('prePhone').value = phone;
+        if (service) document.getElementById('preService').value = service;
+    }, 350);
+}
+window.calOrderToPrebook = calOrderToPrebook;
+
 // Клиент приехал: открываем новый заказ с его данными, предзапись убираем после сохранения заказа
 function calPrebookToOrder(id) {
     const p = notes.find(n => n.id === id);

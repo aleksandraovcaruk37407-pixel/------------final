@@ -8,7 +8,7 @@ html.ba-dark input, html.ba-dark select, html.ba-dark textarea { border:1px soli
 html.ba-dark .btn-warning { color:#ECEAF2!important }
 html.ba-dark .order-item { border:1px solid #33363D!important; background:#16181B!important }
 html.ba-dark .order-item.status-new { background:#12261A!important }
-html.ba-dark .order-item.status-middle { background:#221636!important }
+html.ba-dark .order-item.status-middle { background:#2B2306!important }
 html.ba-dark .order-item.status-critical { background:#2A1216!important }
 html.ba-dark .order-item.status-done { background:#2A2D33!important }
 html.ba-dark .order-header .order-number { color:#C9B8F2!important }
@@ -24,7 +24,7 @@ html.ba-dark input:disabled, html.ba-dark select:disabled { background:#2A2D33!i
 html.ba-dark .calendar-grid .day-name { background:#2A2D33!important }
 html.ba-dark .calendar-grid .day-cell { background:#121417!important }
 html.ba-dark .calendar-grid .day-cell.color-new { background:#12261A!important }
-html.ba-dark .calendar-grid .day-cell.color-middle { background:#221636!important }
+html.ba-dark .calendar-grid .day-cell.color-middle { background:#2B2306!important }
 html.ba-dark .calendar-grid .day-cell.color-critical { background:#2A1216!important }
 html.ba-dark .calendar-grid .day-cell.color-done { background:#2A2D33!important }
 html.ba-dark .calendar-grid .day-cell.color-payment { background:#1C1A2E!important }
@@ -41,7 +41,7 @@ html.ba-dark .schedule-slot { border:1px solid #33363D!important }
 html.ba-dark .schedule-slot.payment-slot { background:#1C1A2E!important }
 html.ba-dark .schedule-slot.note-slot { background:#221636!important }
 html.ba-dark .schedule-slot.color-new { background:#12261A!important }
-html.ba-dark .schedule-slot.color-middle { background:#221636!important }
+html.ba-dark .schedule-slot.color-middle { background:#2B2306!important }
 html.ba-dark .schedule-slot.color-critical { background:#2A1216!important }
 html.ba-dark .schedule-slot.color-done { background:#2A2D33!important }
 html.ba-dark .modal { background:#16181B!important }
@@ -295,3 +295,14 @@ html.ba-dark .schedule-slot.prebook-slot { background:#221636!important }
 html.ba-dark .cal-for { color:#B9A0F2!important }
 html.ba-dark .note-extra { border-top:1px dashed #33363D!important }
 html.ba-dark .note-extra summary { color:#A9A3B8!important }
+html.ba-dark .hr-period { background:#221636!important }
+html.ba-dark .hr-period-btn { background:#16181B!important; color:#C9B8F2!important }
+html.ba-dark .hr-period-title { color:#C9B8F2!important }
+html.ba-dark .hr-list { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .hr-row { border-bottom:1px solid #33363D!important }
+html.ba-dark .hr-date { color:#A9A3B8!important }
+html.ba-dark .hr-paid { color:#B9A0F2!important }
+html.ba-dark .per-pick { background:#221636!important }
+html.ba-dark .per-title { color:#C9B8F2!important }
+html.ba-dark .ht-chip { background:#16181B!important; color:#C9B8F2!important }
+html.ba-dark .att-cell.att-missed, html.ba-dark .att-cell.att-planned, html.ba-dark .att-cell.att-none { background:#121417!important; border-color:#33363D!important }

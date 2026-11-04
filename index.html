@@ -6,7 +6,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Авто-ателье">
+    <meta name="apple-mobile-web-app-title" content="BACK ALIVE">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -64,6 +64,8 @@
       // Тёмная тема BACK ALIVE (вариант А): общие замены цветов, затем фирменный стиль поверх.
       // Тема устройства: localStorage ba_theme = 'dark' | 'light' (по умолчанию тёмная)
       try { if (localStorage.getItem('ba_theme') !== 'light') document.documentElement.classList.add('ba-dark'); } catch (e) { document.documentElement.classList.add('ba-dark'); }
+      // Уже входили на этом устройстве — пока вход восстанавливается, вместо кнопки «Войти» показываем «Загрузка…»
+      try { if (localStorage.getItem('ba_was_in') === '1') document.documentElement.classList.add('ba-wasin'); } catch (e) {}
       // Кнопка 🌙/☀️ в шапке: тема запоминается на этом устройстве
       window.baToggleTheme = function() {
         var dark = document.documentElement.classList.toggle('ba-dark');
@@ -97,9 +99,9 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202611041900" defer></script>
+    <script src="js/finance.js?v=202611051500" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202611031200" defer></script>
+    <script src="js/attendance.js?v=202611051500" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
@@ -109,14 +111,14 @@
     <script src="js/studio-plan.js?v=202610300100" defer></script>
     <script src="js/studio-tasks.js?v=202611031200" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
-    <!-- Режим «виджет»: окно только с календарём (index.html?widget=1) -->
-    <script src="js/widget.js?v=202611031200" defer></script>
     <!-- Календарь: вид «Список по дням» -->
-    <script src="js/calendar-extra.js?v=202611041200" defer></script>
-    <script src="js/agenda.js?v=202611041200" defer></script>
+    <script src="js/calendar-extra.js?v=202611051500" defer></script>
+    <script src="js/agenda.js?v=202611051500" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611041900" defer></script>
+    <script src="js/app.js?v=202611051500" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
+    <script src="js/settings.js?v=202611051500" defer></script>
+    <script src="js/hints.js?v=202611051500" defer></script>
     <script src="js/learning.js?v=202610281200" defer></script>
     
     <!-- Мобильная оптимизация -->
@@ -200,6 +202,7 @@
     <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:80vh;">
         <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
             <img src="icons/logo-dark.svg" alt="BACK ALIVE car studio" class="brand-login-logo">
+            <p class="brand-login-loading">Загрузка…</p>
             <p class="brand-login-sub">учёт студии</p>
             
             <button class="btn-add" onclick="openAuthModal()" style="padding:12px 40px;font-size:16px;">🔑 Войти в систему</button>
@@ -222,12 +225,13 @@
         <button class="tab-btn active" data-tab="tab-orders">Заказы</button>
         <button class="tab-btn" data-tab="tab-calendar">Календарь</button>
         <button class="tab-btn" data-tab="tab-purchase">Закупка</button>
-        <button class="tab-btn" data-tab="tab-helper-admin">Задачи помощников</button>
+        <button class="tab-btn" data-tab="tab-helper-admin">Помощник</button>
         <button class="tab-btn" data-tab="tab-stock">Склад</button>
         <button class="tab-btn" data-tab="tab-cash">Деньги</button>
         <button class="tab-btn" data-tab="tab-summary">Итоги</button>
         <button class="tab-btn" data-tab="tab-ref">Справочники</button>
         <button class="tab-btn" data-tab="tab-learn">Обучение</button>
+        <button class="tab-btn" data-tab="tab-settings">Настройки</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
@@ -236,6 +240,7 @@
         <button class="tab-btn" data-tab="helper-attendance">Календарь</button>
         <button class="tab-btn" data-tab="helper-report">Мой отчёт</button>
         <button class="tab-btn" data-tab="tab-learn">Обучение</button>
+        <button class="tab-btn" data-tab="tab-settings">Настройки</button>
     </div>
 
     <!-- Нижняя навигация для мобильных -->
@@ -243,7 +248,7 @@
         <button class="bottom-nav-item active" data-tab="tab-orders">📋<br><small>Заказы</small></button>
         <button class="bottom-nav-item" data-tab="tab-calendar">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="tab-purchase">📄<br><small>Закупка</small></button>
-        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Задачи</small></button>
+        <button class="bottom-nav-item" data-tab="tab-helper-admin">👥<br><small>Помощник</small></button>
         <button class="bottom-nav-more">⚙️<br><small>Ещё</small></button>
     </div>
     
@@ -254,6 +259,7 @@
         <button class="bottom-nav-more-item" data-tab="tab-summary">📊 Итоги</button>
         <button class="bottom-nav-more-item" data-tab="tab-ref">📚 Справочники</button>
         <button class="bottom-nav-more-item" data-tab="tab-learn">🎓 Обучение</button>
+        <button class="bottom-nav-more-item" data-tab="tab-settings">⚙️ Настройки</button>
         <button class="bottom-nav-more-item" onclick="document.getElementById('bottomNavMoreMenu').classList.remove('visible'); handleLogout()">🚪 Выйти</button>
         <button class="bottom-nav-more-item" onclick="document.getElementById('bottomNavMoreMenu').classList.remove('visible')">❌ Закрыть</button>
     </div>
@@ -264,7 +270,7 @@
         <button class="bottom-nav-item" data-tab="helper-attendance">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
         <button class="bottom-nav-item" data-tab="tab-learn">🎓<br><small>Обучение</small></button>
-        <button class="bottom-nav-item" onclick="handleLogout()">🚪<br><small>Выйти</small></button>
+        <button class="bottom-nav-item" data-tab="tab-settings">⚙️<br><small>Настройки</small></button>
     </div>
 
     <!-- Вкладка Заказы -->
@@ -392,10 +398,9 @@
         <div class="schedule-container">
             <h3>Расписание на <span id="selectedDateDisplay"></span></h3>
             <!-- Создать — сверху списка; ниже разделы дня сворачиваются (renderSchedule в app.js) -->
-            <div class="cal-actions">
-                <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Создать заказ</button>
-                <button class="btn-add btn-note" onclick="openNoteModal(selectedDate ? formatDate(selectedDate) : undefined)">📝 Создать заметку</button>
-                <button class="btn-add btn-note" onclick="calOpenPrebook(selectedDate ? formatDate(selectedDate) : undefined)">📞 Предзапись</button>
+            <div class="cal-actions cal-actions-line">
+                <button class="btn-add" onclick="openOrderModalFromCalendar()">➕ Заказ</button>
+                <button class="btn-add btn-note" onclick="openNoteModal(selectedDate ? formatDate(selectedDate) : undefined)">📝 Заметка</button>
                 <button class="btn-add btn-note" onclick="stOpenTaskModal(selectedDate ? formatDate(selectedDate) : undefined)">📌 Задача</button>
             </div>
             <div id="scheduleStudio"></div>
@@ -404,11 +409,16 @@
         </div>
     </div>
 
+    <!-- Вкладка Настройки: аккаунт (смена пароля) и все пользователи (js/settings.js) -->
+    <div id="tab-settings" class="tab-content">
+        <h2 class="tab-title">⚙️ Настройки</h2>
+        <div id="settingsContainer"></div>
+    </div>
+
     <!-- Вкладка Обучение: видео-уроки (список — в js/learning.js) -->
     <div id="tab-learn" class="tab-content">
         <h2 style="font-size:18px; color:#2E0A5E; margin:0 0 6px;">🎓 Обучение</h2>
         <p style="color:#6c757d; margin:0 0 14px; font-size:14px;">Короткие видео: как работать с программой. Смотрите по порядку.</p>
-        <a href="widget-phone.html" target="_blank" style="display:inline-block;margin:0 0 14px;padding:8px 14px;border-radius:8px;background:#5A1CB0;color:#fff;text-decoration:none;font-weight:600;font-size:14px;">📱 Календарь-виджет на телефон</a>
         <div id="learnList"></div>
     </div>
 
@@ -531,20 +541,16 @@
 
     <!-- Вкладка Задачи помощников (для админа). Разделы сворачиваются, что открыто — помнит устройство (details[data-key], js/finance.js) -->
     <div id="tab-helper-admin" class="tab-content">
-        <h2 class="tab-title">👥 Помощники</h2>
+        <h2 class="tab-title">👥 Помощник</h2>
         <div class="helper-actions">
             <button class="btn-add" onclick="openHelperTaskModalFromAdmin()">➕ Создать задачу</button>
-            <button class="btn-add" onclick="openAddHelperModal()">➕ Добавить помощника</button>
             <button class="btn-del" onclick="openPenaltyModal()">⚠️ Выписать штраф</button>
         </div>
         <details class="fin-section" data-key="h_tasks" data-open="1">
             <summary class="fin-section-head"><span>📋 Задачи</span></summary>
             <div class="fin-section-body">
-                <label class="cal-filter"><span>👷 Помощник</span>
-                    <select id="adminHelperFilter" onchange="renderAdminHelperTasks()">
-                        <option value="all">Все помощники</option>
-                    </select>
-                </label>
+                <!-- Список «Все помощники» перенесён в Настройки → «Все пользователи»; отбор — все помощники -->
+                <select id="adminHelperFilter" style="display:none"><option value="all" selected>Все</option></select>
                 <div id="adminHelperTaskList"></div>
             </div>
         </details>
@@ -565,7 +571,6 @@
                 <div id="adminHelperTasksContainer"></div>
             </div>
         </details>
-        <div id="helperDbCheckResult" style="margin-top:20px;"></div>
     </div>
 
     <!-- Модалка заказа -->
@@ -615,8 +620,9 @@
             </div>
             
             <!-- Блок задания помощнику -->
-            <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-top:15px;border:1px solid #dee2e6;">
-                <h4 style="margin-bottom:12px;color:#2E0A5E;">📝 Задание помощнику</h4>
+            <details class="order-task-box" id="orderTaskBox">
+                <summary class="order-task-head">📝 Задание помощнику</summary>
+                <div class="order-task-body">
                 <div class="form-group">
                     <label>👷 Помощник</label>
                     <select id="orderHelperSelect" style="width:100%;">
@@ -641,14 +647,19 @@
                     <label>💰 Оплата за задачу (₽)</label>
                     <input type="number" id="orderTaskPay" placeholder="0" step="0.01">
                 </div>
-            </div>
+                </div>
+            </details>
             <div class="color-select">
                 <label>Срочность (цвет):</label>
                 <button class="color-btn auto active" onclick="setOrderColor('auto')" title="Авто">🌀</button>
                 <button class="color-btn new" onclick="setOrderColor('new')" title="Новый">🟢</button>
-                <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟣</button>
+                <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟡</button>
                 <button class="color-btn critical" onclick="setOrderColor('critical')" title="Очень срочный">🔴</button>
                 <button class="color-btn done" onclick="setOrderColor('done')" title="Выполнен">⬜</button>
+            </div>
+            <!-- Новый заказ: клиент ещё не приехал — сохранить как предзапись (js/calendar-extra.js) -->
+            <div class="order-prebook" id="orderPrebookRow">
+                <button class="btn-extra" onclick="calOrderToPrebook()">📞 Это предзапись — сохранить в календарь</button>
             </div>
             <div class="order-delete" id="orderDeleteRow">
                 <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
@@ -1060,11 +1071,7 @@
                     <input type="number" id="helperTaskPay" placeholder="0" step="0.01">
                 </div>
             </div>
-                <div class="form-group">
-                    <label>⚠️ Штраф за просрочку (₽)</label>
-                    <input type="number" id="helperTaskPenalty" placeholder="0" step="0.01">
-                    <small style="color:#888;font-size:11px;">⚠️ Не может превышать оплату за задачу</small>
-                </div>
+                <input type="hidden" id="helperTaskPenalty" value="0"><!-- штраф за просрочку убран: штрафы выписываются отдельно -->
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeHelperTaskModal()">Отмена</button>
                 <button class="btn-save" onclick="saveHelperTask()">Создать задачу</button>
@@ -1100,11 +1107,7 @@
                     <label>💰 Оплата (₽)</label>
                     <input type="number" id="editTaskPay" placeholder="0" step="0.01">
                 </div>
-                <div class="form-group">
-                    <label>⚠️ Штраф (₽)</label>
-                    <input type="number" id="editTaskPenalty" placeholder="0" step="0.01">
-                    <small style="color:#888;font-size:11px;">⚠️ Не может превышать оплату за задачу</small>
-                </div>
+                <input type="hidden" id="editTaskPenalty" value="0"><!-- штраф в задаче убран: штрафы выписываются отдельно, с причиной -->
             </div>
             <div class="form-group">
                 <label>📊 Статус задачи</label>
@@ -1505,6 +1508,7 @@
     try {
       if (typeof window.pushOnLogout === 'function') await window.pushOnLogout();
       await window.signOut(window.auth);
+      try { localStorage.removeItem('ba_was_in'); } catch (e) {}
       location.reload();
     } catch (error) {
       console.error('Ошибка выхода:', error);
@@ -1728,8 +1732,6 @@
       if (typeof renderHelperTasks === 'function') renderHelperTasks();
       if (typeof renderHelperReport === 'function') renderHelperReport();
     }
-    // Режим «виджет» (js/widget.js): сразу календарь вместо заказов / задач
-    if (typeof window.applyWidgetMode === 'function') window.applyWidgetMode();
   }
   
   // Делаем функции глобально доступными

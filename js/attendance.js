@@ -234,6 +234,12 @@ function attTodayCard(email) {
     return `<div class="att-today"><div class="att-plan">${plan}</div>${body}</div>`;
 }
 
+// Задачи помощника по заказам со сроком в этот день (не принятые) — день подсвечивается рамкой
+function attOrderTasksOn(email, date) {
+    return (typeof ordersData !== 'undefined' ? ordersData : []).some(o => (o.services || []).some(s => (s.tasks || []).some(t =>
+        t.assignedTo === email && t.status !== 'completed' && String(t.deadline || '').slice(0, 10) === date)));
+}
+
 function attCalendarHTML(email, mk, clickable) {
     const today = attToday();
     const first = new Date(mk + '-01T12:00:00').getDay();
@@ -256,7 +262,7 @@ function attCalendarHTML(email, mk, clickable) {
         const openTasks = dayTasks.filter(t => stStatus(t) !== 'done').length;
         const tasksMark = dayTasks.length ? `<div class="att-tasks">${openTasks ? '📌 ' + openTasks : '✅'}</div>` : '';
         const selected = !clickable && date === (attSelDate || today);
-        cells += `<div class="att-cell att-${state || 'none'}${date === today ? ' today' : ''}${selected ? ' att-selected' : ''} clickable"${click}${title}>
+        cells += `<div class="att-cell att-${state || 'none'}${dayTasks.length || attOrderTasksOn(email, date) ? ' has-tasks' : ''}${date === today ? ' today' : ''}${selected ? ' att-selected' : ''} clickable"${click}${title}>
             <div class="att-day">${d}${rec && rec.comment ? ' 💬' : ''}</div><div class="att-text">${text}</div>${tasksMark}</div>`;
     }
     const [y, m] = mk.split('-').map(Number);
@@ -280,9 +286,7 @@ function attCalendarHTML(email, mk, clickable) {
             ${cells}
         </div>
         <div class="att-legend">
-            <span class="att-present">Был</span><span class="att-late">Опоздал</span><span class="att-missed">Не было отметки</span>
-            <span class="att-dayoff">Отгул / больничный</span><span class="att-planned">Рабочий день впереди</span>
-            <span>📌 дела на день</span>
+            <span class="att-legend-mark">Отмечен (был, опоздал, отгул)</span><span class="att-legend-task">Есть задачи</span><span class="att-vacation">🌴 Отпуск</span>
         </div>`;
 }
 

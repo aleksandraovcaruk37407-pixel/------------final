@@ -1,6 +1,7 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { getDatabase, ref, set, get, child, onValue, off, onDisconnect, runTransaction } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-database.js";
-import { getAuth, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, onAuthStateChanged, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile,
+  EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDGsjB5bhSL2keL0xTIOJib3ZB9HEqGyMs",
@@ -14,7 +15,19 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 window.db = getDatabase(app);
-window.auth = getAuth(app);
+// Вход хранится на устройстве (IndexedDB, запасной — localStorage): обновление страницы не выкидывает
+let mainAuth;
+try { mainAuth = initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence] }); }
+catch (e) { mainAuth = getAuth(app); }
+window.auth = mainAuth;
+
+// Смена своего пароля (Настройки → Аккаунт): Firebase требует заново подтвердить текущий пароль
+window.changeOwnPassword = async function(currentPassword, newPassword) {
+  const user = window.auth.currentUser;
+  if (!user) throw Object.assign(new Error('Не выполнен вход'), { code: 'auth/no-user' });
+  await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+  await updatePassword(user, newPassword);
+};
 window.fbRef = ref;
 window.fbSet = set;
 window.set = set;
@@ -79,6 +92,7 @@ window.initAuthState = function() {
     
     if (user) {
       console.log('Пользователь авторизован:', user.email);
+      try { localStorage.setItem('ba_was_in', '1'); } catch (e) {}
       
       const isAdminByEmail = window.ADMIN_EMAILS && window.ADMIN_EMAILS.includes(user.email.toLowerCase());
       if (isAdminByEmail) {
@@ -145,6 +159,7 @@ window.initAuthState = function() {
     } else {
       console.log('Пользователь не авторизован');
       window.currentUserData = null;
+      document.documentElement.classList.remove('ba-wasin'); // показать кнопку входа вместо «Загрузка…»
       
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('appContent').style.display = 'none';

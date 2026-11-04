@@ -143,6 +143,7 @@
                     
                     // Обновляем данные вкладки
                     if (tabId === 'tab-calendar' && typeof renderCalendar === 'function') renderCalendar();
+                    if (tabId === 'tab-settings' && typeof renderSettings === 'function') renderSettings();
                     if (tabId === 'tab-ref' && typeof renderRefs === 'function') renderRefs();
                     if (tabId === 'tab-purchase' && typeof renderPurchaseOrdersList === 'function') renderPurchaseOrdersList();
                     
@@ -1299,6 +1300,17 @@ window.localChangesPending = false;
             });
         });
         
+        // Отбор: статус (все / новые / на проверке / выполненные / просроченные) и период по сроку задачи
+        const tRange = periodRange(helperTasksPeriod, 'tasks');
+        const counts = { all: allTasks.length, pending: 0, review: 0, completed: 0, overdue: 0 };
+        allTasks.forEach(t => { if (counts[t.status || 'pending'] !== undefined) counts[t.status || 'pending']++; });
+        allTasks = allTasks.filter(t => {
+            const d = String((t.status === 'completed' ? t.completedAt : null) || t.deadline || t.orderDate || '').slice(0, 10);
+            return d >= tRange.from && d <= tRange.to && (helperTasksStatus === 'all' || (t.status || 'pending') === helperTasksStatus);
+        });
+        const chip = (st, label) => `<button class="ht-chip${helperTasksStatus === st ? ' active' : ''}" onclick="setHelperTasksStatus('${st}')">${label}${counts[st] ? ` <b>${counts[st]}</b>` : ''}</button>`;
+        const filtersHTML = `<div class="ht-filters">${chip('all', 'Все')}${chip('pending', 'Новые')}${chip('review', 'На проверке')}${chip('completed', 'Выполненные')}${chip('overdue', 'Просроченные')}</div>${periodPickerHTML('tasks')}`;
+
         // Сортируем: сначала просроченные, затем по сроку
         allTasks.sort((a, b) => {
             if (a.status === 'overdue' && b.status !== 'overdue') return -1;
@@ -1307,11 +1319,11 @@ window.localChangesPending = false;
         });
         
         if (allTasks.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:40px;color:#888;">У вас пока нет задач. Администратор назначит задачи в заказах.</div>';
+            container.innerHTML = filtersHTML + `<div style="text-align:center;padding:40px;color:#888;">${counts.all ? 'По этому отбору задач нет' : 'У вас пока нет задач. Администратор назначит задачи в заказах.'}</div>`;
             return;
         }
-        
-        container.innerHTML = allTasks.map((task, idx) => {
+
+        container.innerHTML = filtersHTML + allTasks.map((task, idx) => {
             const isOverdue = task.status === 'overdue';
             const isCompleted = task.status === 'completed';
             const isReview = task.status === 'review';
@@ -1333,7 +1345,6 @@ window.localChangesPending = false;
                     <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;">
                         <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${formatTaskDeadline(task.deadline)}</b></span>
                         <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
-                        ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                     </div>
                     ${isReview ? `<div style="font-size:13px;color:#3498db;">Ждёт подтверждения администратора — оплата начислится после проверки</div>` : ''}
                     ${taskProblemsHTML(task)}
@@ -1350,31 +1361,59 @@ window.localChangesPending = false;
     }
 
     // ========== ФУНКЦИЯ ОТЧЁТА ПОМОЩНИКА ==========
-    // Период отчёта: сегодня, неделя, этот/прошлый месяц, всё время или свои даты «с — по»
-    let helperReportFrom = '', helperReportTo = '';
-    function helperReportRange(period) {
+    // ===== Выбор периода (выпадающий список, «Свои даты…» — два календаря) =====
+    // key: helper — «Мой отчёт», admin — отчёт по помощникам у админа, tasks — «Мои задачи» помощника
+    const PERIOD_DATES = { helper: { from: '', to: '' }, admin: { from: '', to: '' }, tasks: { from: '', to: '' } };
+    let helperTasksPeriod = 'all';
+    let helperTasksStatus = 'all';
+    const PERIOD_OPTIONS = [['day', 'Сегодня'], ['week', 'Последние 7 дней'], ['month', 'Этот месяц'], ['prevmonth', 'Прошлый месяц'], ['year', 'За год'], ['all', 'За всё время'], ['custom', 'Свои даты…']];
+    function periodRange(period, key) {
         const today = formatDate(new Date());
         const shift = days => { const d = new Date(); d.setDate(d.getDate() + days); return formatDate(d); };
         const mk = today.slice(0, 7);
         const prev = finShiftMonth(mk, -1);
+        const dates = PERIOD_DATES[key || 'helper'] || { from: '', to: '' };
         switch (period) {
             case 'day': return { from: today, to: today, title: 'Сегодня' };
             case 'week': return { from: shift(-6), to: today, title: 'Последние 7 дней' };
             case 'month': return { from: mk + '-01', to: today, title: finMonthTitle(mk) };
             case 'year': return { from: shift(-365), to: today, title: 'За год' };
             case 'prevmonth': return { from: prev + '-01', to: prev + '-' + String(finDaysInMonth(prev)).padStart(2, '0'), title: finMonthTitle(prev) };
-            case 'custom': return { from: helperReportFrom || '2000-01-01', to: helperReportTo || today,
-                title: `${helperReportFrom ? formatDateDDMMYYYY(helperReportFrom) : 'начала'} — ${formatDateDDMMYYYY(helperReportTo || today)}` };
+            case 'custom': return { from: dates.from || '2000-01-01', to: dates.to || today,
+                title: `${dates.from ? formatDateDDMMYYYY(dates.from) : 'с начала'} — ${formatDateDDMMYYYY(dates.to || today)}` };
             default: return { from: '2000-01-01', to: '9999-12-31', title: 'За всё время' };
         }
     }
-    function setHelperReportCustom() {
-        helperReportFrom = document.getElementById('helperRepFrom')?.value || '';
-        helperReportTo = document.getElementById('helperRepTo')?.value || '';
-        currentHelperReportPeriod = 'custom';
-        renderHelperReport();
+    function helperReportRange(period) { return periodRange(period, 'helper'); }
+    function periodOf(key) { return key === 'admin' ? currentAdminHelperReportPeriod : key === 'tasks' ? helperTasksPeriod : currentHelperReportPeriod; }
+    function periodPickerHTML(key) {
+        const period = periodOf(key), d = PERIOD_DATES[key];
+        return `<div class="per-pick">
+            <label class="per-label">📅 Период
+                <select onchange="periodPick('${key}', this.value)">${PERIOD_OPTIONS.map(([v, t]) => `<option value="${v}"${v === period ? ' selected' : ''}>${t}</option>`).join('')}</select>
+            </label>
+            ${period === 'custom' ? `<span class="per-dates"><input type="date" id="per-${key}-from" value="${d.from}" onchange="periodApply('${key}')"><span>—</span><input type="date" id="per-${key}-to" value="${d.to}" onchange="periodApply('${key}')"></span>` : ''}
+            ${period === 'custom' ? `<span class="per-title">${periodRange(period, key).title}</span>` : ''}
+        </div>`;
     }
-    window.setHelperReportCustom = setHelperReportCustom;
+    function periodRerender(key) {
+        if (key === 'admin') renderAdminHelperTasks();
+        else if (key === 'tasks') renderHelperTasks();
+        else renderHelperReport();
+    }
+    function periodPick(key, value) {
+        if (key === 'admin') currentAdminHelperReportPeriod = value;
+        else if (key === 'tasks') helperTasksPeriod = value;
+        else currentHelperReportPeriod = value;
+        periodRerender(key);
+    }
+    function periodApply(key) {
+        PERIOD_DATES[key].from = document.getElementById(`per-${key}-from`)?.value || '';
+        PERIOD_DATES[key].to = document.getElementById(`per-${key}-to`)?.value || '';
+        periodRerender(key);
+    }
+    window.periodPick = periodPick;
+    window.periodApply = periodApply;
 
     function renderHelperReport() {
         const container = document.getElementById('helperReportContainer');
@@ -1402,9 +1441,8 @@ window.localChangesPending = false;
                         rows.push({ date: String(task.completedAt || order.date).slice(0, 10), text: `${task.description || 'задача'} (№${order.orderNumber})`, sum: parseFloat(task.helperPay) || 0 });
                     } else if (task.status === 'overdue' && inRange(task.overdueAt || task.deadline || order.date)) {
                         totalLost += parseFloat(task.helperPay) || 0;
-                        totalPenalties += parseFloat(task.penalty) || 0;
                         overdueTasks++;
-                        rows.push({ date: String(task.overdueAt || task.deadline || order.date).slice(0, 10), text: `просрочено: ${task.description || 'задача'} (№${order.orderNumber})`, sum: -(parseFloat(task.penalty) || 0) });
+                        rows.push({ date: String(task.overdueAt || task.deadline || order.date).slice(0, 10), text: `просрочено, не оплачивается: ${task.description || 'задача'} (№${order.orderNumber})`, sum: 0 });
                     }
                 });
             });
@@ -1413,7 +1451,7 @@ window.localChangesPending = false;
         // Штрафы, выписанные админом отдельно (не за просроченную задачу)
         getPenaltiesForPeriod(helperPenalties, currentHelperReportPeriod)
             .filter(p => p.helperEmail === helperEmail)
-            .forEach(p => { totalPenalties += parseFloat(p.amount) || 0; rows.push({ date: String(p.createdAt).slice(0, 10), text: `штраф: ${p.reason || ''}`, sum: -(parseFloat(p.amount) || 0) }); });
+            .forEach(p => { totalPenalties += parseFloat(p.amount) || 0; rows.push({ date: String(p.createdAt).slice(0, 10), text: `⚠️ штраф: ${p.reason || 'без причины'}${p.orderNumber ? ' (№' + p.orderNumber + ')' : ''}`, sum: -(parseFloat(p.amount) || 0) }); });
         const netEarned = totalEarned - totalPenalties;
         // Выплаты в этом периоде (расходы кассы «Помощникам»)
         const paidInPeriod = cashOps.filter(o => o.category === 'helpers' && o.helper === helperEmail && inRange(o.date));
@@ -1425,18 +1463,9 @@ window.localChangesPending = false;
         const totalPaid = accrual.paid;
         const totalUnpaid = Math.max(0, accrual.owed);
         const resetFrom = finHelperResets()[helperEmail];
-        const btn = (p, label) => `<button class="hr-period-btn${currentHelperReportPeriod === p ? ' active' : ''}" onclick="setHelperReportPeriod('${p}')">${label}</button>`;
-
+        
         container.innerHTML = `
-            <div class="hr-period">
-                <div class="hr-period-btns">${btn('day', 'Сегодня')}${btn('week', 'Неделя')}${btn('month', 'Этот месяц')}${btn('prevmonth', 'Прошлый месяц')}${btn('all', 'Всё время')}</div>
-                <div class="hr-period-custom">
-                    <label>с <input type="date" id="helperRepFrom" value="${helperReportFrom}"></label>
-                    <label>по <input type="date" id="helperRepTo" value="${helperReportTo}"></label>
-                    <button class="hr-period-btn${currentHelperReportPeriod === 'custom' ? ' active' : ''}" onclick="setHelperReportCustom()">Показать</button>
-                </div>
-                <div class="hr-period-title">📊 ${range.title}</div>
-            </div>
+            ${periodPickerHTML('helper')}
             <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
@@ -1483,12 +1512,13 @@ window.localChangesPending = false;
                 ${paidInPeriod.length ? `<div class="hr-row hr-total"><span></span><span class="hr-text">Выплачено за период</span><b class="hr-paid">${formatMoney(paidInPeriod.reduce((s2, o) => s2 + (parseFloat(o.expense) || 0), 0))}</b></div>` : ''}
             </div>
 
-            <div style="background:#EFE7FC;padding:15px;border-radius:8px;border-left:4px solid #9163EA;">
-                <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
+            <div class="ba-hint" style="background:#EFE7FC;padding:15px;border-radius:8px;border-left:4px solid #9163EA;">
+                <h4 style="margin:0 0 10px 0;">Как начисляется зарплата:</h4>
                 <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
                     <li>За каждую выполненную задачу начисляется <b>указанная сумма</b> ₽</li>
-                    <li>За просроченную задачу вы <b>не получаете оплату</b> и платите <b>штраф</b></li>
-                    <li>Чистая зарплата = Выполненные задачи - Штрафы</li>
+                    <li>За просроченную задачу вы <b>не получаете оплату</b></li>
+                    <li>Штраф выписывает администратор отдельно и пишет, за что</li>
+                    <li>Чистая зарплата = выполненные задачи − штрафы</li>
                     <li>Выплаты отмечаются администратором во вкладке "👥 Задачи помощников"</li>
                 </ul>
             </div>
@@ -1498,6 +1528,7 @@ window.localChangesPending = false;
         renderHelperPenalties();
     }
     window.renderHelperTasks = renderHelperTasks;
+    window.setHelperTasksStatus = function(st) { helperTasksStatus = st; renderHelperTasks(); };
     window.renderHelperReport = renderHelperReport;
     
     // ========== МОДУЛЬ 5.1: УПРАВЛЕНИЕ ПОМОЩНИКАМИ (ТОЛЬКО АДМИН) ==========
@@ -1945,7 +1976,7 @@ window.localChangesPending = false;
     window.updateHelperFilter = updateHelperFilter;
 
     function renderAdminPenalties(filterEmail, period) {
-        const filtered = getPenaltiesForPeriod(helperPenalties, period || 'all')
+        const filtered = getPenaltiesForPeriod(helperPenalties, period || 'all', 'admin')
             .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         
@@ -1992,21 +2023,17 @@ window.localChangesPending = false;
         
         const filterEmail = document.getElementById('adminHelperFilter')?.value || 'all';
         
-        // Фильтруем заказы по периоду
-        const filteredOrders = getTasksForPeriod(ordersData, currentAdminHelperReportPeriod);
-        
-        // Название периода
-        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
-        
+        // Период: задача попадает по дню выполнения, иначе по сроку (выпадающий список periodPickerHTML)
+        const range = periodRange(currentAdminHelperReportPeriod, 'admin');
+        const inRange = d => { const x = String(d || '').slice(0, 10); return x >= range.from && x <= range.to; };
+
         // Собираем все задачи
         let allTasks = [];
-        filteredOrders.forEach(order => {
-            // Фильтр по датам заказов
-            if (currentHelperDateFrom && order.date < currentHelperDateFrom) return;
-            if (currentHelperDateTo && order.date > currentHelperDateTo) return;
+        ordersData.forEach(order => {
             (order.services || []).forEach((service, svcIdx) => {
                 (service.tasks || []).forEach(task => {
                     if (filterEmail !== 'all' && task.assignedTo !== filterEmail) return;
+                    if (!inRange(task.status === 'completed' ? (task.completedAt || task.deadline || order.date) : (task.deadline || order.date))) return;
                     allTasks.push({
                         ...task,
                         orderNumber: order.orderNumber,
@@ -2037,20 +2064,18 @@ window.localChangesPending = false;
         const completedTasks = allTasks.filter(t => t.status === 'completed').length;
         const overdueTasks = allTasks.filter(t => t.status === 'overdue').length;
         const totalEarned = allTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + (parseFloat(t.helperPay) || 0), 0);
-        const totalPenalties = allTasks.filter(t => t.status === 'overdue').reduce((sum, t) => sum + (parseFloat(t.penalty) || 0), 0)
-            + getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod)
+        const totalPenalties = getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod, 'admin')
                 .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
                 .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
         // Считаем выплаты для всех помощников
         const helpersStats = {};
         const allHelperEmails = new Set(allTasks.map(t => t.assignedTo));
-        const periodPenalties = getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod);
+        const periodPenalties = getPenaltiesForPeriod(helperPenalties, currentAdminHelperReportPeriod, 'admin');
         allHelperEmails.forEach(email => {
             let earned = 0, penalties = 0;
             allTasks.filter(t => t.assignedTo === email).forEach(task => {
                 if (task.status === 'completed') earned += parseFloat(task.helperPay) || 0;
-                if (task.status === 'overdue') penalties += parseFloat(task.penalty) || 0;
             });
             periodPenalties.filter(p => p.helperEmail === email).forEach(p => { penalties += parseFloat(p.amount) || 0; });
 
@@ -2070,7 +2095,7 @@ window.localChangesPending = false;
 
         if (allTasks.length === 0) {
             if (listEl !== container) container.innerHTML = '';
-            listEl.innerHTML = `
+            listEl.innerHTML = periodPickerHTML('admin') + `
                 <div class="helper-empty-state">
                     <div style="font-size:48px;margin-bottom:15px;">📋</div>
                     <div style="font-size:16px;margin-bottom:8px;">Задач не найдено</div>
@@ -2081,11 +2106,7 @@ window.localChangesPending = false;
         }
         
         container.innerHTML = `
-            <!-- Период -->
-            <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
-                <h4 style="margin:0 0 5px 0;">📊 ${periodNames[currentAdminHelperReportPeriod]}</h4>
-                <div style="font-size:13px;color:#666;">Период отчёта: ${periodNames[currentAdminHelperReportPeriod]}</div>
-            </div>
+            ${periodPickerHTML('admin')}
             <!-- Статистика -->
             <div class="helper-stat-grid" style="margin-bottom:20px;">
                 <div class="helper-stat-item">
@@ -2155,7 +2176,8 @@ window.localChangesPending = false;
 
         const listHTML = `
             <!-- Список задач -->
-            <div class="helper-section-title">Все задачи</div>
+            ${periodPickerHTML('admin')}
+            <div class="helper-section-title">Задачи · ${range.title.toLowerCase()}</div>
             ${allTasks.map(task => {
                 const isOverdue = task.status === 'overdue';
                 const isCompleted = task.status === 'completed';
@@ -2186,7 +2208,6 @@ window.localChangesPending = false;
                         <div style="display:flex;gap:15px;font-size:13px;color:#666;margin-bottom:8px;flex-wrap:wrap;">
                             <span>📅 Срок: <b style="color:${isOverdue ? '#e74c3c' : '#333'};">${formatTaskDeadline(task.deadline)}</b></span>
                             <span>💰 Оплата: <b style="color:#27ae60;">${task.helperPay} ₽</b></span>
-                            ${task.penalty ? `<span>⚠️ Штраф: <b style="color:#e74c3c;">${task.penalty} ₽</b></span>` : ''}
                             ${task.createdAt ? `<span>🕐 Создана: ${new Date(task.createdAt).toLocaleDateString('ru-RU')}</span>` : ''}
                             ${task.startedAt ? `<span>🔧 Взял в работу: ${new Date(task.startedAt).toLocaleDateString('ru-RU')}</span>` : ''}
                             ${task.completedAt ? `<span>✅ Выполнена: ${new Date(task.completedAt).toLocaleDateString('ru-RU')}</span>` : ''}
@@ -2202,6 +2223,7 @@ window.localChangesPending = false;
                             <button class="btn-add" onclick="openEditTaskModal('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#5A1CB0;">✏️ Редактировать</button>
                             ${!isCompleted ? `<button class="btn-add" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Завершить</button>` : ''}
                             ${!isOverdue && !isCompleted ? `<button class="btn-del" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'overdue')" style="padding:6px 12px;font-size:12px;">❌ Просрочить</button>` : ''}
+                            ${task.assignedTo ? `<button class="btn-extra" onclick="openPenaltyModal({ helper: '${safeHTML(task.assignedTo)}', orderNumber: '${safeHTML(task.orderNumber)}' })" style="padding:6px 12px;font-size:12px;">⚠️ Штраф</button>` : ''}
                         </div>
                     </div>
                 `;
@@ -2647,8 +2669,7 @@ window.localChangesPending = false;
         });
     }
     
-    function openPenaltyModal() {
-        console.log('🚨 openPenaltyModal вызван');
+    function openPenaltyModal(prefill) {
         
         // Заполнить список помощников
         const helperSelect = document.getElementById('penaltyHelper');
@@ -2656,6 +2677,7 @@ window.localChangesPending = false;
         
         // Загружаем помощников
         loadHelpersForSelect(helperSelect, true).then((helpers) => {
+            if (prefill && prefill.helper) helperSelect.value = prefill.helper;
             if (helpers.length === 0) {
                 setTimeout(() => alert('⚠️ Помощники не найдены. Сначала добавьте помощника кнопкой «➕ Добавить помощника».'), 300);
             }
@@ -2674,9 +2696,10 @@ window.localChangesPending = false;
         // Очистить форму
         document.getElementById('penaltyAmount').value = '';
         document.getElementById('penaltyReason').value = '';
-        document.getElementById('penaltyOrder').value = '';
+        document.getElementById('penaltyOrder').value = prefill && prefill.orderNumber ? String(prefill.orderNumber) : '';
         
         document.getElementById('penaltyModal').classList.add('active');
+        setTimeout(() => document.getElementById('penaltyAmount').focus(), 50);
     }
     
     function closePenaltyModal() {
@@ -2780,10 +2803,10 @@ window.localChangesPending = false;
         `;
     }
     
-    function getPenaltiesForPeriod(penalties, period) {
+    function getPenaltiesForPeriod(penalties, period, key) {
         if (!penalties || penalties.length === 0) return [];
-        // Тот же период, что выбран в «Мой отчёт»
-        const range = helperReportRange(period);
+        // Тот же период, что выбран в отчёте (key: helper — «Мой отчёт», admin — отчёт админа)
+        const range = periodRange(period, key || 'helper');
         return penalties.filter(p => { const d = String(p.createdAt || '').slice(0, 10); return d >= range.from && d <= range.to; });
     }
     
@@ -2847,7 +2870,7 @@ window.localChangesPending = false;
         }
         document.getElementById('editTaskAssignee').value = task.assignedTo || '';
         document.getElementById('editTaskPay').value = task.helperPay || '';
-        document.getElementById('editTaskPenalty').value = task.penalty || '';
+        document.getElementById('editTaskPenalty').value = '0'; // штраф в задаче убран
         document.getElementById('editTaskStatus').value = task.status || 'pending';
         
         document.getElementById('editTaskModal').classList.add('active');
@@ -2973,7 +2996,7 @@ window.localChangesPending = false;
             delete task.completedAt;
             if (wasReview && task.assignedTo) addNotice(task.assignedTo, 'task_returned', `↩️ Задача возвращена в работу: ${task.description} (Заказ #${order.orderNumber})`, order.orderNumber);
         } else if (newStatus === 'overdue' && task.assignedTo) {
-            addNotice(task.assignedTo, 'penalty_issued', `❌ Задача просрочена: ${task.description} (Заказ #${order.orderNumber})${parseFloat(task.penalty) ? '. Штраф ' + formatMoney(parseFloat(task.penalty)) : ''}`, order.orderNumber);
+            addNotice(task.assignedTo, 'penalty_issued', `❌ Задача просрочена и не оплачивается: ${task.description} (Заказ #${order.orderNumber})`, order.orderNumber);
         }
 
         saveAll();
@@ -3979,6 +4002,8 @@ window.localChangesPending = false;
         orderModal.querySelector('.modal').scrollTop = 0;
         const deleteRow = document.getElementById('orderDeleteRow');
         if (deleteRow) deleteRow.style.display = order ? '' : 'none'; // у нового заказа удалять нечего
+        const prebookRow = document.getElementById('orderPrebookRow');
+        if (prebookRow) prebookRow.style.display = order ? 'none' : ''; // предзапись — только для нового заказа
         
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
@@ -6071,7 +6096,7 @@ function deleteOrder(orderId) {
             // Цвета срочности через inline style для гарантии
             const colorStyles = {
                 'new': 'background:#d4edda;border-color:#28a745;',
-                'middle': 'background:#EFE7FC;border-color:#9163EA;',
+                'middle': 'background:#fff3cd;border-color:#ffc107;',
                 'critical': 'background:#f8d7da;border-color:#dc3545;',
                 'done': 'background:#e9ecef;border-color:#6c757d;'
             };
@@ -7518,6 +7543,7 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         if (tabId === 'tab-stock' && typeof renderStock === 'function') renderStock();
         if (tabId === 'tab-cash' && typeof renderCash === 'function') renderCash();
         if (tabId === 'tab-summary' && typeof renderSummary === 'function') renderSummary();
+        if (tabId === 'tab-settings' && typeof renderSettings === 'function') renderSettings();
         if (tabId === 'tab-ref' && typeof renderServicesTable === 'function') renderServicesTable();
         if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();

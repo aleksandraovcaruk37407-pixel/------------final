@@ -61,7 +61,7 @@
         .btn-sm { padding: 4px 12px; border: none; border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 600; }
         .btn-primary { background: #5A1CB0; color: #fff; }
         .btn-success { background: #28a745; color: #fff; }
-        .btn-warning { background: #9163EA; color: #212529; }
+        .btn-warning { background: #ffc107; color: #212529; }
         .btn-danger { background: #dc3545; color: #fff; }
         .btn-extra { background: #6c757d; color: #fff; border: none; padding: 4px 8px; border-radius: 20px; cursor: pointer; font-size: 12px; }
         .btn-secondary { background: #6c757d; color: #fff; }
@@ -72,7 +72,7 @@
         }
         .order-item { border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 8px; background: #fff; cursor: pointer; }
         .order-item.status-new { background: #d4edda; border-color: #28a745; }
-        .order-item.status-middle { background: #EFE7FC; border-color: #9163EA; }
+        .order-item.status-middle { background: #fff3cd; border-color: #ffc107; }
         .order-item.status-critical { background: #f8d7da; border-color: #dc3545; }
         .order-item.status-done { background: #e9ecef; border-color: #6c757d; }
         .order-header { display: flex; align-items: center; padding: 10px 15px; gap: 10px; flex-wrap: wrap; }
@@ -88,7 +88,7 @@
         .order-header .order-paid { display: flex; align-items: center; gap: 4px; font-size: 14px; min-width: 70px; }
         .order-header .color-indicator { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #dee2e6; }
         .color-indicator.new { background: #28a745; }
-        .color-indicator.middle { background: #9163EA; }
+        .color-indicator.middle { background: #ffc107; }
         .color-indicator.critical { background: #dc3545; }
         .color-indicator.done { background: #6c757d; }
         .summary-block { background: #f8f9fa; padding: 16px; border-radius: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
@@ -118,7 +118,7 @@
     white-space: normal;
 }
         .calendar-grid .day-cell.color-new { background: #d4edda; border-color: #28a745; }
-        .calendar-grid .day-cell.color-middle { background: #EFE7FC; border-color: #9163EA; }
+        .calendar-grid .day-cell.color-middle { background: #fff3cd; border-color: #ffc107; }
         .calendar-grid .day-cell.color-critical { background: #f8d7da; border-color: #dc3545; }
         .calendar-grid .day-cell.color-done { background: #e9ecef; border-color: #6c757d; }
         .calendar-grid .day-cell.color-payment { background: #cce5ff; border-color: #5A1CB0; }
@@ -145,7 +145,7 @@
         .schedule-slot.payment-slot { background: #cce5ff; }
         .schedule-slot.note-slot { background: #e6d9f5; }
         .schedule-slot.color-new { background: #d4edda; border-color: #28a745; border-left: 4px solid #28a745; }
-        .schedule-slot.color-middle { background: #EFE7FC; border-color: #9163EA; border-left: 4px solid #9163EA; }
+        .schedule-slot.color-middle { background: #fff3cd; border-color: #ffc107; border-left: 4px solid #ffc107; }
         .schedule-slot.color-critical { background: #f8d7da; border-color: #dc3545; border-left: 4px solid #dc3545; }
         .schedule-slot.color-done { background: #e9ecef; border-color: #6c757d; border-left: 4px solid #6c757d; }
         
@@ -222,7 +222,7 @@
         .color-select { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
         .color-select .color-btn { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #dee2e6; cursor: pointer; }
         .color-btn.new { background: #28a745; }
-        .color-btn.middle { background: #9163EA; }
+        .color-btn.middle { background: #ffc107; }
         .color-btn.critical { background: #dc3545; }
         .color-btn.done { background: #6c757d; }
         .color-btn.auto { background: #fff; border-style: dashed; }
@@ -700,7 +700,7 @@
         .btn-primary:hover { background: #0056b3; }
         .btn-success { background: #28a745; color: #fff; }
         .btn-success:hover { background: #218838; }
-        .btn-warning { background: #9163EA; color: #212529; }
+        .btn-warning { background: #ffc107; color: #212529; }
         .btn-warning:hover { background: #e0a800; }
         .btn-secondary { background: #6c757d; color: #fff; }
         .btn-secondary:hover { background: #545b62; }
