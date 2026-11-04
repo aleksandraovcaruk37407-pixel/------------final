@@ -21,7 +21,7 @@
 #helper-tasks, #helper-attendance, #helper-report { --u-fs: 15px; --u-btn: 44px; --u-bfs: 15px; --u-in: 42px; }
 
 /* Заголовки вкладок и разделов */
-.tab-content > h2, .tab-content .tab-title { font-size: 20px !important; color: #1a3c5e; margin: 0 0 12px !important; }
+.tab-content > h2, .tab-content .tab-title { font-size: 20px !important; color: #2E0A5E; margin: 0 0 12px !important; }
 .tab-content h3 { font-size: var(--u-h) !important; }
 
 /* Кнопки вкладки: одна высота, шрифт и скругление */
@@ -62,7 +62,7 @@
 
 /* ---------- Сворачиваемые разделы («Деньги», «Помощники») ---------- */
 .fin-section { background: #fff; border: 1px solid #e3e7eb; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
-.fin-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-weight: 700; font-size: var(--u-h); color: #1a3c5e; user-select: none; }
+.fin-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-weight: 700; font-size: var(--u-h); color: #2E0A5E; user-select: none; }
 .fin-section-head::-webkit-details-marker { display: none; }
 .fin-section-head::after { content: '▾'; margin-left: 6px; color: #6c757d; transition: transform .15s; }
 .fin-section:not([open]) .fin-section-head::after { transform: rotate(-90deg); }
@@ -71,10 +71,10 @@
 .fin-section[open] .fin-section-head { border-bottom: 1px solid #eef1f4; }
 .fin-section-body { padding: 10px 14px 14px; }
 .fin-section-body .fin-group { margin-bottom: 10px; }
-.fin-tax-line { background: #fff8e1; border: 1px solid #ffe08a; border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fin-tax-line { background: #F6F1FE; border: 1px solid #D9C7F7; border-radius: 10px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .fin-tax-line .fin-pay-btn { min-height: 30px !important; padding: 0 12px !important; font-size: 13px !important; border-radius: 6px !important; }
 .fin-funds-help { margin-bottom: 8px; line-height: 1.4; }
-.fin-op-fix { font-size: 12px; color: #8a6d00; background: #fff8e1; border-radius: 6px; padding: 4px 8px; margin: -2px 0 6px; }
+.fin-op-fix { font-size: 12px; color: #3F1C80; background: #F6F1FE; border-radius: 6px; padding: 4px 8px; margin: -2px 0 6px; }
 .helper-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
 .helper-actions .btn-add, .cal-actions .btn-add { margin: 0 !important; }
 
@@ -94,10 +94,10 @@
 /* Расписание дня: кнопки сверху, разделы сворачиваются */
 .cal-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
 .cal-actions .btn-note { background: #6f42c1 !important; }
-.btn-tabel { background: #185FA5 !important; }
+.btn-tabel { background: #5A1CB0 !important; }
 .schedule-grid { display: block !important; }
 .cal-section { border: 1px solid #e3e7eb; border-radius: 10px; margin-bottom: 8px; background: #fff; overflow: hidden; }
-.cal-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 700; color: #1a3c5e; user-select: none; }
+.cal-section-head { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-weight: 700; color: #2E0A5E; user-select: none; }
 .cal-section-head::-webkit-details-marker { display: none; }
 .cal-section-head > span:first-child { flex: 1; }
 .cal-section-head::after { content: '▾'; color: #6c757d; transition: transform .15s; }
@@ -112,9 +112,9 @@
 .cal-empty { color: #6c757d; padding: 10px 0; }
 
 /* Посещение помощников в календаре */
-.ag-att .ag-tag { background: #e7f1ff; color: #185FA5; }
+.ag-att .ag-tag { background: #e7f1ff; color: #5A1CB0; }
 .ag-att.ag-att-done .ag-tag { background: #d1e7dd; color: #0f5132; }
-.ag-att .ag-text b { color: #1a3c5e; }
+.ag-att .ag-text b { color: #2E0A5E; }
 
 /* Табель */
 .att-tabel-modal { max-width: 96vw !important; width: 960px; }
@@ -126,10 +126,10 @@
 .att-tb .att-tb-we { background: #fdecec; }
 .att-tb .att-tb-name { text-align: left; position: sticky; left: 0; background: #fff; z-index: 1; min-width: 90px; }
 .att-tb-cell { cursor: pointer; min-width: 26px; }
-.att-tb-cell:hover { outline: 2px solid #185FA5; outline-offset: -2px; }
+.att-tb-cell:hover { outline: 2px solid #5A1CB0; outline-offset: -2px; }
 .att-tb-Я { background: #d1e7dd; color: #0f5132; font-weight: 600; }
 .att-tb-НН { background: #f8d7da; color: #842029; font-weight: 600; }
-.att-tb-ДО, .att-tb-Б { background: #fff3cd; color: #664d03; }
+.att-tb-ДО, .att-tb-Б { background: #EFE7FC; color: #3F1C80; }
 .att-tb-В { color: #adb5bd; }
 
 @media (max-width: 600px) {
@@ -147,9 +147,9 @@
 .cal-nav-row, #tab-calendar .calendar-nav.cal-nav-row { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center; gap: 6px; margin-bottom: 8px; }
 #tab-calendar .cal-nav-row button { min-height: 34px !important; padding: 0 10px !important; font-size: 13px !important; font-weight: 600; border-radius: 8px !important; flex-shrink: 0; cursor: pointer; }
 #tab-calendar .cal-nav-row .cal-nav-arrow { background: #f8f9fa; border: 1px solid #dee2e6; color: #333; padding: 0 9px !important; }
-#tab-calendar .cal-nav-row .cal-nav-today { background: #007bff; color: #fff; border: none; }
+#tab-calendar .cal-nav-row .cal-nav-today { background: #5A1CB0; color: #fff; border: none; }
 #tab-calendar .cal-nav-row .cal-nav-view { background: #6c757d; color: #fff; border: none; }
-.cal-nav-title { flex: 1; min-width: 0; margin: 0 !important; text-align: center; font-size: 15px !important; line-height: 1.15; color: #1a3c5e; overflow-wrap: anywhere; }
+.cal-nav-title { flex: 1; min-width: 0; margin: 0 !important; text-align: center; font-size: 15px !important; line-height: 1.15; color: #2E0A5E; overflow-wrap: anywhere; }
 @media (max-width: 420px) {
     #tab-calendar .cal-nav-row { gap: 4px; }
     #tab-calendar .cal-nav-row button { padding: 0 8px !important; font-size: 12px !important; }
@@ -207,9 +207,9 @@
 .calendar-grid .day-cell.has-vacation { box-shadow: inset 0 -3px 0 #20c997; }
 .att-vacation { background: #e6fcf5 !important; }
 .ag-vacation .ag-tag { background: #e6fcf5; color: #087f5b; }
-.ag-prebook .ag-tag { background: #fff3bf; color: #8a6d00; }
+.ag-prebook .ag-tag { background: #EFE7FC; color: #3F1C80; }
 .schedule-slot.vacation-slot { background: #e6fcf5; border-left: 4px solid #20c997; }
-.schedule-slot.prebook-slot { background: #fff9db; border-left: 4px solid #fab005; display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.schedule-slot.prebook-slot { background: #F6F1FE; border-left: 4px solid #9163EA; display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .schedule-slot.vacation-slot { display: flex; gap: 6px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .cal-for { font-size: 12px; color: #6f42c1; white-space: nowrap; }
 .calendar-grid { touch-action: pan-y; }
@@ -238,3 +238,17 @@ label:not([class]):has(> input[type="checkbox"]) { display: inline-flex; align-i
         max-width: 18px !important; max-height: 18px !important; flex: 0 0 18px !important;
     }
 }
+
+/* «Мой отчёт» помощника: выбор периода и список за период */
+.hr-period { background: #F6F1FE; border-radius: 10px; padding: 12px; margin-bottom: 15px; }
+.hr-period-btns, .hr-period-custom { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+.hr-period-btn { padding: 6px 12px; border: 1px solid #C9B8F2; background: #fff; color: #2E0A5E; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.hr-period-btn.active { background: #5A1CB0; color: #fff; border-color: #5A1CB0; }
+.hr-period-custom label { display: flex; gap: 4px; align-items: center; font-size: 13px; }
+.hr-period-custom input { min-height: 34px !important; padding: 2px 6px; }
+.hr-period-title { font-weight: 700; font-size: 15px; color: #2E0A5E; }
+.hr-list { background: #fff; border: 1px solid #e9ecef; border-radius: 8px; padding: 12px 14px; margin-bottom: 15px; }
+.hr-row { display: grid; grid-template-columns: 86px 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f1f3f5; font-size: 14px; align-items: center; }
+.hr-date { color: #6c757d; font-size: 13px; }
+.hr-plus { color: #27ae60; } .hr-minus { color: #dc3545; } .hr-paid { color: #5A1CB0; }
+.hr-total { border-bottom: none; font-weight: 700; }

@@ -1,0 +1,297 @@
+/* СГЕНЕРИРОВАНО отладка/инструменты/сделать-тёмную-тему.py — руками не править, правки — в brand.css */
+html.ba-dark body { background:#121417!important }
+html.ba-dark .container { background:#16181B!important }
+html.ba-dark h1 { color:#C9B8F2!important }
+html.ba-dark .btn-import { color:#ECEAF2!important }
+html.ba-dark .tab-btn { background:#2A2D33!important }
+html.ba-dark input, html.ba-dark select, html.ba-dark textarea { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .btn-warning { color:#ECEAF2!important }
+html.ba-dark .order-item { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .order-item.status-new { background:#12261A!important }
+html.ba-dark .order-item.status-middle { background:#221636!important }
+html.ba-dark .order-item.status-critical { background:#2A1216!important }
+html.ba-dark .order-item.status-done { background:#2A2D33!important }
+html.ba-dark .order-header .order-number { color:#C9B8F2!important }
+html.ba-dark .order-header .order-date { color:#ECEAF2!important }
+html.ba-dark .order-header .order-deadline { color:#ECEAF2!important }
+html.ba-dark .order-header .order-phone { color:#ECEAF2!important }
+html.ba-dark .order-header .order-sum.paid { color:#ECEAF2!important }
+html.ba-dark .order-header .color-indicator { border:2px solid #33363D!important }
+html.ba-dark .summary-block { background:#121417!important }
+html.ba-dark .summary-item { background:#16181B!important }
+html.ba-dark .note { background:#221636!important }
+html.ba-dark input:disabled, html.ba-dark select:disabled { background:#2A2D33!important }
+html.ba-dark .calendar-grid .day-name { background:#2A2D33!important }
+html.ba-dark .calendar-grid .day-cell { background:#121417!important }
+html.ba-dark .calendar-grid .day-cell.color-new { background:#12261A!important }
+html.ba-dark .calendar-grid .day-cell.color-middle { background:#221636!important }
+html.ba-dark .calendar-grid .day-cell.color-critical { background:#2A1216!important }
+html.ba-dark .calendar-grid .day-cell.color-done { background:#2A2D33!important }
+html.ba-dark .calendar-grid .day-cell.color-payment { background:#1C1A2E!important }
+html.ba-dark .calendar-grid .day-cell.color-note { background:#221636!important }
+html.ba-dark .calendar-grid .day-cell .today-label { color:#B9A0F2!important }
+html.ba-dark .today-panel { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .today-panel .today-head { color:#C9B8F2!important }
+html.ba-dark .today-panel .today-row { border-top:1px solid #33363D!important }
+html.ba-dark .today-panel .today-row[onclick]:hover { background:#121417!important }
+html.ba-dark .today-panel .today-due .today-text b { color:#B9A0F2!important }
+html.ba-dark .today-panel .today-empty { color:#A9A3B8!important }
+html.ba-dark .today-panel .today-more { color:#B9A0F2!important }
+html.ba-dark .schedule-slot { border:1px solid #33363D!important }
+html.ba-dark .schedule-slot.payment-slot { background:#1C1A2E!important }
+html.ba-dark .schedule-slot.note-slot { background:#221636!important }
+html.ba-dark .schedule-slot.color-new { background:#12261A!important }
+html.ba-dark .schedule-slot.color-middle { background:#221636!important }
+html.ba-dark .schedule-slot.color-critical { background:#2A1216!important }
+html.ba-dark .schedule-slot.color-done { background:#2A2D33!important }
+html.ba-dark .modal { background:#16181B!important }
+html.ba-dark .modal h3 { color:#C9B8F2!important }
+html.ba-dark .modal .form-actions { border-top:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .modal .btn-cancel { background:#2A2D33!important; color:#ECEAF2!important }
+html.ba-dark .color-select .color-btn { border:2px solid #33363D!important }
+html.ba-dark .color-btn.auto { background:#16181B!important }
+html.ba-dark .extra-item.marker-selected { background:#12261A!important }
+html.ba-dark .marker-status { color:#7FD3A0!important }
+html.ba-dark .service-row { border:1px solid #33363D!important; background:#121417!important }
+html.ba-dark .service-details { border-top:1px solid #33363D!important }
+html.ba-dark .service-details .section-title { color:#C9B8F2!important }
+html.ba-dark .footer-toolbar { border-top:1px solid #33363D!important }
+html.ba-dark #unpaidSummary { background:#121417!important }
+html.ba-dark .scroll-wrap { border:1px solid #33363D!important }
+html.ba-dark .modal h3 { border-bottom:1px solid #33363D!important }
+html.ba-dark .modal .form-actions { border-top:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .purchase-toolbar input[type="date"] { border:1px solid #33363D!important }
+html.ba-dark .stock-tile { background:#121417!important; color:#A9A3B8!important }
+html.ba-dark .stock-tile b { color:#C9B8F2!important }
+html.ba-dark .stock-tile.short { background:#2A1216!important }
+html.ba-dark .stock-tile.low { background:#221636!important }
+html.ba-dark .stock-tile.low b { color:#B9A0F2!important }
+html.ba-dark .stock-badge.low { color:#ECEAF2!important }
+html.ba-dark tr.stock-short td { background:#2A1216!important }
+html.ba-dark .summary-title { color:#C9B8F2!important; background:#2A2D33!important }
+html.ba-dark .summary-subtitle { color:#A9A3B8!important; background:#121417!important }
+html.ba-dark .summary-block { background:#16181B!important; border:2px solid #33363D!important }
+html.ba-dark .summary-item { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .summary-item:hover { background:#2A2D33!important }
+html.ba-dark .summary-item label { color:#ECEAF2!important }
+html.ba-dark .summary-item span { color:#C9B8F2!important }
+html.ba-dark .summary-footer { border-top:2px solid #33363D!important }
+html.ba-dark .btn-warning { color:#ECEAF2!important }
+html.ba-dark .notification-content { background:#16181B!important }
+html.ba-dark .notification-header { border-bottom:2px solid #33363D!important }
+html.ba-dark .notification-header h3 { color:#C9B8F2!important }
+html.ba-dark .notification-item.orders { background:#1C1A2E!important }
+html.ba-dark .notification-item.notes { background:#221636!important }
+html.ba-dark .notification-item.payments { background:#221636!important }
+html.ba-dark .notification-title { color:#C9B8F2!important }
+html.ba-dark .notification-list { color:#ECEAF2!important }
+html.ba-dark .service-filter-btn { background:#2A2D33!important; color:#ECEAF2!important }
+html.ba-dark .budget-result { background:#121417!important }
+html.ba-dark .budget-result-row { border-bottom:1px solid #33363D!important }
+html.ba-dark .budget-result-row .label { color:#A9A3B8!important }
+html.ba-dark .budget-result-row.mandatory .value { color:#B9A0F2!important }
+html.ba-dark .budget-progress-item { background:#121417!important }
+html.ba-dark .budget-progress-header .amount { color:#A9A3B8!important }
+html.ba-dark .progress-bar-budget { background:#2A2D33!important }
+html.ba-dark .budget-progress-meta { color:#A9A3B8!important }
+html.ba-dark .wallet-item { background:#121417!important }
+html.ba-dark .dist-history-item { border-bottom:1px solid #33363D!important }
+html.ba-dark .dist-history-date { color:#A9A3B8!important }
+html.ba-dark .btn-auth { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .btn-auth:hover { background:#2A2D33!important }
+html.ba-dark .plan-summary { background:#121417!important }
+html.ba-dark .plan-breakdown { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .plan-settings { background:#221636!important }
+html.ba-dark .plan-goals { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .helper-task-card { background:#16181B!important }
+html.ba-dark .helper-task-card.completed { background:#12261A!important }
+html.ba-dark .helper-task-card.overdue { background:#2A1216!important }
+html.ba-dark .helper-report-card { background:#16181B!important }
+html.ba-dark .helper-stat-item { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .helper-stat-item.highlight { background:#12261A!important }
+html.ba-dark .helper-stat-item.warning { background:#2A1216!important }
+html.ba-dark .helper-stat-label { color:#A9A3B8!important }
+html.ba-dark .helper-empty-state { color:#A9A3B8!important; background:#121417!important; border:2px dashed #33363D!important }
+html.ba-dark .helper-section-title { color:#C9B8F2!important; border-bottom:2px solid #33363D!important }
+html.ba-dark .helper-info-box { background:#221636!important }
+html.ba-dark .admin-task-meta { color:#A9A3B8!important }
+html.ba-dark .edit-task-info { background:#121417!important }
+html.ba-dark .admin-filter-select { border:1px solid #33363D!important }
+html.ba-dark .modal-handle { background:#2A2D33!important }
+html.ba-dark .bottom-nav { background:#16181B!important; border-top:1px solid #33363D!important }
+html.ba-dark .bottom-nav-item { color:#A9A3B8!important }
+html.ba-dark .bottom-nav-item.active { color:#C9B8F2!important }
+html.ba-dark .bottom-nav-more-menu { background:#16181B!important }
+html.ba-dark .bottom-nav-more-item { color:#ECEAF2!important }
+html.ba-dark .bottom-nav-more-item:hover { background:#121417!important }
+html.ba-dark .bottom-nav { background:#16181B!important }
+html.ba-dark .bottom-nav-item { color:#A9A3B8!important }
+html.ba-dark .bottom-nav-item.active { color:#C9B8F2!important }
+html.ba-dark .bottom-nav-more { color:#A9A3B8!important }
+html.ba-dark .bottom-nav-more-menu { background:#16181B!important; border-top:1px solid #33363D!important }
+html.ba-dark .bottom-nav-more-item { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .modal-overlay .modal { background:#16181B!important }
+html.ba-dark #orderModal .form-actions { background:#16181B!important; border-top:1px solid #33363D!important }
+html.ba-dark .notice-box { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .notice-box h4 { color:#C9B8F2!important }
+html.ba-dark .notif-bell { border:1px solid #33363D!important }
+html.ba-dark .notice-panel { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .notice-panel-head { color:#C9B8F2!important }
+html.ba-dark .notice-item { background:#16181B!important; border-left:3px solid #33363D!important }
+html.ba-dark .notice-item.unread { background:#221636!important }
+html.ba-dark .notice-date { color:#A9A3B8!important }
+html.ba-dark .att-today { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .att-plan { color:#A9A3B8!important }
+html.ba-dark .att-summary { color:#ECEAF2!important }
+html.ba-dark .att-weekday { color:#A9A3B8!important }
+html.ba-dark .att-cell { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .att-day { color:#ECEAF2!important }
+html.ba-dark .att-text { color:#ECEAF2!important }
+html.ba-dark .att-present, html.ba-dark .att-open { background:#12261A!important }
+html.ba-dark .att-late { background:#221636!important }
+html.ba-dark .att-absent, html.ba-dark .att-missed { background:#2A1216!important }
+html.ba-dark .att-planned { background:#1C1A2E!important }
+html.ba-dark .push-hint { color:#ECEAF2!important }
+html.ba-dark .scan-unknown { background:#221636!important }
+html.ba-dark .scan-cart-row { border-bottom:1px solid #33363D!important }
+html.ba-dark .client-card { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .client-card-name { color:#C9B8F2!important }
+html.ba-dark .client-card-name span { color:#ECEAF2!important }
+html.ba-dark .client-card-services { color:#ECEAF2!important }
+html.ba-dark .client-card-hint { color:#A9A3B8!important }
+html.ba-dark .fin-day-nav input { border:1px solid #33363D!important }
+html.ba-dark .fin-day-totals > div { background:#121417!important; color:#A9A3B8!important }
+html.ba-dark .fin-day-totals b { color:#C9B8F2!important }
+html.ba-dark .learn-group { color:#C9B8F2!important }
+html.ba-dark .learn-group .learn-progress { color:#A9A3B8!important }
+html.ba-dark .learn-card { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .learn-soon { background:#121417!important; color:#A9A3B8!important }
+html.ba-dark .learn-title { color:#C9B8F2!important }
+html.ba-dark .learn-desc { color:#ECEAF2!important }
+html.ba-dark .st-day { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .st-day-head { color:#C9B8F2!important }
+html.ba-dark .st-count { color:#A9A3B8!important }
+html.ba-dark .st-empty { color:#A9A3B8!important }
+html.ba-dark .st-task { border-top:1px solid #33363D!important }
+html.ba-dark .st-meta { color:#A9A3B8!important }
+html.ba-dark .st-note { color:#B9A0F2!important }
+html.ba-dark .st-btn { border:1px solid #33363D!important; background:#121417!important }
+html.ba-dark .st-task.st-done .st-text { color:#A9A3B8!important }
+html.ba-dark .st-task.st-work .st-text { color:#B9A0F2!important }
+html.ba-dark .st-toggle { color:#B9A0F2!important; background:#16181B!important }
+html.ba-dark .att-tasks { color:#B9A0F2!important }
+html.ba-dark .client-suggest { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .client-suggest-item { border-top:1px solid #33363D!important }
+html.ba-dark .client-suggest-item:hover { background:#1C1A2E!important }
+html.ba-dark .client-suggest-sub { color:#A9A3B8!important }
+html.ba-dark .client-star { color:#B9A0F2!important }
+html.ba-dark .client-info { color:#B9A0F2!important }
+html.ba-dark .cal-switch { background:#121417!important }
+html.ba-dark .cal-switch-btn { color:#A9A3B8!important }
+html.ba-dark .cal-switch-btn.active { background:#16181B!important; color:#C9B8F2!important }
+html.ba-dark .ag-btn { border:1px solid #33363D!important; background:#16181B!important; color:#ECEAF2!important }
+html.ba-dark .ag-day { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .ag-day-head { color:#C9B8F2!important }
+html.ba-dark .ag-today .ag-day-head { color:#B9A0F2!important }
+html.ba-dark .ag-plus { border:1px solid #33363D!important; background:#121417!important; color:#B9A0F2!important }
+html.ba-dark .ag-row { border-top:1px solid #33363D!important }
+html.ba-dark .ag-row[onclick]:hover { background:#121417!important }
+html.ba-dark .ag-tag { background:#2A2D33!important; color:#ECEAF2!important }
+html.ba-dark .ag-due .ag-tag, html.ba-dark .ag-late .ag-tag { background:#2A1216!important; color:#F2A0A6!important }
+html.ba-dark .ag-start .ag-tag { background:#12261A!important; color:#7FD3A0!important }
+html.ba-dark .ag-done .ag-tag { background:#2A2D33!important; color:#A9A3B8!important }
+html.ba-dark .ag-helper .ag-tag { background:#1C1A2E!important; color:#B9A0F2!important }
+html.ba-dark .ag-pay .ag-tag { background:#221636!important; color:#C9B8F2!important }
+html.ba-dark .ag-empty { color:#A9A3B8!important }
+html.ba-dark .ag-day .st-task { border-top:1px solid #33363D!important }
+html.ba-dark .widget-mode body { background:#121417!important }
+html.ba-dark .widget-bar b { color:#C9B8F2!important }
+html.ba-dark .widget-btn { border:1px solid #33363D!important; background:#16181B!important; color:#C9B8F2!important }
+html.ba-dark .mobile-nav, html.ba-dark .bottom-nav { background:#16181B!important; border-top:1px solid #33363D!important }
+html.ba-dark .mobile-nav-item, html.ba-dark .bottom-nav-item { color:#A9A3B8!important }
+html.ba-dark .mobile-nav-item.active, html.ba-dark .bottom-nav-item.active { color:#C9B8F2!important }
+html.ba-dark .mobile-modal { background:#16181B!important }
+html.ba-dark .modal-handle { background:#2A2D33!important }
+html.ba-dark .table-responsive { border:1px solid #33363D!important }
+html.ba-dark #authSection .user-name { color:#A9A3B8!important }
+html.ba-dark #authSection .btn-auth-logout { color:#A9A3B8!important; border:1px solid #33363D!important }
+html.ba-dark #ordersList .order-header .order-service { color:#ECEAF2!important }
+html.ba-dark #tab-stock .stock-table tr { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark #tab-stock .stock-table td[data-label]::before { color:#A9A3B8!important }
+html.ba-dark #tab-stock .stock-table td.stock-del .btn-del { background:#121417!important }
+html.ba-dark #tab-ref .ref-section { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark #tab-ref .ref-section > summary { color:#C9B8F2!important }
+html.ba-dark .fin-muted { color:#A9A3B8!important }
+html.ba-dark .fin-h { color:#C9B8F2!important }
+html.ba-dark .fin-card { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .fin-card-label { color:#A9A3B8!important }
+html.ba-dark .fin-card-value { color:#C9B8F2!important }
+html.ba-dark .fin-warn { background:#221636!important }
+html.ba-dark .fin-info { background:#1C1A2E!important }
+html.ba-dark .fin-note { color:#A9A3B8!important }
+html.ba-dark .fin-fund { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .fin-link { color:#C9B8F2!important }
+html.ba-dark .fin-progress { background:#2A2D33!important }
+html.ba-dark .fin-month-nav button:not(.fin-add) { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .fin-group { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .fin-pay { border-top:1px solid #33363D!important }
+html.ba-dark .fin-pay-sub { color:#A9A3B8!important }
+html.ba-dark .fin-paid .fin-pay-name { color:#A9A3B8!important }
+html.ba-dark .fin-pay-actions button { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .fin-op { border-bottom:1px solid #33363D!important }
+html.ba-dark .fin-settings { border:1px solid #33363D!important }
+html.ba-dark .fin-settings summary { color:#C9B8F2!important }
+html.ba-dark .fin-set input { border:1px solid #33363D!important }
+html.ba-dark .fin-waterfall td { border-bottom:1px solid #33363D!important }
+html.ba-dark .fin-waterfall tr.sub td { background:#121417!important }
+html.ba-dark .fin-waterfall tr.total td { background:#1C1A2E!important }
+html.ba-dark .fin-plan { border:1px solid #33363D!important }
+html.ba-dark .schedule-slot.due-overdue { background:#2A1216!important }
+html.ba-dark .modal .form-actions, html.ba-dark #orderModal .form-actions { background:#16181B!important }
+html.ba-dark .tab-content > h2, html.ba-dark .tab-content .tab-title { color:#C9B8F2!important }
+html.ba-dark .fin-section { background:#16181B!important; border:1px solid #33363D!important }
+html.ba-dark .fin-section-head { color:#C9B8F2!important }
+html.ba-dark .fin-section-head::after { color:#A9A3B8!important }
+html.ba-dark .fin-section-aside { color:#ECEAF2!important }
+html.ba-dark .fin-tax-line { background:#221636!important }
+html.ba-dark .fin-op-fix { color:#C9B8F2!important; background:#221636!important }
+html.ba-dark .cal-filter { color:#A9A3B8!important }
+html.ba-dark .cal-filter select { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .cal-section { border:1px solid #33363D!important; background:#16181B!important }
+html.ba-dark .cal-section-head { color:#C9B8F2!important }
+html.ba-dark .cal-section-head::after { color:#A9A3B8!important }
+html.ba-dark .cal-section-count { background:#2A2D33!important; color:#ECEAF2!important }
+html.ba-dark .cal-section-body .ag-row { border-top:1px solid #33363D!important }
+html.ba-dark .schedule-slot.income-slot { background:#12261A!important }
+html.ba-dark .schedule-slot.task-slot { background:#1C1A2E!important }
+html.ba-dark .cal-empty { color:#A9A3B8!important }
+html.ba-dark .ag-att .ag-tag { background:#1C1A2E!important; color:#B9A0F2!important }
+html.ba-dark .ag-att.ag-att-done .ag-tag { background:#12261A!important; color:#7FD3A0!important }
+html.ba-dark .ag-att .ag-text b { color:#C9B8F2!important }
+html.ba-dark .att-tb-wrap { border:1px solid #33363D!important }
+html.ba-dark .att-tb th, html.ba-dark .att-tb td { border:1px solid #33363D!important }
+html.ba-dark .att-tb th { background:#121417!important }
+html.ba-dark .att-tb th small, html.ba-dark .att-tb td small { color:#A9A3B8!important }
+html.ba-dark .att-tb .att-tb-name { background:#16181B!important }
+html.ba-dark .att-tb-Я { background:#12261A!important; color:#7FD3A0!important }
+html.ba-dark .att-tb-НН { background:#2A1216!important; color:#F2A0A6!important }
+html.ba-dark .att-tb-ДО, html.ba-dark .att-tb-Б { background:#221636!important; color:#C9B8F2!important }
+html.ba-dark .att-tb-В { color:#A9A3B8!important }
+html.ba-dark #tab-calendar .cal-nav-row .cal-nav-arrow { background:#121417!important; border:1px solid #33363D!important; color:#ECEAF2!important }
+html.ba-dark .cal-nav-title { color:#C9B8F2!important }
+html.ba-dark .cal-summary .cs-item { background:#121417!important; border:1px solid #33363D!important }
+html.ba-dark .ag-att .ag-text { color:#ECEAF2!important }
+html.ba-dark #serviceItemsModal .svc-items-head { color:#A9A3B8!important }
+html.ba-dark #serviceItemsModal .svc-help { color:#A9A3B8!important }
+html.ba-dark #serviceItemsModal .svc-item-row.marker-selected { background:#12261A!important }
+html.ba-dark #serviceItemsModal .svc-item-row.marker-selected .item-name { color:#7FD3A0!important }
+html.ba-dark .calendar-grid .day-cell.other-month { background:#121417!important; border-color:#33363D!important }
+html.ba-dark .calendar-grid .day-cell.other-month .other-badge { color:#A9A3B8!important }
+html.ba-dark .att-vacation { background:#12261A!important }
+html.ba-dark .ag-vacation .ag-tag { background:#12261A!important; color:#7FD3A0!important }
+html.ba-dark .ag-prebook .ag-tag { background:#221636!important; color:#C9B8F2!important }
+html.ba-dark .schedule-slot.vacation-slot { background:#12261A!important }
+html.ba-dark .schedule-slot.prebook-slot { background:#221636!important }
+html.ba-dark .cal-for { color:#B9A0F2!important }
+html.ba-dark .note-extra { border-top:1px dashed #33363D!important }
+html.ba-dark .note-extra summary { color:#A9A3B8!important }

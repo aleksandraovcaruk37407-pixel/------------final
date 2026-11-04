@@ -10,7 +10,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Учет авто-ателье</title>
+    <title>BACK ALIVE — учёт студии</title>
     <!-- PWA: Manifest и Service Worker для push-уведомлений -->
     <link rel="manifest" href="./manifest.json">
     <script>
@@ -31,8 +31,10 @@
     <base href="./">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="msapplication-TileColor" content="#1a3c5e">
-    <meta name="theme-color" content="#1a3c5e">
+    <meta name="msapplication-TileColor" content="#2E0A5E">
+    <meta name="theme-color" content="#0B0B0E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Michroma&display=swap" rel="stylesheet">
 
     <!-- Динамическая загрузка JS с timestamp для обхода кэша -->
     <script>
@@ -56,6 +58,36 @@
       uniformCssLink.rel = 'stylesheet';
       uniformCssLink.href = 'css/uniform.css?' + cacheBust;
       document.head.appendChild(uniformCssLink);
+
+      // Тёмная тема BACK ALIVE (вариант А): общие замены цветов, затем фирменный стиль поверх.
+      // Тема устройства: localStorage ba_theme = 'dark' | 'light' (по умолчанию тёмная)
+      try { if (localStorage.getItem('ba_theme') !== 'light') document.documentElement.classList.add('ba-dark'); } catch (e) { document.documentElement.classList.add('ba-dark'); }
+      // Кнопка 🌙/☀️ в шапке: тема запоминается на этом устройстве
+      window.baToggleTheme = function() {
+        var dark = document.documentElement.classList.toggle('ba-dark');
+        try { localStorage.setItem('ba_theme', dark ? 'dark' : 'light'); } catch (e) {}
+        document.querySelectorAll('.ba-theme-btn').forEach(function(b) { b.textContent = dark ? '☀️' : '🌙'; });
+      };
+      document.addEventListener('DOMContentLoaded', function() {
+        var dark = document.documentElement.classList.contains('ba-dark');
+        document.querySelectorAll('.ba-theme-btn').forEach(function(b) { b.textContent = dark ? '☀️' : '🌙'; });
+      });
+      var darkCssLink = document.createElement('link');
+      darkCssLink.rel = 'stylesheet';
+      darkCssLink.href = 'css/brand-dark.css?' + cacheBust;
+      document.head.appendChild(darkCssLink);
+
+      // Фирменный стиль BACK ALIVE (чёрная шапка с логотипом) — самым последним
+      var brandCssLink = document.createElement('link');
+      brandCssLink.rel = 'stylesheet';
+      brandCssLink.href = 'css/brand.css?' + cacheBust;
+      document.head.appendChild(brandCssLink);
+
+      // Брутальный стиль тёмной темы (Michroma, прямые углы, контурные кнопки)
+      var brutalCssLink = document.createElement('link');
+      brutalCssLink.rel = 'stylesheet';
+      brutalCssLink.href = 'css/brand-brutal.css?' + cacheBust;
+      document.head.appendChild(brutalCssLink);
     </script>
     
     <!-- Firebase module загружается первым -->
@@ -63,7 +95,7 @@
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202611041200" defer></script>
+    <script src="js/finance.js?v=202611041900" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
     <script src="js/attendance.js?v=202611031200" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
@@ -81,7 +113,7 @@
     <script src="js/calendar-extra.js?v=202611041200" defer></script>
     <script src="js/agenda.js?v=202611041200" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611041200" defer></script>
+    <script src="js/app.js?v=202611041900" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/learning.js?v=202610281200" defer></script>
     
@@ -113,7 +145,7 @@
                 <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
             </div>
             <div style="text-align:center;margin-top:15px;font-size:14px;">
-                <a href="#" onclick="showRegisterForm(); return false;" style="color:#007bff;text-decoration:none;">Нет аккаунта? Зарегистрироваться</a>
+                <a href="#" onclick="showRegisterForm(); return false;" style="color:#5A1CB0;text-decoration:none;">Нет аккаунта? Зарегистрироваться</a>
             </div>
         </div>
         
@@ -136,7 +168,7 @@
                 <button class="btn-del" onclick="closeAuthModal()" style="flex:1;">Отмена</button>
             </div>
             <div style="text-align:center;margin-top:15px;font-size:14px;">
-                <a href="#" onclick="showLoginForm(); return false;" style="color:#007bff;text-decoration:none;">Уже есть аккаунт? Войти</a>
+                <a href="#" onclick="showLoginForm(); return false;" style="color:#5A1CB0;text-decoration:none;">Уже есть аккаунт? Войти</a>
             </div>
         </div>
     </div>
@@ -165,8 +197,8 @@
     <!-- Экран входа -->
     <div id="loginScreen" style="display:flex;align-items:center;justify-content:center;min-height:80vh;">
         <div style="max-width:400px;width:100%;padding:40px;text-align:center;">
-            <h1 style="font-size:48px;margin-bottom:20px;">🚗</h1>
-            <h2 style="color:#1a3c5e;margin-bottom:30px;">Учет авто-ателье</h2>
+            <img src="icons/logo-dark.svg" alt="BACK ALIVE car studio" class="brand-login-logo">
+            <p class="brand-login-sub">учёт студии</p>
             
             <button class="btn-add" onclick="openAuthModal()" style="padding:12px 40px;font-size:16px;">🔑 Войти в систему</button>
             <p style="margin-top:20px;font-size:13px;color:#888;">Введите email и пароль для доступа</p>
@@ -176,7 +208,7 @@
     <!-- Основное приложение (скрыто до входа) -->
     <div id="appContent" style="display:none;">
         <div class="toolbar">
-            <h1>🚗 Учет авто-ателье</h1>
+            <h1 class="brand-title"><img src="icons/logo-dark.svg" alt="BACK ALIVE car studio" class="brand-logo"></h1>
             <div style="flex:1;"></div>
             <div id="authSection">
                 <span style="font-size:13px;color:#666;" id="userDisplayName"></span>
@@ -185,23 +217,23 @@
         </div>
 
     <div class="tabs" id="adminTabs" style="display:none;">
-        <button class="tab-btn active" data-tab="tab-orders">📋 Заказы</button>
-        <button class="tab-btn" data-tab="tab-calendar">📅 Календарь</button>
-        <button class="tab-btn" data-tab="tab-purchase">📄 Закупка</button>
-        <button class="tab-btn" data-tab="tab-helper-admin">👥 Задачи помощников</button>
-        <button class="tab-btn" data-tab="tab-stock">📦 Склад</button>
-        <button class="tab-btn" data-tab="tab-cash">💰 Деньги</button>
-        <button class="tab-btn" data-tab="tab-summary">📊 Итоги</button>
-        <button class="tab-btn" data-tab="tab-ref">📚 Справочники</button>
-        <button class="tab-btn" data-tab="tab-learn">🎓 Обучение</button>
+        <button class="tab-btn active" data-tab="tab-orders">Заказы</button>
+        <button class="tab-btn" data-tab="tab-calendar">Календарь</button>
+        <button class="tab-btn" data-tab="tab-purchase">Закупка</button>
+        <button class="tab-btn" data-tab="tab-helper-admin">Задачи помощников</button>
+        <button class="tab-btn" data-tab="tab-stock">Склад</button>
+        <button class="tab-btn" data-tab="tab-cash">Деньги</button>
+        <button class="tab-btn" data-tab="tab-summary">Итоги</button>
+        <button class="tab-btn" data-tab="tab-ref">Справочники</button>
+        <button class="tab-btn" data-tab="tab-learn">Обучение</button>
     </div>
     
     <!-- Вкладки для помощника (скрыты по умолчанию) -->
     <div class="tabs" id="helperTabs" style="display:none;">
-        <button class="tab-btn active" data-tab="helper-tasks">📋 Мои задачи</button>
-        <button class="tab-btn" data-tab="helper-attendance">📅 Календарь</button>
-        <button class="tab-btn" data-tab="helper-report">📊 Мой отчёт</button>
-        <button class="tab-btn" data-tab="tab-learn">🎓 Обучение</button>
+        <button class="tab-btn active" data-tab="helper-tasks">Мои задачи</button>
+        <button class="tab-btn" data-tab="helper-attendance">Календарь</button>
+        <button class="tab-btn" data-tab="helper-report">Мой отчёт</button>
+        <button class="tab-btn" data-tab="tab-learn">Обучение</button>
     </div>
 
     <!-- Нижняя навигация для мобильных -->
@@ -238,11 +270,11 @@
         <div class="inline-flex" style="justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <div class="order-filters" style="display:flex; gap:6px; flex-wrap:wrap;">
                 <button class="btn btn-sm btn-primary filter-btn active" data-filter="all">Все</button>
-                <button class="btn btn-sm btn-success filter-btn" data-filter="new">🟢 Новые</button>
-                <button class="btn btn-sm btn-warning filter-btn" data-filter="middle">🟡 Срочные</button>
-                <button class="btn btn-sm btn-danger filter-btn" data-filter="critical">🔴 Очень срочные</button>
-                <button class="btn btn-sm btn-secondary filter-btn" data-filter="done">✅ Выполненные</button>
-                <button class="btn btn-sm btn-danger filter-btn" data-filter="unpaid">💳 Не оплачено</button>
+                <button class="btn btn-sm btn-success filter-btn" data-filter="new">Новые</button>
+                <button class="btn btn-sm btn-warning filter-btn" data-filter="middle">Срочные</button>
+                <button class="btn btn-sm btn-danger filter-btn" data-filter="critical">Очень срочные</button>
+                <button class="btn btn-sm btn-secondary filter-btn" data-filter="done">Выполненные</button>
+                <button class="btn btn-sm btn-danger filter-btn" data-filter="unpaid">Не оплачено</button>
             </div>
             <div class="order-actions" style="display:flex; gap:8px; align-items:center;">
                 <button class="btn-add" onclick="openOrderModal()">+ Добавить заказ</button>
@@ -288,7 +320,7 @@
 
     <!-- Вкладка Итоги -->
     <div id="tab-summary" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Отчёт по финансовым показателям</h2>
+        <h2 style="color:#2E0A5E; margin-bottom:15px;">📊 Отчёт по финансовым показателям</h2>
         
         <div class="summary-header">
             <div class="inline-flex" style="gap:10px; flex-wrap:wrap; margin-bottom:10px;">
@@ -316,7 +348,7 @@
         
         <!-- План дохода -->
         <div style="margin-top:30px;">
-            <h3 style="color:#1a3c5e; margin-bottom:15px;">📊 План дохода с учётом всех потребностей</h3>
+            <h3 style="color:#2E0A5E; margin-bottom:15px;">📊 План дохода с учётом всех потребностей</h3>
             <div id="incomePlanContainer"></div>
             <div id="goalsContainer" style="margin-top:20px;"></div>
         </div>
@@ -372,9 +404,9 @@
 
     <!-- Вкладка Обучение: видео-уроки (список — в js/learning.js) -->
     <div id="tab-learn" class="tab-content">
-        <h2 style="font-size:18px; color:#1a3c5e; margin:0 0 6px;">🎓 Обучение</h2>
+        <h2 style="font-size:18px; color:#2E0A5E; margin:0 0 6px;">🎓 Обучение</h2>
         <p style="color:#6c757d; margin:0 0 14px; font-size:14px;">Короткие видео: как работать с программой. Смотрите по порядку.</p>
-        <a href="widget-phone.html" target="_blank" style="display:inline-block;margin:0 0 14px;padding:8px 14px;border-radius:8px;background:#185FA5;color:#fff;text-decoration:none;font-weight:600;font-size:14px;">📱 Календарь-виджет на телефон</a>
+        <a href="widget-phone.html" target="_blank" style="display:inline-block;margin:0 0 14px;padding:8px 14px;border-radius:8px;background:#5A1CB0;color:#fff;text-decoration:none;font-weight:600;font-size:14px;">📱 Календарь-виджет на телефон</a>
         <div id="learnList"></div>
     </div>
 
@@ -477,21 +509,21 @@
 
     <!-- Вкладка Мои задачи (для помощника) -->
     <div id="helper-tasks" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">📋 Мои задачи</h2>
+        <h2 style="color:#2E0A5E; margin-bottom:15px;">📋 Мои задачи</h2>
         <div id="helperTasksContainer"></div>
     </div>
 
     <!-- Вкладка Посещаемость (для помощника) -->
     <div id="helper-attendance" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">📅 Календарь</h2>
+        <h2 style="color:#2E0A5E; margin-bottom:15px;">📅 Календарь</h2>
         <div id="helperAttendanceContainer"></div>
     </div>
 
     <!-- Вкладка Мой отчёт (для помощника) -->
     <div id="helper-report" class="tab-content">
-        <h2 style="color:#1a3c5e; margin-bottom:15px;">📊 Мой отчёт</h2>
+        <h2 style="color:#2E0A5E; margin-bottom:15px;">📊 Мой отчёт</h2>
         <div id="helperReportContainer"></div>
-        <h3 style="color:#1a3c5e; margin:20px 0 10px;">⚠️ Мои штрафы</h3>
+        <h3 style="color:#2E0A5E; margin:20px 0 10px;">⚠️ Мои штрафы</h3>
         <div id="helperPenaltiesContainer"></div>
     </div>
 
@@ -582,7 +614,7 @@
             
             <!-- Блок задания помощнику -->
             <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-top:15px;border:1px solid #dee2e6;">
-                <h4 style="margin-bottom:12px;color:#1a3c5e;">📝 Задание помощнику</h4>
+                <h4 style="margin-bottom:12px;color:#2E0A5E;">📝 Задание помощнику</h4>
                 <div class="form-group">
                     <label>👷 Помощник</label>
                     <select id="orderHelperSelect" style="width:100%;">
@@ -612,7 +644,7 @@
                 <label>Срочность (цвет):</label>
                 <button class="color-btn auto active" onclick="setOrderColor('auto')" title="Авто">🌀</button>
                 <button class="color-btn new" onclick="setOrderColor('new')" title="Новый">🟢</button>
-                <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟡</button>
+                <button class="color-btn middle" onclick="setOrderColor('middle')" title="Срочный">🟣</button>
                 <button class="color-btn critical" onclick="setOrderColor('critical')" title="Очень срочный">🔴</button>
                 <button class="color-btn done" onclick="setOrderColor('done')" title="Выполнен">⬜</button>
             </div>
@@ -1585,6 +1617,7 @@
         <span id="syncDot" class="sync-dot" title="Синхронизация"></span>
         <span class="user-name">👤 ${window.currentUserData.displayName}</span>
         <button class="notif-bell" onclick="toggleNoticePanel(event)" title="Уведомления">🔔<span class="notif-badge"></span></button>
+        <button class="notif-bell ba-theme-btn" onclick="baToggleTheme()" title="Тёмная или светлая тема">${document.documentElement.classList.contains('ba-dark') ? '☀️' : '🌙'}</button>
         <button class="btn-auth btn-auth-logout" onclick="handleLogout()">Выйти</button>
       `;
       if (typeof window.refreshSyncDot === 'function') window.refreshSyncDot();

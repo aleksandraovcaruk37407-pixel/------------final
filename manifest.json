@@ -1,12 +1,12 @@
 {
-  "name": "Авто-ателье — Учёт",
-  "short_name": "Авто-ателье",
+  "name": "BACK ALIVE — учёт студии",
+  "short_name": "BACK ALIVE",
   "description": "Система управления авто-ателье: заказы, склад, финансы, помощники",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#f0f2f5",
-  "theme_color": "#1a3c5e",
+  "background_color": "#0B0B0E",
+  "theme_color": "#0B0B0E",
   "categories": ["business", "productivity"],
   "icons": [
     {

@@ -11,8 +11,8 @@
       const colors = {
         success: '#28a745',
         error: '#dc3545',
-        warning: '#ffc107',
-        info: '#007bff'
+        warning: '#9163EA',
+        info: '#5A1CB0'
       };
       
       const toast = document.createElement('div');
@@ -269,9 +269,9 @@
     function getDefaultBudgetData() {
         return {
             wallets: {
-                tax: { name: 'Налог (4%)', target: 0, rate: 0.04, color: '#ffc107', icon: '💰' },
+                tax: { name: 'Налог (4%)', target: 0, rate: 0.04, color: '#9163EA', icon: '💰' },
                 personal: { name: 'Личные накопления (10%)', target: 0, rate: 0.10, color: '#17a2b8', icon: '👤' },
-                business: { name: 'Улучшение бизнеса (5%)', target: 0, rate: 0.05, color: '#e67e22', icon: '🚀' },
+                business: { name: 'Улучшение бизнеса (5%)', target: 0, rate: 0.05, color: '#7A3BE0', icon: '🚀' },
                 investments: { name: 'Инвестиции/Активы (5%)', target: 0, rate: 0.05, color: '#9b59b6', icon: '📈' }
             },
             mandatoryPayments: [
@@ -826,11 +826,11 @@ window.localChangesPending = false;
                 <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
                     <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(dist.tax)}</span></div>
                     <div class="budget-result-row personal"><span class="label">👤 Личные (10%):</span><span class="value">${formatMoney(dist.personal)}</span></div>
-                    <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#e67e22;">${formatMoney(dist.business)}</span></div>
+                    <div class="budget-result-row" style="color:#7A3BE0;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#7A3BE0;">${formatMoney(dist.business)}</span></div>
                     <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции/Активы (5%):</span><span class="value" style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
                     <div class="budget-result-row mandatory"><span class="label">📌 Обязательные платежи:</span><span class="value">${formatMoney(dist.mandatory)}</span></div>
                 </div>
-                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#fff3cd;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#e67e22;">${formatMoney(extraDebt)}</span></div>` : ''}
+                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#EFE7FC;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#7A3BE0;">${formatMoney(extraDebt)}</span></div>` : ''}
                 <div style="margin-top:8px;font-size:13px;color:#666;">
                     <b>Куда пошло:</b><br>
                     ${distributions.map(d => `${d.name}: +${formatMoney(d.amount)}`).join('<br>')}
@@ -993,12 +993,12 @@ window.localChangesPending = false;
             <div class="dist-history-item">
                 <div class="dist-history-date">${dist.date} — №${dist.orderNumber} (${dist.client || 'Без клиента'})</div>
                 <div class="dist-history-row"><span>Чистая прибыль:</span><span style="color:#27ae60;font-weight:600;">${formatMoney(dist.netProfit)}</span></div>
-                <div class="dist-history-row"><span>Налог:</span><span style="color:#ffc107;">${formatMoney(dist.tax)}</span></div>
+                <div class="dist-history-row"><span>Налог:</span><span style="color:#9163EA;">${formatMoney(dist.tax)}</span></div>
                 <div class="dist-history-row"><span>Личные:</span><span style="color:#17a2b8;">${formatMoney(dist.personal)}</span></div>
-                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#e67e22;">${formatMoney(dist.business)}</span></div>
+                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#7A3BE0;">${formatMoney(dist.business)}</span></div>
                 <div class="dist-history-row"><span>Инвестиции:</span><span style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
-                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#e67e22;">${formatMoney(dist.mandatory)}</span></div>
-                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#e67e22;font-weight:600;">+${formatMoney(dist.extraDebt)}</span></div>` : ''}
+                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#7A3BE0;">${formatMoney(dist.mandatory)}</span></div>
+                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#7A3BE0;font-weight:600;">+${formatMoney(dist.extraDebt)}</span></div>` : ''}
             </div>
         `).join('');
     }
@@ -1160,7 +1160,7 @@ window.localChangesPending = false;
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
                     <div>
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Требуемый доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${formatMoney(plan.minIncome)}</div>
+                        <div style="font-size:20px;font-weight:700;color:#2E0A5E;">${formatMoney(plan.minIncome)}</div>
                         <div style="font-size:11px;color:#888;">в месяц</div>
                     </div>
                     <div>
@@ -1179,10 +1179,10 @@ window.localChangesPending = false;
                 <div style="margin-top:15px;">
                     <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
                         <span style="font-size:13px;color:#666;">✅ План выполнен</span>
-                        <span style="font-size:14px;font-weight:700;color:${plan.progressPercent >= 100 ? '#27ae60' : '#e67e22'};">${plan.progressPercent.toFixed(1)}%</span>
+                        <span style="font-size:14px;font-weight:700;color:${plan.progressPercent >= 100 ? '#27ae60' : '#7A3BE0'};">${plan.progressPercent.toFixed(1)}%</span>
                     </div>
                     <div class="progress-bar-budget">
-                        <div class="progress-fill-budget" style="width:${plan.progressPercent}%;background:${plan.progressPercent >= 100 ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#e67e22,#f39c12)'};">
+                        <div class="progress-fill-budget" style="width:${plan.progressPercent}%;background:${plan.progressPercent >= 100 ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#7A3BE0,#7A3BE0)'};">
                             ${plan.progressPercent.toFixed(0)}%
                         </div>
                     </div>
@@ -1196,7 +1196,7 @@ window.localChangesPending = false;
                 <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${formatMoney(plan.mandatoryTotal)} (76%)</span></div>
                 <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(Math.round(plan.taxAmount))}</span></div>
                 <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${formatMoney(Math.round(plan.personalAmount))}</span></div>
-                <div class="budget-result-row" style="color:#e67e22;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${formatMoney(Math.round(plan.businessAmount))}</span></div>
+                <div class="budget-result-row" style="color:#7A3BE0;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${formatMoney(Math.round(plan.businessAmount))}</span></div>
                 <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${formatMoney(Math.round(plan.investmentAmount))}</span></div>
             </div>
             
@@ -1206,7 +1206,7 @@ window.localChangesPending = false;
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Общий доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#1a3c5e;">${formatMoney(plan.actualIncome)}</div>
+                        <div style="font-size:20px;font-weight:700;color:#2E0A5E;">${formatMoney(plan.actualIncome)}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:12px;color:#666;margin-bottom:5px;">📦 Расходы</div>
@@ -1316,11 +1316,11 @@ window.localChangesPending = false;
             const isCompleted = task.status === 'completed';
             const isReview = task.status === 'review';
             const statusText = taskStatusText(task);
-            const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
+            const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#7A3BE0');
             const canWork = !isCompleted && !isReview;
 
             return `
-                <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#f39c12')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+                <div class="helper-task-card" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${isCompleted ? '#27ae60' : (isOverdue ? '#e74c3c' : '#7A3BE0')};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <div>
                             <span style="font-weight:700;font-size:16px;">Заказ №${safeHTML(task.orderNumber)}</span>
@@ -1339,7 +1339,7 @@ window.localChangesPending = false;
                     ${taskProblemsHTML(task)}
                     ${canWork ? `
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            ${!task.startedAt ? `<button class="btn-add" onclick="startTask('${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#f39c12;">🔧 Взял в работу</button>` : ''}
+                            ${!task.startedAt ? `<button class="btn-add" onclick="startTask('${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#7A3BE0;">🔧 Взял в работу</button>` : ''}
                             <button class="btn-add" onclick="completeTask('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">✅ Выполнил — на проверку</button>
                             <button class="btn-extra" onclick="reportTaskProblem('${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;">⚠️ Сообщить о проблеме</button>
                         </div>
@@ -1350,56 +1350,92 @@ window.localChangesPending = false;
     }
 
     // ========== ФУНКЦИЯ ОТЧЁТА ПОМОЩНИКА ==========
+    // Период отчёта: сегодня, неделя, этот/прошлый месяц, всё время или свои даты «с — по»
+    let helperReportFrom = '', helperReportTo = '';
+    function helperReportRange(period) {
+        const today = formatDate(new Date());
+        const shift = days => { const d = new Date(); d.setDate(d.getDate() + days); return formatDate(d); };
+        const mk = today.slice(0, 7);
+        const prev = finShiftMonth(mk, -1);
+        switch (period) {
+            case 'day': return { from: today, to: today, title: 'Сегодня' };
+            case 'week': return { from: shift(-6), to: today, title: 'Последние 7 дней' };
+            case 'month': return { from: mk + '-01', to: today, title: finMonthTitle(mk) };
+            case 'year': return { from: shift(-365), to: today, title: 'За год' };
+            case 'prevmonth': return { from: prev + '-01', to: prev + '-' + String(finDaysInMonth(prev)).padStart(2, '0'), title: finMonthTitle(prev) };
+            case 'custom': return { from: helperReportFrom || '2000-01-01', to: helperReportTo || today,
+                title: `${helperReportFrom ? formatDateDDMMYYYY(helperReportFrom) : 'начала'} — ${formatDateDDMMYYYY(helperReportTo || today)}` };
+            default: return { from: '2000-01-01', to: '9999-12-31', title: 'За всё время' };
+        }
+    }
+    function setHelperReportCustom() {
+        helperReportFrom = document.getElementById('helperRepFrom')?.value || '';
+        helperReportTo = document.getElementById('helperRepTo')?.value || '';
+        currentHelperReportPeriod = 'custom';
+        renderHelperReport();
+    }
+    window.setHelperReportCustom = setHelperReportCustom;
+
     function renderHelperReport() {
         const container = document.getElementById('helperReportContainer');
         if (!container || !window.currentUserData) return;
-        
-        const helperEmail = window.currentUserData.email;
 
-        // Фильтруем заказы по периоду
-        const filteredOrders = getTasksForPeriod(ordersData, currentHelperReportPeriod);
-        
-        // Название периода
-        const periodNames = { day: 'За сегодня', week: 'За неделю', month: 'За месяц', year: 'За год', all: 'За всё время' };
-        
+        const helperEmail = window.currentUserData.email;
+        const range = helperReportRange(currentHelperReportPeriod);
+        const inRange = d => { const x = String(d || '').slice(0, 10); return x >= range.from && x <= range.to; };
+
         let totalEarned = 0;
         let totalLost = 0;
         let totalPenalties = 0;
         let completedTasks = 0;
         let overdueTasks = 0;
-        
-        filteredOrders.forEach(order => {
+        const rows = []; // строки отчёта: задачи, штрафы и выплаты периода
+
+        // Задача попадает в период по дню выполнения (просроченная — по сроку)
+        ordersData.forEach(order => {
             (order.services || []).forEach(service => {
                 (service.tasks || []).forEach(task => {
-                    if (task.assignedTo === helperEmail) {
-                        if (task.status === 'completed') {
-                            totalEarned += parseFloat(task.helperPay) || 0;
-                            completedTasks++;
-                        } else if (task.status === 'overdue') {
-                            totalLost += parseFloat(task.helperPay) || 0;
-                            totalPenalties += parseFloat(task.penalty) || 0;
-                            overdueTasks++;
-                        }
+                    if (task.assignedTo !== helperEmail) return;
+                    if (task.status === 'completed' && inRange(task.completedAt || order.date)) {
+                        totalEarned += parseFloat(task.helperPay) || 0;
+                        completedTasks++;
+                        rows.push({ date: String(task.completedAt || order.date).slice(0, 10), text: `${task.description || 'задача'} (№${order.orderNumber})`, sum: parseFloat(task.helperPay) || 0 });
+                    } else if (task.status === 'overdue' && inRange(task.overdueAt || task.deadline || order.date)) {
+                        totalLost += parseFloat(task.helperPay) || 0;
+                        totalPenalties += parseFloat(task.penalty) || 0;
+                        overdueTasks++;
+                        rows.push({ date: String(task.overdueAt || task.deadline || order.date).slice(0, 10), text: `просрочено: ${task.description || 'задача'} (№${order.orderNumber})`, sum: -(parseFloat(task.penalty) || 0) });
                     }
                 });
             });
         });
-        
-        // Штрафы, выписанные админом отдельно (не за просроченную задачу)
-        totalPenalties += getPenaltiesForPeriod(helperPenalties, currentHelperReportPeriod)
-            .filter(p => p.helperEmail === helperEmail)
-            .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-        const netEarned = totalEarned - totalPenalties;
 
-        // Выплачено и долг — за всё время, независимо от периода (js/finance.js)
+        // Штрафы, выписанные админом отдельно (не за просроченную задачу)
+        getPenaltiesForPeriod(helperPenalties, currentHelperReportPeriod)
+            .filter(p => p.helperEmail === helperEmail)
+            .forEach(p => { totalPenalties += parseFloat(p.amount) || 0; rows.push({ date: String(p.createdAt).slice(0, 10), text: `штраф: ${p.reason || ''}`, sum: -(parseFloat(p.amount) || 0) }); });
+        const netEarned = totalEarned - totalPenalties;
+        // Выплаты в этом периоде (расходы кассы «Помощникам»)
+        const paidInPeriod = cashOps.filter(o => o.category === 'helpers' && o.helper === helperEmail && inRange(o.date));
+        paidInPeriod.forEach(o => rows.push({ date: o.date, text: '💸 выплачено', sum: 0, paid: parseFloat(o.expense) || 0 }));
+        rows.sort((a, b) => b.date.localeCompare(a.date));
+
+        // Выплачено и долг — с даты обнуления расчётов, независимо от периода (js/finance.js)
         const accrual = finHelperAccrual(helperEmail);
         const totalPaid = accrual.paid;
         const totalUnpaid = Math.max(0, accrual.owed);
-        
+        const resetFrom = finHelperResets()[helperEmail];
+        const btn = (p, label) => `<button class="hr-period-btn${currentHelperReportPeriod === p ? ' active' : ''}" onclick="setHelperReportPeriod('${p}')">${label}</button>`;
+
         container.innerHTML = `
-            <div style="background:#e3f2fd;padding:15px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
-                <h4 style="margin:0 0 5px 0;">📊 ${periodNames[currentHelperReportPeriod]}</h4>
-                <div style="font-size:13px;color:#666;">Период отчёта: ${periodNames[currentHelperReportPeriod]}</div>
+            <div class="hr-period">
+                <div class="hr-period-btns">${btn('day', 'Сегодня')}${btn('week', 'Неделя')}${btn('month', 'Этот месяц')}${btn('prevmonth', 'Прошлый месяц')}${btn('all', 'Всё время')}</div>
+                <div class="hr-period-custom">
+                    <label>с <input type="date" id="helperRepFrom" value="${helperReportFrom}"></label>
+                    <label>по <input type="date" id="helperRepTo" value="${helperReportTo}"></label>
+                    <button class="hr-period-btn${currentHelperReportPeriod === 'custom' ? ' active' : ''}" onclick="setHelperReportCustom()">Показать</button>
+                </div>
+                <div class="hr-period-title">📊 ${range.title}</div>
             </div>
             <div style="background:#f8f9fa;padding:20px;border-radius:8px;margin-bottom:15px;">
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;">
@@ -1428,20 +1464,26 @@ window.localChangesPending = false;
             </div>
             
             <div style="background:#e3f2fd;padding:20px;border-radius:8px;margin-bottom:15px;border-left:4px solid #2196f3;">
-                <h4 style="margin:0 0 15px 0;">💳 Статус выплат</h4>
+                <h4 style="margin:0 0 15px 0;">💳 Статус выплат${resetFrom ? ` <span style="font-weight:400;font-size:13px;color:#666;">(считается с ${formatDateDDMMYYYY(resetFrom)})</span>` : ''}</h4>
                 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">✅ Выплачено</div>
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${formatMoney(totalPaid)}</div>
                     </div>
-                    <div style="background:#fff3cd;padding:15px;border-radius:6px;text-align:center;border:2px solid #ffc107;">
+                    <div style="background:#EFE7FC;padding:15px;border-radius:6px;text-align:center;border:2px solid #9163EA;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">⏳ Не выплачено</div>
-                        <div style="font-size:24px;font-weight:700;color:#e67e22;">${formatMoney(totalUnpaid)}</div>
+                        <div style="font-size:24px;font-weight:700;color:#7A3BE0;">${formatMoney(totalUnpaid)}</div>
                     </div>
                 </div>
             </div>
             
-            <div style="background:#fff3cd;padding:15px;border-radius:8px;border-left:4px solid #ffc107;">
+            <div class="hr-list">
+                <h4 style="margin:0 0 10px 0;">🧾 Что было за период</h4>
+                ${rows.length ? rows.map(r => `<div class="hr-row"><span class="hr-date">${formatDateDDMMYYYY(r.date)}</span><span class="hr-text">${safeHTML(r.text)}</span><b class="${r.paid ? 'hr-paid' : r.sum < 0 ? 'hr-minus' : 'hr-plus'}">${r.paid ? formatMoney(r.paid) : (r.sum < 0 ? '−' : '+') + formatMoney(Math.abs(r.sum))}</b></div>`).join('') : '<div style="color:#888;">За этот период ничего не было</div>'}
+                ${paidInPeriod.length ? `<div class="hr-row hr-total"><span></span><span class="hr-text">Выплачено за период</span><b class="hr-paid">${formatMoney(paidInPeriod.reduce((s2, o) => s2 + (parseFloat(o.expense) || 0), 0))}</b></div>` : ''}
+            </div>
+
+            <div style="background:#EFE7FC;padding:15px;border-radius:8px;border-left:4px solid #9163EA;">
                 <h4 style="margin:0 0 10px 0;">💡 Как начисляется зарплата:</h4>
                 <ul style="margin:0;padding-left:20px;font-size:14px;line-height:1.8;">
                     <li>За каждую выполненную задачу начисляется <b>указанная сумма</b> ₽</li>
@@ -1746,7 +1788,7 @@ window.localChangesPending = false;
     function taskProblemsHTML(task) {
         const list = Array.isArray(task.problems) ? task.problems : [];
         if (!list.length) return '';
-        return `<div style="background:#fff3cd;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:13px;">
+        return `<div style="background:#EFE7FC;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:13px;">
             ${list.map(p => `<div>⚠️ <b>${new Date(p.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</b> ${safeHTML(p.text)}</div>`).join('')}
         </div>`;
     }
@@ -1914,7 +1956,7 @@ window.localChangesPending = false;
         const totalPenalties = filtered.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         
         return `
-            <div style="background:#fff3cd;padding:10px;border-radius:6px;margin-bottom:15px;">
+            <div style="background:#EFE7FC;padding:10px;border-radius:6px;margin-bottom:15px;">
                 <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:16px;">${formatMoney(totalPenalties)}</span></div>
             </div>
             ${filtered.map(p => {
@@ -2048,11 +2090,11 @@ window.localChangesPending = false;
             <div class="helper-stat-grid" style="margin-bottom:20px;">
                 <div class="helper-stat-item">
                     <div class="helper-stat-label">📋 Всего задач</div>
-                    <div class="helper-stat-value" style="color:#1a3c5e;">${totalTasks}</div>
+                    <div class="helper-stat-value" style="color:#2E0A5E;">${totalTasks}</div>
                 </div>
                 <div class="helper-stat-item">
                     <div class="helper-stat-label">⏳ В процессе</div>
-                    <div class="helper-stat-value" style="color:#f39c12;">${pendingTasks}</div>
+                    <div class="helper-stat-value" style="color:#7A3BE0;">${pendingTasks}</div>
                 </div>
                 <div class="helper-stat-item">
                     <div class="helper-stat-label">🕓 На проверке</div>
@@ -2088,11 +2130,11 @@ window.localChangesPending = false;
                                     <div style="font-size:13px;color:#666;margin-top:4px;">
                                         Заработано: <b style="color:#27ae60;">${formatMoney(stats.earned)}</b> | 
                                         Штрафы: <b style="color:#e74c3c;">-${formatMoney(stats.penalties)}</b> | 
-                                        Итого: <b style="color:#1a3c5e;">${formatMoney(stats.net)}</b>
+                                        Итого: <b style="color:#2E0A5E;">${formatMoney(stats.net)}</b>
                                     </div>
                                     <div style="font-size:13px;color:#666;margin-top:2px;">
                                         Выплачено: <b style="color:#27ae60;">${formatMoney(stats.paid)}</b> | 
-                                        Должно быть: <b style="color:#e67e22;">${formatMoney(stats.unpaid)}</b>
+                                        Должно быть: <b style="color:#7A3BE0;">${formatMoney(stats.unpaid)}</b>
                                     </div>
                                 </div>
                                 <button class="btn-add" onclick="payHelper('${email}')" style="padding:8px 16px;font-size:13px;white-space:nowrap;">
@@ -2105,7 +2147,7 @@ window.localChangesPending = false;
             ` : ''}
             
             <!-- Штрафы помощников -->
-            <div style="background:#fff3cd;padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid #ffc107;">
+            <div style="background:#EFE7FC;padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid #9163EA;">
                 <h4 style="margin:0 0 15px 0;color:#856404;">⚠️ Штрафы помощников</h4>
                 ${renderAdminPenalties(filterEmail, currentAdminHelperReportPeriod)}
             </div>
@@ -2119,7 +2161,7 @@ window.localChangesPending = false;
                 const isCompleted = task.status === 'completed';
                 const isReview = task.status === 'review';
                 const statusText = taskStatusText(task);
-                const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#f39c12');
+                const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#7A3BE0');
                 const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
                 
                 return `
@@ -2157,7 +2199,7 @@ window.localChangesPending = false;
                             <button class="btn-extra" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'pending')" style="padding:6px 12px;font-size:12px;">↩️ Вернуть в работу</button>
                         </div>` : ''}
                         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                            <button class="btn-add" onclick="openEditTaskModal('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#007bff;">✏️ Редактировать</button>
+                            <button class="btn-add" onclick="openEditTaskModal('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}')" style="padding:6px 12px;font-size:12px;background:#5A1CB0;">✏️ Редактировать</button>
                             ${!isCompleted ? `<button class="btn-add" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'completed')" style="padding:6px 12px;font-size:12px;background:#28a745;">✅ Завершить</button>` : ''}
                             ${!isOverdue && !isCompleted ? `<button class="btn-del" onclick="adminChangeTaskStatus('${safeHTML(task.orderNumber)}', '${safeHTML(task.id)}', 'overdue')" style="padding:6px 12px;font-size:12px;">❌ Просрочить</button>` : ''}
                         </div>
@@ -2188,7 +2230,7 @@ window.localChangesPending = false;
         const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
         const activeBtn = document.getElementById('btnHelper' + periodMap[period]);
         if (activeBtn) {
-            activeBtn.style.background = '#007bff';
+            activeBtn.style.background = '#5A1CB0';
             activeBtn.style.color = '#fff';
         }
         renderHelperReport();
@@ -2207,7 +2249,7 @@ window.localChangesPending = false;
         const periodMap = { day: 'Day', week: 'Week', month: 'Month', year: 'Year', all: 'All' };
         const activeBtn = document.getElementById('btnAdmin' + periodMap[period]);
         if (activeBtn) {
-            activeBtn.style.background = '#007bff';
+            activeBtn.style.background = '#5A1CB0';
             activeBtn.style.color = '#fff';
         }
         renderAdminHelperTasks();
@@ -2717,7 +2759,7 @@ window.localChangesPending = false;
         const totalPenalties = filteredPenalties.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         
         container.innerHTML = `
-            <div style="background:#fff3cd;padding:12px;border-radius:8px;margin-bottom:15px;border-left:4px solid #ffc107;">
+            <div style="background:#EFE7FC;padding:12px;border-radius:8px;margin-bottom:15px;border-left:4px solid #9163EA;">
                 <div style="font-weight:600;color:#856404;">Итого штрафов: <span style="color:#dc3545;font-size:18px;">${formatMoney(totalPenalties)}</span></div>
             </div>
             ${filteredPenalties.map(p => `
@@ -2740,34 +2782,9 @@ window.localChangesPending = false;
     
     function getPenaltiesForPeriod(penalties, period) {
         if (!penalties || penalties.length === 0) return [];
-        
-        const now = new Date();
-        let startDate = '';
-        
-        switch(period) {
-            case 'day':
-                startDate = formatDate(now);
-                break;
-            case 'week':
-                const weekAgo = new Date(now);
-                weekAgo.setDate(weekAgo.getDate() - 7);
-                startDate = formatDate(weekAgo);
-                break;
-            case 'month':
-                const monthAgo = new Date(now);
-                monthAgo.setMonth(monthAgo.getMonth() - 1);
-                startDate = formatDate(monthAgo);
-                break;
-            case 'year':
-                const yearAgo = new Date(now);
-                yearAgo.setFullYear(yearAgo.getFullYear() - 1);
-                startDate = formatDate(yearAgo);
-                break;
-            default:
-                startDate = '2000-01-01';
-        }
-        
-        return penalties.filter(p => p.createdAt >= startDate);
+        // Тот же период, что выбран в «Мой отчёт»
+        const range = helperReportRange(period);
+        return penalties.filter(p => { const d = String(p.createdAt || '').slice(0, 10); return d >= range.from && d <= range.to; });
     }
     
     window.openPenaltyModal = openPenaltyModal;
@@ -4245,7 +4262,7 @@ window.localChangesPending = false;
         if (!hint) {
             hint = document.createElement('small');
             hint.className = 'ref-price-hint';
-            hint.style.cssText = 'display:block;color:#e67e22;font-size:11px;margin-top:2px;';
+            hint.style.cssText = 'display:block;color:#7A3BE0;font-size:11px;margin-top:2px;';
             priceInput.insertAdjacentElement('afterend', hint);
         }
         const ref = parseFloat(refPrice) || 0;
@@ -4561,7 +4578,7 @@ window.localChangesPending = false;
             const hint = input.closest('.auto-items > div')?.querySelector('.norm-hint');
             if (hint) {
                 hint.textContent = own ? `своё количество · ${norm}` : norm;
-                hint.style.color = own ? '#e67e22' : '#6c757d';
+                hint.style.color = own ? '#7A3BE0' : '#6c757d';
             }
         });
         document.querySelectorAll('.auto-items').forEach(box => {
@@ -4922,7 +4939,7 @@ function deleteOrder(orderId) {
             });
             html += `<tr style="background:#f8f9fa;font-weight:700;"><td colspan="7" style="text-align:right;">Итого: ${safeHTML(g.name)}</td><td style="color:#dc3545;">${formatMoney(g.total)}</td></tr></table></div>`;
         });
-        html += `<div style="background:#fff3cd;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #ffc107;font-size:18px;font-weight:700;">💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(doc.total)}</span></div>`;
+        html += `<div style="background:#EFE7FC;padding:15px;border-radius:8px;margin-top:15px;border-left:4px solid #9163EA;font-size:18px;font-weight:700;">💰 ИТОГО К ОПЛАТЕ: <span style="color:#dc3545;">${formatMoney(doc.total)}</span></div>`;
         docContainer.innerHTML = html;
     }
 
@@ -5437,6 +5454,25 @@ function deleteOrder(orderId) {
                 div.appendChild(badge);
             }
 
+            // Тёмная тема BACK ALIVE: загруженность дня (заливка load-1…4) и точки по видам дел (css/brand-brutal.css)
+            const dots = [];
+            dayOrders.concat(dueOrders).forEach(o => dots.push(isOrderDone(o) ? 'done' : getOrderColorObj(o)));
+            dayPre.forEach(() => dots.push('prebook'));
+            dayNotes.forEach(() => dots.push('note'));
+            dayDuePayments.filter(x => x.status.state !== 'paid').forEach(() => dots.push('pay'));
+            dayStudio.filter(t => stStatus(t) !== 'done').forEach(() => dots.push('task'));
+            if (dayVac.length) dots.push('vacation');
+            const load = dots.filter(d => d !== 'done').length;
+            if (load) div.classList.add('load-' + (load <= 1 ? 1 : load <= 2 ? 2 : load <= 4 ? 3 : 4));
+            const late = dueOrders.some(o => !isOrderDone(o) && dateStr < todayStr) || dayDuePayments.some(x => x.status.state === 'overdue');
+            if (late) div.classList.add('has-late');
+            if (dots.length) {
+                const box = document.createElement('span');
+                box.className = 'cal-dots';
+                box.innerHTML = dots.slice(0, 6).map(d => `<i class="cal-dot dot-${d}"></i>`).join('') + (dots.length > 6 ? '<b>+</b>' : '');
+                div.appendChild(box);
+            }
+
             div.title = `${formatDateHuman(dateObj)}\nПринято заказов: ${dayBadge.orders}\nСдать заказов: ${dayBadge.due}\nЗаметок: ${dayBadge.notes}\nРасходов: ${dayBadge.expenses}` +
                 dayDuePayments.map(x => `\n💳 ${x.p.name}: ${formatMoney(x.p.amount)}${x.status.state === 'paid' ? ' ✅' : x.status.state === 'overdue' ? ' — просрочен' : ''}`).join('');
             if (dayVac.length) div.title += dayVac.map(v => `\n🌴 ${v.who} в отпуске`).join('');
@@ -5672,9 +5708,9 @@ function deleteOrder(orderId) {
         // Компактно, одной строкой: заказов, выполнено, ещё ожидается, платежи (подробности — в подсказке)
         const pay = finMonthPaymentsTotals(formatDate(currentDate).slice(0, 7));
         document.getElementById('calendarSummary').innerHTML = `
-            <span class="cs-item" title="Заказов ${period}" style="color:#007bff;">📋 ${summary.orders}</span>
+            <span class="cs-item" title="Заказов ${period}" style="color:#5A1CB0;">📋 ${summary.orders}</span>
             <span class="cs-item" title="Выполнено ${period}" style="color:#28a745;">✅ ${formatMoney(summary.doneSum)}</span>
-            <span class="cs-item" title="Ещё ожидается ${period}" style="color:#b8860b;">⏳ ${formatMoney(summary.waitSum)}</span>
+            <span class="cs-item" title="Ещё ожидается ${period}" style="color:#6B3FC4;">⏳ ${formatMoney(summary.waitSum)}</span>
             ${payments && payments.length ? `<span class="cs-item" title="Платежи месяца: осталось оплатить ${formatMoney(pay.left)} из ${formatMoney(pay.total)}" style="color:${pay.left > 0 ? '#dc3545' : '#28a745'};">💳 ${formatMoney(pay.left)}${pay.overdue ? ` <small>(${pay.overdue} просроч.)</small>` : ''}</span>` : ''}
         `;
     }
@@ -5767,7 +5803,7 @@ function deleteOrder(orderId) {
         if (calendarTitle) calendarTitle.textContent = `${monday.getDate()} ${CAL_MONTHS_GEN[monday.getMonth()].slice(0, 3)} – ${sunday.getDate()} ${CAL_MONTHS_GEN[sunday.getMonth()].slice(0, 3)}`;
 
         const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-        const badgeColors = { critical: ['#f5c6cb', '#dc3545'], middle: ['#ffeeba', '#ffc107'], new: ['#c3e6cb', '#28a745'], done: ['#e9ecef', '#6c757d'] };
+        const badgeColors = { critical: ['#f5c6cb', '#dc3545'], middle: ['#ffeeba', '#9163EA'], new: ['#c3e6cb', '#28a745'], done: ['#e9ecef', '#6c757d'] };
         for (let i = 0; i < 7; i++) {
             const date = new Date(monday);
             date.setDate(monday.getDate() + i);
@@ -5802,7 +5838,7 @@ function deleteOrder(orderId) {
                 const open = st.filter(t => stStatus(t) !== 'done').length;
                 if (st.length) {
                     const stBadge = document.createElement('div');
-                    stBadge.style.cssText = 'font-size:10px; margin-top:2px; padding:2px 4px; background:#e7f1ff; color:#185FA5;';
+                    stBadge.style.cssText = 'font-size:10px; margin-top:2px; padding:2px 4px; background:#e7f1ff; color:#5A1CB0;';
                     stBadge.textContent = open ? `✔ задач: ${open}` : '✅ задачи готовы';
                     div.appendChild(stBadge);
                 }
@@ -5830,7 +5866,7 @@ function deleteOrder(orderId) {
             const dayPayments = cashOps.filter(op => op.date === dateStr && parseFloat(op.expense) > 0);
             if (dayPayments.length > 0) {
                 const payBadge = document.createElement('div');
-                payBadge.style.cssText = 'font-size:9px; margin-top:2px; padding:2px 4px; background:#cce5ff; border-radius:4px; color:#007bff;';
+                payBadge.style.cssText = 'font-size:9px; margin-top:2px; padding:2px 4px; background:#cce5ff; border-radius:4px; color:#5A1CB0;';
                 payBadge.textContent = `💰 ${dayPayments.length}`;
                 div.appendChild(payBadge);
             }
@@ -5854,7 +5890,7 @@ function deleteOrder(orderId) {
             html += '<ul class="notification-list">';
             orders.forEach(o => {
                 const color = getOrderColorObj(o);
-                const colorName = color === 'critical' ? '🔴 ОЧЕНЬ СРОЧНЫЙ' : color === 'middle' ? '🟡 Срочный' : '🟢 Новый';
+                const colorName = color === 'critical' ? '🔴 ОЧЕНЬ СРОЧНЫЙ' : color === 'middle' ? '🟣 Срочный' : '🟢 Новый';
                 html += '<li>№' + safeHTML(o.orderNumber) + ' ' + safeHTML(o.client) + ' – ' + safeHTML(o.services.map(s=>s.serviceName).join(', ')) + ' (' + colorName + ')</li>';
             });
             html += '</ul></div>';
@@ -6035,11 +6071,12 @@ function deleteOrder(orderId) {
             // Цвета срочности через inline style для гарантии
             const colorStyles = {
                 'new': 'background:#d4edda;border-color:#28a745;',
-                'middle': 'background:#fff3cd;border-color:#ffc107;',
+                'middle': 'background:#EFE7FC;border-color:#9163EA;',
                 'critical': 'background:#f8d7da;border-color:#dc3545;',
                 'done': 'background:#e9ecef;border-color:#6c757d;'
             };
             div.style.cssText = colorStyles[color] || '';
+            if (colorStyles[color]) div.classList.add('status-' + color); // тёмная тема перекрашивает по классу (css/brand.css)
             
             // Считаем количество задач
             let taskCount = 0;
@@ -6802,12 +6839,12 @@ function deleteOrder(orderId) {
                 <title>${title}</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 40px; }
-                    h1 { color: #1a3c5e; border-bottom: 3px solid #1a3c5e; padding-bottom: 10px; }
+                    h1 { color: #2E0A5E; border-bottom: 3px solid #2E0A5E; padding-bottom: 10px; }
                     h2 { color: #6c757d; margin-top: -10px; }
                     .summary-block { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
                     .summary-item { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #e9ecef; }
                     .summary-item label { font-weight: 600; color: #495057; display: block; margin-bottom: 8px; }
-                    .summary-item span { font-size: 24px; font-weight: 700; color: #1a3c5e; }
+                    .summary-item span { font-size: 24px; font-weight: 700; color: #2E0A5E; }
                     .summary-item span.positive { color: #28a745; }
                     .summary-item span.negative { color: #dc3545; }
                     .footer { margin-top: 30px; padding-top: 15px; border-top: 2px solid #e9ecef; color: #6c757d; font-size: 12px; }

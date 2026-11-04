@@ -1,0 +1,186 @@
+/* ==========================================================================
+   БРУТАЛЬНЫЙ СТИЛЬ BACK ALIVE (тёмная тема, html.ba-dark), 04.11.2026.
+   Michroma — заголовки, вкладки, кнопки, номера и суммы (как BACK ALIVE в логотипе), заглавными, с разрядкой.
+   Manrope — обычный текст. Углы 4 px, линии 1 px. Свет фары #A97CF5 — только выделение (вкладка, фокус, сегодня).
+   Загружается после brand.css (index.html).
+   ========================================================================== */
+html.ba-dark { --ba-r: 4px; --ba-line: #2A2D33; --ba-text: #ECEAF2; --ba-muted: #8A8F98; --ba-head: 'Michroma', 'Manrope', sans-serif; }
+html.ba-dark body { font-family: Manrope, 'Segoe UI', sans-serif; font-weight: 500; }
+
+/* Заголовки разделов: широкие заглавные */
+html.ba-dark h2, html.ba-dark h3, html.ba-dark .modal h3, html.ba-dark .cal-nav-title, html.ba-dark .fin-section-head, html.ba-dark .ag-day-head {
+    font-family: var(--ba-head) !important; text-transform: uppercase; letter-spacing: .08em; font-weight: 400 !important; color: #FFFFFF !important;
+}
+html.ba-dark h2, html.ba-dark .modal h3 { font-size: 16px !important; border-bottom: 1px solid var(--ba-line); padding-bottom: 10px; }
+html.ba-dark h3, html.ba-dark .fin-section-head, html.ba-dark .ag-day-head { font-size: 13px !important; }
+
+/* Вкладки: без «таблеток», заглавные, выбранная — линия света фары снизу */
+html.ba-dark #adminTabs, html.ba-dark #helperTabs { gap: 2px 20px; padding: 2px 18px 0 !important; border-top: 1px solid var(--ba-line); }
+html.ba-dark #adminTabs .tab-btn, html.ba-dark #helperTabs .tab-btn {
+    background: transparent !important; color: var(--ba-muted) !important; border-radius: 0 !important; box-shadow: none !important;
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .1em; font-size: 11px !important; font-weight: 400 !important;
+    padding: 14px 2px 12px !important; min-height: 0 !important; border: none !important; border-bottom: 2px solid transparent !important;
+}
+html.ba-dark #adminTabs .tab-btn:hover, html.ba-dark #helperTabs .tab-btn:hover { color: #FFFFFF !important; }
+html.ba-dark #adminTabs .tab-btn.active, html.ba-dark #helperTabs .tab-btn.active { background: transparent !important; color: #FFFFFF !important; border-bottom-color: var(--ba-lamp) !important; }
+
+/* Кнопки: прямые углы. Главная — фиолетовая заливка заглавными, остальные — контур */
+html.ba-dark button, html.ba-dark .btn, html.ba-dark .btn-sm { border-radius: var(--ba-r) !important; }
+html.ba-dark .btn-add, html.ba-dark .btn-save, html.ba-dark .btn-primary, html.ba-dark .ag-btn.ag-main, html.ba-dark .st-toggle.st-add {
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .08em; font-size: 11px !important; font-weight: 400 !important;
+    background: var(--ba-violet) !important; color: #fff !important; border: 1px solid var(--ba-violet) !important; box-shadow: none !important;
+}
+html.ba-dark .btn-add:hover, html.ba-dark .btn-save:hover, html.ba-dark .ag-btn.ag-main:hover { background: #6B2AD0 !important; border-color: var(--ba-lamp) !important; }
+html.ba-dark .btn-cancel, html.ba-dark .btn-extra, html.ba-dark .btn-secondary, html.ba-dark .ag-btn, html.ba-dark .st-btn, html.ba-dark .st-toggle, html.ba-dark .btn-auth, html.ba-dark .notif-bell {
+    background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important; box-shadow: none !important;
+}
+html.ba-dark .btn-cancel { font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .08em; font-size: 11px !important; font-weight: 400 !important; }
+html.ba-dark .btn-cancel:hover, html.ba-dark .btn-extra:hover, html.ba-dark .ag-btn:hover, html.ba-dark .st-btn:hover, html.ba-dark .btn-auth:hover { border-color: var(--ba-lamp) !important; }
+html.ba-dark .ag-btn.ag-ok, html.ba-dark .st-btn.st-done, html.ba-dark .fin-pay-btn { background: transparent !important; color: #7FD3A0 !important; border: 1px solid #2E8B57 !important; }
+html.ba-dark .btn-del { background: transparent !important; color: #F2A0A6 !important; border: 1px solid #9E2329 !important; }
+
+/* Фильтры заказов: контур цвета срочности, выбранный — белый */
+html.ba-dark .filter-btn {
+    background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important;
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .08em; font-size: 10px !important; font-weight: 400 !important;
+}
+html.ba-dark .filter-btn[data-filter="new"] { border-color: #2E8B57 !important; }
+html.ba-dark .filter-btn[data-filter="middle"] { border-color: #9163EA !important; }
+html.ba-dark .filter-btn[data-filter="critical"], html.ba-dark .filter-btn[data-filter="unpaid"] { border-color: #D93036 !important; }
+html.ba-dark .filter-btn.active { background: #FFFFFF !important; color: #0B0B0E !important; border-color: #FFFFFF !important; }
+
+/* Поля ввода: графит, линия 1 px, фокус — свет фары */
+html.ba-dark input:not([type=checkbox]):not([type=radio]), html.ba-dark select, html.ba-dark textarea {
+    background: #121417 !important; border: 1px solid var(--ba-line) !important; border-radius: var(--ba-r) !important;
+}
+html.ba-dark input:focus, html.ba-dark select:focus, html.ba-dark textarea:focus { border-color: var(--ba-lamp) !important; outline: none; box-shadow: 0 0 0 1px var(--ba-lamp) !important; }
+html.ba-dark input[type=checkbox] { accent-color: var(--ba-violet); }
+
+/* Плашки заказов: графит, рамка цвета срочности, номер в цветной плашке */
+html.ba-dark .order-item, html.ba-dark .order-item[style] { background: #16181B !important; border: 1px solid var(--ba-line) !important; border-radius: var(--ba-r) !important; }
+html.ba-dark .order-item.status-new { border-color: #2E8B57 !important; }
+html.ba-dark .order-item.status-middle { border-color: #9163EA !important; }
+html.ba-dark .order-item.status-critical { border-color: #D93036 !important; }
+html.ba-dark .order-item.status-done { opacity: .55; }
+html.ba-dark .order-item .order-number {
+    font-family: var(--ba-head); font-weight: 400 !important; letter-spacing: .04em; color: #FFFFFF !important;
+    display: inline-flex !important; align-items: center; justify-content: center; min-width: 46px !important; width: auto !important;
+    padding: 4px 8px; border-radius: var(--ba-r); background: #3A3D44; flex: 0 0 auto; justify-self: start;
+}
+html.ba-dark .order-item.status-new .order-number { background: #2E8B57; }
+html.ba-dark .order-item.status-middle .order-number { background: #7A3BE0; }
+html.ba-dark .order-item.status-critical .order-number { background: #D93036; }
+html.ba-dark .order-item .order-client { color: #FFFFFF !important; font-weight: 700 !important; }
+html.ba-dark .order-item .order-sum { font-family: var(--ba-head); font-weight: 400 !important; letter-spacing: .02em; }
+html.ba-dark .order-item .order-sum.paid { color: #FFFFFF !important; }
+html.ba-dark .order-item .order-sum.unpaid { color: #F2A0A6 !important; }
+html.ba-dark .order-item .color-indicator { display: none !important; } /* цвет срочности уже у рамки и номера */
+
+/* Карточки, разделы, окна: прямые углы, тонкие линии */
+html.ba-dark .fin-card, html.ba-dark .fin-section, html.ba-dark .cal-section, html.ba-dark .ag-day, html.ba-dark .modal,
+html.ba-dark .schedule-slot, html.ba-dark .day-cell, html.ba-dark .stock-tile, html.ba-dark .summary-item, html.ba-dark .fin-info, html.ba-dark .fin-warn,
+html.ba-dark #appContent .toolbar, html.ba-dark #adminTabs, html.ba-dark #helperTabs { border-radius: var(--ba-r) !important; }
+html.ba-dark #appContent .toolbar { border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+html.ba-dark #adminTabs, html.ba-dark #helperTabs { border-top-left-radius: 0 !important; border-top-right-radius: 0 !important; }
+html.ba-dark .fin-card { background: #121417 !important; border: 1px solid var(--ba-line) !important; }
+html.ba-dark .fin-card-label { text-transform: uppercase; letter-spacing: .08em; font-size: 10px !important; color: var(--ba-muted) !important; }
+html.ba-dark .fin-card-value { font-family: var(--ba-head); font-weight: 400 !important; color: #FFFFFF !important; }
+html.ba-dark .fin-card-value.neg { color: #F2A0A6 !important; }
+html.ba-dark .fin-card-value.pos { color: #7FD3A0 !important; }
+html.ba-dark .modal { border: 1px solid var(--ba-line) !important; }
+html.ba-dark .calendar-grid .day-cell.today { box-shadow: inset 0 0 0 1px var(--ba-lamp) !important; }
+
+/* Нижнее меню телефона: значки одноцветные, выбранный — цветной */
+html.ba-dark .bottom-nav-item, html.ba-dark .bottom-nav-more { filter: grayscale(1) brightness(1.3); }
+html.ba-dark .bottom-nav-item.active { filter: none; }
+html.ba-dark .bottom-nav-item small, html.ba-dark .bottom-nav-more small { font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .06em; font-size: 8px !important; }
+
+@media (max-width: 768px) {
+    html.ba-dark #appContent .toolbar { border-radius: var(--ba-r) !important; }
+}
+
+/* Служебные кнопки внизу (экспорт и т. п.) — контур, без бирюзового */
+html.ba-dark .footer-toolbar button, html.ba-dark .btn-export, html.ba-dark .btn-import {
+    background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important; border-radius: var(--ba-r) !important; box-shadow: none !important;
+}
+html.ba-dark .modal .btn-del { background: transparent !important; }
+html.ba-dark .order-filters .filter-btn, html.ba-dark #tab-orders .filter-btn { border-radius: var(--ba-r) !important; }
+html.ba-dark .btn-add { white-space: nowrap; }
+html.ba-dark #appContent .toolbar #authSection { flex-wrap: nowrap !important; }
+
+/* Шапка с логотипом — фиолетовый кенди-градиент бренда (в обеих темах), 04.11.2026 */
+html:is(.ba-dark, :not(.ba-dark)) #appContent .toolbar {
+    background: linear-gradient(100deg, #5A1CB0 0%, #2E0A5E 45%, #280850 70%, #12031F 100%) !important; /* светлый фиолетовый — под логотипом */
+}
+html:is(.ba-dark, :not(.ba-dark)) #appContent .toolbar .btn-auth,
+html:is(.ba-dark, :not(.ba-dark)) #appContent .toolbar .notif-bell {
+    background: rgba(11, 11, 14, .35) !important; border: 1px solid rgba(255, 255, 255, .22) !important; color: #FFFFFF !important;
+}
+html:is(.ba-dark, :not(.ba-dark)) #appContent .toolbar .user-name,
+html:is(.ba-dark, :not(.ba-dark)) #appContent .toolbar #userDisplayName { color: #E6DAFB !important; }
+
+/* ---------- Сетка месяца (тёмная тема): загруженность заливкой + точки по видам дел, 04.11.2026 ---------- */
+.cal-dots { display: none; }
+html.ba-dark .calendar-grid .day-cell {
+    background: #16181B !important; border: none !important; box-shadow: none !important; border-radius: 3px !important;
+    min-height: 58px; text-align: left !important; padding: 6px 7px 16px !important; position: relative;
+}
+html.ba-dark .calendar-grid .day-cell .day-number { font-family: var(--ba-head); font-size: 13px; color: #ECEAF2; }
+html.ba-dark .calendar-grid .day-cell .task-badge, html.ba-dark .calendar-grid .day-cell .today-label { display: none !important; }
+html.ba-dark .calendar-grid .day-cell.other-month { background: #121417 !important; opacity: 1; }
+html.ba-dark .calendar-grid .day-cell.other-month .day-number { color: #4A4E57; }
+/* Чем больше дел, тем ярче фиолетовый */
+html.ba-dark .calendar-grid .day-cell.load-1 { background: #22093F !important; }
+html.ba-dark .calendar-grid .day-cell.load-2 { background: #2E0A5E !important; }
+html.ba-dark .calendar-grid .day-cell.load-3 { background: #3E1485 !important; }
+html.ba-dark .calendar-grid .day-cell.load-4 { background: #5A1CB0 !important; }
+/* Сегодня — число в плашке, рамка света фары; выбранный день — белая рамка */
+html.ba-dark .calendar-grid .day-cell.today { box-shadow: inset 0 0 0 1px var(--ba-lamp) !important; }
+html.ba-dark .calendar-grid .day-cell.today .day-number { background: var(--ba-lamp); color: #0B0B0E; padding: 1px 5px; border-radius: 3px; }
+html.ba-dark .calendar-grid .day-cell.selected { box-shadow: inset 0 0 0 2px #FFFFFF !important; }
+/* Просрочка — красная точка в углу */
+html.ba-dark .calendar-grid .day-cell.has-late::after {
+    content: ''; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: #E5484D;
+}
+/* Точки: заказы по срочности, предзапись, заметка, платёж, задача, отпуск */
+html.ba-dark .cal-dots { display: flex; gap: 3px; position: absolute; left: 7px; bottom: 6px; align-items: center; }
+html.ba-dark .cal-dots b { font-size: 9px; color: #C9B8F2; font-weight: 600; line-height: 1; }
+html.ba-dark .cal-dot { width: 6px; height: 6px; border-radius: 50%; display: block; }
+html.ba-dark .dot-new { background: #2E8B57; }
+html.ba-dark .dot-middle { background: #C9B8F2; }
+html.ba-dark .dot-critical { background: #E5484D; }
+html.ba-dark .dot-done { background: #4A4E57; }
+html.ba-dark .dot-prebook { background: transparent; box-shadow: inset 0 0 0 1.5px #C9B8F2; }
+html.ba-dark .dot-note { background: #FFFFFF; }
+html.ba-dark .dot-pay { background: transparent; box-shadow: inset 0 0 0 1.5px #FFFFFF; }
+html.ba-dark .dot-task { background: #A97CF5; }
+html.ba-dark .dot-vacation { background: #20C997; }
+html.ba-dark .calendar-grid .day-name { background: transparent !important; color: #8A8F98 !important; font-family: var(--ba-head); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+@media (max-width: 480px) {
+    html.ba-dark .calendar-grid .day-cell { min-height: 48px; padding: 4px 4px 12px !important; }
+    html.ba-dark .calendar-grid .day-cell .day-number { font-size: 11px; }
+    html.ba-dark .cal-dots { left: 4px; bottom: 4px; gap: 2px; }
+    html.ba-dark .cal-dot { width: 5px; height: 5px; }
+}
+html.ba-dark .calendar-grid .day-cell { display: flex !important; flex-direction: column; align-items: flex-start !important; justify-content: flex-start !important; }
+html.ba-dark .cal-nav-today, html.ba-dark .cal-nav-view, html.ba-dark .cal-nav-arrow, html.ba-dark .cal-switch-btn {
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .08em; font-size: 11px !important; font-weight: 400 !important; border-radius: var(--ba-r) !important; box-shadow: none !important;
+}
+html.ba-dark .cal-nav-view, html.ba-dark .cal-nav-arrow { background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important; }
+html.ba-dark .cal-nav-today { background: var(--ba-violet) !important; color: #fff !important; border: 1px solid var(--ba-violet) !important; }
+html.ba-dark .cal-summary .cs-item { border-radius: var(--ba-r) !important; }
+html.ba-dark .cal-switch { background: transparent !important; border: 1px solid #3A3D44; border-radius: var(--ba-r) !important; padding: 3px !important; }
+html.ba-dark .cal-switch-btn { background: transparent !important; color: var(--ba-muted) !important; border: none !important; }
+html.ba-dark .cal-switch-btn.active { background: #FFFFFF !important; color: #0B0B0E !important; }
+html.ba-dark .calendar-grid .day-cell .day-number { margin: 0 !important; width: auto !important; height: auto !important; min-width: 0 !important; line-height: 1.3 !important; display: inline-block !important; box-shadow: none !important; }
+html.ba-dark .calendar-grid .day-cell.today .day-number { background: var(--ba-lamp) !important; color: #0B0B0E !important; padding: 1px 6px !important; border-radius: 3px !important; }
+
+/* «Мой отчёт» помощника в тёмной теме */
+html.ba-dark .hr-period, html.ba-dark .hr-list { background: #121417 !important; border: 1px solid var(--ba-line) !important; border-radius: var(--ba-r) !important; }
+html.ba-dark .hr-period-btn { background: transparent !important; color: var(--ba-text) !important; border: 1px solid #3A3D44 !important; border-radius: var(--ba-r) !important;
+    font-family: var(--ba-head); text-transform: uppercase; letter-spacing: .06em; font-size: 10px !important; }
+html.ba-dark .hr-period-btn.active { background: #FFFFFF !important; color: #0B0B0E !important; border-color: #FFFFFF !important; }
+html.ba-dark .hr-period-title { color: #FFFFFF; font-family: var(--ba-head); font-weight: 400; text-transform: uppercase; letter-spacing: .06em; }
+html.ba-dark .hr-row { border-bottom-color: var(--ba-line); }
+html.ba-dark .hr-date { color: var(--ba-muted); }
+html.ba-dark .hr-plus { color: #7FD3A0; } html.ba-dark .hr-minus { color: #F2A0A6; } html.ba-dark .hr-paid { color: #C9B8F2; }

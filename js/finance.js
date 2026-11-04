@@ -144,10 +144,12 @@ function finFixDuplicateOrderNumbers(orders) {
 // (penalties — список helperPenalties из app.js); выплачено — расходы кассы
 // «Помощникам» с этим помощником + выплаты до 25.10.2026 (paidBefore — список helperPaidBefore из app.js:
 // тогда выплаты записывались только на устройстве админа и в кассу не попадали).
-function finHelperPaidData(email, cash, paidBefore) {
-    const fromCash = (cash || []).filter(o => o.category === 'helpers' && o.helper === email)
+// from — дата обнуления расчётов с помощником (ГГГГ-ММ-ДД): выплаты раньше неё не считаются
+function finHelperPaidData(email, cash, paidBefore, from) {
+    const after = d => !from || String(d || '') >= from;
+    const fromCash = (cash || []).filter(o => o.category === 'helpers' && o.helper === email && after(o.date))
         .reduce((sum, o) => sum + finNum(o.expense), 0);
-    const before = (paidBefore || []).filter(p => p && p.helper === email)
+    const before = (paidBefore || []).filter(p => p && p.helper === email && after(p.date))
         .reduce((sum, p) => sum + finNum(p.amount), 0);
     return fromCash + before;
 }
@@ -171,8 +173,12 @@ function finMigrateHelperPayments(budget, paidBefore) {
     return changed;
 }
 
-function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties) {
+// resets — { email: 'ГГГГ-ММ-ДД' }: расчёты с помощником обнулены с этой даты
+// (задачи, штрафы и выплаты раньше — только история, в «к выплате» не входят)
+function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties, resets) {
     const byHelper = new Map();
+    const from = email => (resets && resets[email]) || '';
+    const counts = (email, d) => !from(email) || String(d || '').slice(0, 10) >= from(email);
     const get = email => {
         if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, review: 0, reviewPay: 0, monthEarned: 0, monthDone: 0 });
         return byHelper.get(email);
@@ -180,6 +186,8 @@ function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties) {
     (orders || []).forEach(order => (order.services || []).forEach(s => (s.tasks || []).forEach(t => {
         if (!t.assignedTo) return;
         const h = get(t.assignedTo);
+        if ((t.status === 'completed' && !counts(t.assignedTo, t.completedAt)) ||
+            (t.status === 'overdue' && !counts(t.assignedTo, t.overdueAt || t.deadline))) return;
         if (t.status === 'completed') {
             h.earned += finNum(t.helperPay); h.done++;
             if (mk && finMonthKey(t.completedAt) === mk) { h.monthEarned += finNum(t.helperPay); h.monthDone++; }
@@ -192,12 +200,12 @@ function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties) {
             h.pending++; h.pendingPay += finNum(t.helperPay);
         }
     })));
-    (penalties || []).forEach(p => { if (p && p.helperEmail) get(p.helperEmail).penalties += finNum(p.amount); });
+    (penalties || []).forEach(p => { if (p && p.helperEmail && counts(p.helperEmail, p.createdAt)) get(p.helperEmail).penalties += finNum(p.amount); });
     // Помощники, которым платили, но задач уже нет
     (cash || []).forEach(o => { if (o.category === 'helpers' && o.helper) get(o.helper); });
     (paidBefore || []).forEach(p => { if (p && p.helper) get(p.helper); });
     return [...byHelper.values()].map(h => {
-        const paid = finHelperPaidData(h.email, cash, paidBefore);
+        const paid = finHelperPaidData(h.email, cash, paidBefore, from(h.email));
         const net = h.earned - h.penalties;
         return { ...h, paid, net, owed: net - paid };
     }).sort((a, b) => b.owed - a.owed);
@@ -664,7 +672,8 @@ function renderFinance() {
             ${debtors.length > 15 ? `<div class="fin-muted">и ещё ${debtors.length - 15} — фильтр «💳 Не оплачено» во вкладке «Заказы»</div>` : ''}`);
 
     // --- Помощникам: начислено, штрафы, выплачено, к выплате ---
-    const helpers = finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), mk, finHelperPenalties());
+    const helperResets = finHelperResets();
+    const helpers = finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), mk, finHelperPenalties(), helperResets);
     const owedTotal = helpers.reduce((sum, h) => sum + Math.max(0, h.owed), 0);
     let helpersHTML = '';
     if (!helpers.length) helpersHTML += `<div class="fin-muted">Задач помощникам ещё не было</div>`;
@@ -678,12 +687,13 @@ function renderFinance() {
                 <div class="fin-pay-sub">
                     <span>
                         за ${finMonthTitle(mk).toLowerCase()}: ${formatMoney(h.monthEarned)} (задач ${h.monthDone})<br>
-                        всего начислено ${formatMoney(h.earned)} (задач ${h.done})${h.penalties ? ` − штрафы ${formatMoney(h.penalties)} (${h.overdue})` : ''} · выплачено ${formatMoney(h.paid)}
+                        ${helperResets[h.email] ? `с ${formatDateDDMMYYYY(helperResets[h.email])}: ` : 'всего '}начислено ${formatMoney(h.earned)} (задач ${h.done})${h.penalties ? ` − штрафы ${formatMoney(h.penalties)} (${h.overdue})` : ''} · выплачено ${formatMoney(h.paid)}
                         ${h.review ? `<br>🕓 на проверке: задач ${h.review} на ${formatMoney(h.reviewPay)} — подтвердите во вкладке «Задачи»` : ''}
                         ${h.pending ? `<br>в работе: задач ${h.pending} на ${formatMoney(h.pendingPay)}` : ''}
                     </span>
                     <span class="fin-pay-actions">
                         ${h.owed > 0 ? `<button class="fin-pay-btn" onclick="finPayHelper('${escAttr(h.email)}')">Выплатить</button>` : ''}
+                        <button class="fin-link-btn" onclick="finResetHelper('${escAttr(h.email)}')" title="Начать расчёты с нуля с сегодняшнего дня">↺ Обнулить</button>
                     </span>
                 </div>
             </div>`;
@@ -809,15 +819,34 @@ function finHelperPaidBefore() {
     return typeof helperPaidBefore !== 'undefined' ? helperPaidBefore : [];
 }
 
-// Начисления одного помощника за всё время: earned, penalties, paid, owed (к выплате)
+// Обнуление расчётов с помощниками: { email: дата }. Дауду обнулено 04.11.2026 по просьбе владелицы;
+// новые обнуления — кнопкой «Обнулить» во вкладке «Деньги» → «Помощникам» (хранится в настройках, синхронизируется)
+const FIN_HELPER_RESET_DEFAULT = { 'daud_yt_play@yandex.ru': '2026-11-04' };
+function finHelperResets() {
+    const s = finSettings();
+    return { ...FIN_HELPER_RESET_DEFAULT, ...(s.helperResets || {}) };
+}
+function finResetHelper(email) {
+    const today = finTodayStr();
+    if (!confirm(`Обнулить расчёты с ${finHelperName(email)}?
+
+Начисления, штрафы и выплаты до ${formatDateDDMMYYYY(today)} останутся в истории, но «к выплате» начнётся с нуля.`)) return;
+    const s = finSettings();
+    s.helperResets = { ...(s.helperResets || {}), [email]: today };
+    financeSettings = [s];
+    saveAll();
+    renderAll();
+}
+
+// Начисления одного помощника с даты обнуления: earned, penalties, paid, owed (к выплате)
 function finHelperAccrual(email) {
-    return finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), null, finHelperPenalties())
+    return finHelperAccrualsData(ordersData, cashOps, finHelperPaidBefore(), null, finHelperPenalties(), finHelperResets())
         .find(h => h.email === email) || { email, earned: 0, penalties: 0, paid: finHelperPaid(email), net: 0, owed: -finHelperPaid(email) };
 }
 
-// Выплачено помощнику (для отчётов помощника и админа в app.js)
+// Выплачено помощнику с даты обнуления (для отчётов помощника и админа в app.js)
 function finHelperPaid(email) {
-    return finHelperPaidData(email, cashOps, finHelperPaidBefore());
+    return finHelperPaidData(email, cashOps, finHelperPaidBefore(), finHelperResets()[email] || '');
 }
 
 // Выплата помощнику: расход кассы «Помощникам» (синхронизируется — помощник видит выплату)

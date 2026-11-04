@@ -1,0 +1,180 @@
+/* ==========================================================================
+   ФИРМЕННЫЙ СТИЛЬ BACK ALIVE (утверждён 04.11.2026).
+   Чёрная шапка #0B0B0E с логотипом (icons/logo-dark.svg) и вкладками, рабочие экраны светлые.
+   Акцент — фиолетовый кенди #5A1CB0, светлый акцент #9163EA, фара логотипа #A97CF5.
+   Нельзя: оранжевый, жёлтый, неоновый зелёный; синий рядом с жёлтым.
+   Загружается последним (index.html), поверх styles/mobile/uniform.
+   ========================================================================== */
+:root {
+    --ba-black: #0B0B0E;
+    --ba-tile: #1E2126;
+    --ba-tile2: #2A2D33;
+    --ba-violet: #5A1CB0;
+    --ba-violet-dark: #2E0A5E;
+    --ba-lilac: #9163EA;
+    --ba-lamp: #A97CF5;
+    --ba-bg: #F4F2F8;
+}
+
+body { background: var(--ba-bg); font-family: Manrope, 'Segoe UI', Tahoma, sans-serif; }
+
+/* Шапка: логотип и вход — на чёрном, вместе с вкладками одна тёмная плашка */
+#appContent .toolbar {
+    background: var(--ba-black); border-radius: 14px 14px 0 0; margin: 0 !important;
+    padding: 14px 16px 6px; align-items: center; flex-direction: row !important; flex-wrap: nowrap;
+}
+#appContent .toolbar h1.brand-title { margin: 0; line-height: 0; text-align: left !important; }
+.brand-logo { height: 76px; width: auto; display: block; }
+#appContent .toolbar #authSection { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+#appContent .toolbar #userDisplayName { color: #C9C2D8 !important; }
+#appContent .toolbar .btn-auth-logout, #appContent .toolbar button {
+    background: var(--ba-tile) !important; color: #E6DAFB !important; border: 1px solid #33363D !important;
+}
+
+#adminTabs, #helperTabs {
+    background: var(--ba-black); border-radius: 0 0 14px 14px; padding: 6px 12px 14px; margin: 0 0 16px !important;
+    -webkit-mask-image: none; mask-image: none; /* затухание краёв давало белые полосы на чёрном */
+}
+#adminTabs .tab-btn, #helperTabs .tab-btn { background: var(--ba-tile); color: #D9CFF0; }
+#adminTabs .tab-btn:hover, #helperTabs .tab-btn:hover { background: var(--ba-tile2); }
+#adminTabs .tab-btn.active, #helperTabs .tab-btn.active { background: var(--ba-violet); color: #fff; }
+
+/* Главные кнопки — фиолетовые */
+.btn-add, .btn-save, .btn-primary { background: var(--ba-violet) !important; color: #fff !important; }
+.btn-add:hover, .btn-save:hover, .btn-primary:hover { background: #4A1696 !important; }
+
+/* Нижнее меню на телефоне — чёрное */
+.bottom-nav, .mobile-nav { background: var(--ba-black) !important; border-top: 1px solid #222 !important; }
+.bottom-nav-item, .bottom-nav-more { color: #A9A3B8 !important; }
+.bottom-nav-item.active { color: var(--ba-lamp) !important; }
+.bottom-nav-more-menu { background: var(--ba-black) !important; }
+.bottom-nav-more-item { color: #E6DAFB !important; background: var(--ba-tile) !important; }
+
+/* Экран входа */
+#loginScreen { background: var(--ba-black); border-radius: 14px; }
+.brand-login-logo { width: 100%; max-width: 340px; height: auto; display: block; margin: 0 auto; }
+.brand-login-sub { color: #A9A3B8; margin: 6px 0 28px; letter-spacing: 3px; font-size: 13px; }
+#loginScreen p { color: #8A8F98 !important; }
+
+/* Виджет-окно календаря: шапка тоже фирменная */
+.widget-mode body { background: var(--ba-bg) !important; }
+.widget-bar { background: var(--ba-black); color: #fff; border-radius: 12px; padding: 8px 12px; }
+.widget-bar .widget-btn { background: var(--ba-tile); color: #E6DAFB; border: 1px solid #33363D; }
+
+@media (max-width: 768px) {
+    .brand-logo { height: 56px; }
+    #appContent .toolbar { padding: 10px 12px; border-radius: 14px; margin: 0 0 12px !important; } /* вкладки на телефоне внизу — шапка отдельной плашкой */
+    #adminTabs, #helperTabs { padding: 4px 8px 10px; }
+}
+@media (max-width: 420px) {
+    .brand-logo { height: 48px; }
+    #appContent .toolbar #userDisplayName { display: none; }
+}
+.ag-btn.ag-main, .st-toggle.st-add { background: var(--ba-violet) !important; color: #fff !important; border-color: var(--ba-violet) !important; }
+
+/* ---------- Тёмная тема (вариант А, html.ba-dark). Общие замены цветов — css/brand-dark.css (генерируется) ---------- */
+html.ba-dark { color-scheme: dark; }
+html.ba-dark body { background: var(--ba-black) !important; color: #ECEAF2; }
+html.ba-dark .container { background: var(--ba-black) !important; box-shadow: none !important; }
+html.ba-dark #appContent .toolbar, html.ba-dark #adminTabs, html.ba-dark #helperTabs { background: #121417 !important; }
+html.ba-dark #adminTabs .tab-btn, html.ba-dark #helperTabs .tab-btn { background: var(--ba-tile) !important; color: #D9CFF0 !important; }
+html.ba-dark #adminTabs .tab-btn.active, html.ba-dark #helperTabs .tab-btn.active { background: var(--ba-violet) !important; color: #fff !important; }
+html.ba-dark input:not([type=checkbox]):not([type=radio]), html.ba-dark select, html.ba-dark textarea {
+    background: var(--ba-tile) !important; color: #ECEAF2 !important; border-color: #33363D !important;
+}
+html.ba-dark input::placeholder, html.ba-dark textarea::placeholder { color: #8A8F98; }
+html.ba-dark .modal, html.ba-dark .modal-overlay .modal { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark .modal h3, html.ba-dark h2, html.ba-dark h3, html.ba-dark h4, html.ba-dark summary { color: #E6DAFB !important; }
+html.ba-dark label, html.ba-dark td, html.ba-dark th, html.ba-dark p, html.ba-dark li { color: inherit; }
+html.ba-dark table th { background: #2A2D33 !important; color: #E6DAFB !important; }
+html.ba-dark table td { border-color: #33363D !important; }
+html.ba-dark .btn-cancel { background: var(--ba-tile2) !important; color: #ECEAF2 !important; }
+html.ba-dark .btn-extra, html.ba-dark .btn-secondary { background: var(--ba-tile2) !important; color: #ECEAF2 !important; }
+html.ba-dark .order-header .order-client, html.ba-dark .order-header .order-service { color: #ECEAF2; }
+html.ba-dark a { color: var(--ba-lamp); }
+html.ba-dark #loginScreen { background: var(--ba-black); }
+html.ba-dark .ag-btn, html.ba-dark .st-btn { background: var(--ba-tile) !important; color: #ECEAF2 !important; border-color: #33363D !important; }
+html.ba-dark .ag-btn.ag-main, html.ba-dark .st-toggle.st-add { background: var(--ba-violet) !important; color: #fff !important; border-color: var(--ba-violet) !important; }
+html.ba-dark .ag-btn.ag-ok, html.ba-dark .st-btn.st-done, html.ba-dark .fin-pay-btn { background: #2E8B57 !important; color: #fff !important; border-color: #2E8B57 !important; }
+
+/* Светлые фоны, заданные прямо в разметке (style="background:…") */
+html.ba-dark [style*="background:#fff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #fff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#fff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #fff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#ffffff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #ffffff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#ffffff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #ffffff" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background:white" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background: white" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:white" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: white" i] { background: #16181B !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f8f9fa" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f8f9fa" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f8f9fa" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f8f9fa" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f0f2f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f0f2f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f0f2f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f0f2f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f1f3f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f1f3f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f1f3f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f1f3f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#fafbfc" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #fafbfc" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#fafbfc" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #fafbfc" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#e9ecef" i] { background: #2A2D33 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #e9ecef" i] { background: #2A2D33 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#e9ecef" i] { background: #2A2D33 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #e9ecef" i] { background: #2A2D33 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#d4edda" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #d4edda" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#d4edda" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #d4edda" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#e6fcf5" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #e6fcf5" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#e6fcf5" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #e6fcf5" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f8d7da" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f8d7da" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f8d7da" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f8d7da" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#fff5f5" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #fff5f5" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#fff5f5" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #fff5f5" i] { background: #2A1216 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#efe7fc" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #efe7fc" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#efe7fc" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #efe7fc" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f6f1fe" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f6f1fe" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f6f1fe" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f6f1fe" i] { background: #221636 !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#e7f1ff" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #e7f1ff" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#e7f1ff" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #e7f1ff" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#e8f4fd" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #e8f4fd" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#e8f4fd" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #e8f4fd" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#f5f5f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background: #f5f5f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color:#f5f5f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="background-color: #f5f5f5" i] { background: #121417 !important; color: #ECEAF2; }
+html.ba-dark [style*="color:#333" i], html.ba-dark [style*="color: #333" i], html.ba-dark [style*="color:#212529" i], html.ba-dark [style*="color: #212529" i], html.ba-dark [style*="color:#495057" i], html.ba-dark [style*="color:#000" i] { color: #ECEAF2 !important; }
+html.ba-dark [style*="color:#666" i], html.ba-dark [style*="color: #666" i], html.ba-dark [style*="color:#6c757d" i], html.ba-dark [style*="color: #6c757d" i], html.ba-dark [style*="color:#888" i] { color: #A9A3B8 !important; }
+html.ba-dark [style*="color:#2E0A5E" i], html.ba-dark [style*="color: #2E0A5E" i] { color: #C9B8F2 !important; }
+html.ba-dark .btn-reset-norm { background: var(--ba-tile) !important; color: #ECEAF2 !important; border-color: #33363D !important; }
+html.ba-dark .att-dayoff { background: #1C1A2E !important; }
+html.ba-dark [style*="background:#e3f2fd" i], html.ba-dark [style*="background: #e3f2fd" i] { background: #1C1A2E !important; color: #ECEAF2; }
+html.ba-dark [style*="background:#e8f5e9" i], html.ba-dark [style*="background: #e8f5e9" i] { background: #12261A !important; color: #ECEAF2; }
+html.ba-dark .fin-waterfall td, html.ba-dark .fin-waterfall tr { background: transparent !important; }
+html.ba-dark .fin-waterfall tr.total td, html.ba-dark .fin-waterfall tr.sub td { background: #1E2126 !important; }
+/* Фиолетовый и тёмно-жёлтый текст на чёрном не читается — светлее */
+html.ba-dark .cs-item, html.ba-dark [style*="color:#5A1CB0" i], html.ba-dark [style*="color: #5A1CB0" i] { color: #B9A0F2 !important; }
+html.ba-dark [style*="color:#856404" i], html.ba-dark [style*="color: #856404" i] { color: #C9B8F2 !important; }
