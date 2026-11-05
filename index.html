@@ -66,6 +66,11 @@
       try { if (localStorage.getItem('ba_theme') !== 'light') document.documentElement.classList.add('ba-dark'); } catch (e) { document.documentElement.classList.add('ba-dark'); }
       // Уже входили на этом устройстве — пока вход восстанавливается, вместо кнопки «Войти» показываем «Загрузка…»
       try { if (localStorage.getItem('ba_was_in') === '1') document.documentElement.classList.add('ba-wasin'); } catch (e) {}
+      // Подстраховка: если за 6 секунд вход не восстановился (старая копия файла, нет сети) — всё равно показать кнопку «Войти»
+      setTimeout(function() {
+        var app = document.getElementById('appContent');
+        if (!app || app.style.display !== 'block') document.documentElement.classList.remove('ba-wasin');
+      }, 6000);
       // Кнопка 🌙/☀️ в шапке: тема запоминается на этом устройстве
       window.baToggleTheme = function() {
         var dark = document.documentElement.classList.toggle('ba-dark');
@@ -95,13 +100,13 @@
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202610282100"></script>
+    <script type="module" src="js/firebase.js?v=202611051900"></script>
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202611051500" defer></script>
+    <script src="js/finance.js?v=202611051900" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202611051500" defer></script>
+    <script src="js/attendance.js?v=202611051900" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
@@ -115,7 +120,7 @@
     <script src="js/calendar-extra.js?v=202611051500" defer></script>
     <script src="js/agenda.js?v=202611051500" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611051800" defer></script>
+    <script src="js/app.js?v=202611051900" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/settings.js?v=202611051500" defer></script>
     <script src="js/hints.js?v=202611051500" defer></script>
@@ -269,8 +274,15 @@
         <button class="bottom-nav-item active" data-tab="helper-tasks">📋<br><small>Задачи</small></button>
         <button class="bottom-nav-item" data-tab="helper-attendance">📅<br><small>Календарь</small></button>
         <button class="bottom-nav-item" data-tab="helper-report">📊<br><small>Отчёт</small></button>
-        <button class="bottom-nav-item" data-tab="tab-learn">🎓<br><small>Обучение</small></button>
-        <button class="bottom-nav-item" data-tab="tab-settings">⚙️<br><small>Настройки</small></button>
+        <button class="bottom-nav-item" onclick="helperMoreToggle(event)">⚙️<br><small>Ещё</small></button>
+    </div>
+
+    <!-- Меню «Ещё» помощника: обучение и настройки (js/app.js helperMoreGo) -->
+    <div class="bottom-nav-more-menu" id="helperMoreMenu">
+        <button class="bottom-nav-more-item" onclick="helperMoreGo('tab-learn')">🎓 Обучение</button>
+        <button class="bottom-nav-more-item" onclick="helperMoreGo('tab-settings')">⚙️ Настройки</button>
+        <button class="bottom-nav-more-item" onclick="document.getElementById('helperMoreMenu').classList.remove('visible'); handleLogout()">🚪 Выйти</button>
+        <button class="bottom-nav-more-item" onclick="document.getElementById('helperMoreMenu').classList.remove('visible')">❌ Закрыть</button>
     </div>
 
     <!-- Вкладка Заказы -->
@@ -992,6 +1004,11 @@
                     <label>🏦 Весь долг, если это кредит (₽)</label>
                     <input type="number" id="paymentDebt" min="0" step="1" placeholder="необязательно">
                 </div>
+            </div>
+            <div class="form-group">
+                <label>🗓 Первый платёж — с месяца</label>
+                <input type="month" id="paymentStart">
+                <div class="fin-muted">Для рассрочки, которую платить со следующего месяца. Пусто — с этого месяца. Когда долг погашен, платёж сам перестаёт появляться.</div>
             </div>
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closePaymentModal()">Отмена</button>

@@ -274,7 +274,7 @@ function attCalendarHTML(email, mk, clickable) {
             <button class="btn-extra" onclick="attSetMonth(1)">›</button>
         </div>
         <div class="att-summary">
-            <span>✅ Дней: <b>${s.worked}</b>${s.planned ? ' из ' + s.planned : ''}</span>
+            <span title="Сколько дней был на работе в этом месяце из рабочих дней по графику (до сегодня)">✅ Был на работе: <b>${s.worked}</b>${s.planned ? ' из ' + s.planned + ' дн. по графику' : ' дн.'}</span>
             <span>🕐 Часов: <b>${attFormatMinutes(s.minutes)}</b></span>
             <span>⏰ Опозданий: <b>${s.late}</b></span>
             <span>❌ Не был: <b>${s.absent + s.missed}</b></span>

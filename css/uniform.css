@@ -270,3 +270,27 @@ label:not([class]):has(> input[type="checkbox"]) { display: inline-flex; align-i
 .att-cell.att-absent { background: #fbe4e6 !important; }
 .att-cell.att-missed, .att-cell.att-planned, .att-cell.att-none { background: #f8f9fa !important; border-color: #eee !important; }
 .att-cell.has-tasks { border: 2px solid #9163EA !important; }
+
+/* «Помощник» у админа: выполненная задача свёрнута в серую строку */
+.helper-task-folded { display: flex; align-items: center; gap: 6px; padding: 8px 12px; margin-bottom: 6px; border-radius: 6px; background: #eceef1; color: #6c757d; font-size: 14px; cursor: pointer; }
+.helper-task-folded span { color: #868e96; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.helper-task-folded .hf-more { margin-left: auto; flex-shrink: 0; }
+html.ba-dark .helper-task-folded { background: #1E2024; color: #8A8F98; border: 1px solid #2A2D33; }
+html.ba-dark .helper-task-folded span { color: #6E737C; }
+/* Платёж, который в этом месяце не нужно платить (рассрочка с будущего месяца или долг погашен) */
+.fin-pay.fin-later { opacity: .6; }
+
+/* Окна на телефоне: ничего не шире экрана. На Андроиде поля даты/времени/чисел не сжимаются сами
+   (у них большая «своя» ширина) — разрешаем им сжиматься, а ряды полей переносим на новую строку */
+@media (max-width: 768px) {
+    .modal-overlay .modal { max-width: 100vw !important; box-sizing: border-box; overflow-x: hidden; }
+    .modal-overlay .modal * { box-sizing: border-box; }
+    .modal-overlay .modal input:not([type="checkbox"]):not([type="radio"]), .modal-overlay .modal select, .modal-overlay .modal textarea { min-width: 0 !important; max-width: 100%; }
+    .modal-overlay .modal input[type="date"], .modal-overlay .modal input[type="time"], .modal-overlay .modal input[type="month"] { -webkit-appearance: none; appearance: none; width: 100%; }
+    .modal-overlay .modal .form-row { flex-wrap: wrap; }
+    .modal-overlay .modal .form-row > * { min-width: 0; flex: 1 1 140px; }
+    .modal-overlay .modal img, .modal-overlay .modal table { max-width: 100%; }
+}
+@media (max-width: 360px) {
+    #serviceItemsModal .svc-items-head, #serviceItemsModal .svc-item-row { grid-template-columns: minmax(56px, 1fr) 40px 42px 48px 22px 22px 26px; gap: 2px; }
+}

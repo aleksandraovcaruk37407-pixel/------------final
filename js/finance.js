@@ -238,11 +238,20 @@ function finPaymentStatus(payment, mk, cash, today) {
     return { state: 'due', due };
 }
 
-// Остаток долга по платежу: сумма долга − выплачено до учёта − все оплаты в кассе
+// Остаток долга по платежу: сумма долга − выплачено до учёта − все оплаты в кассе (ежемесячные и досрочные взносы)
 function finDebtRemaining(payment, cash) {
     if (!finNum(payment.debtTotal)) return null;
     const paid = (cash || []).filter(o => o.paymentId === payment.id).reduce((s, o) => s + finNum(o.expense), 0);
     return Math.max(0, finNum(payment.debtTotal) - finNum(payment.debtPaidBefore) - paid);
+}
+
+// Платёж действует в месяце mk: уже начался (startMonth — первый месяц оплаты, например рассрочка со следующего месяца)
+// и долг ещё не погашен (рассрочка/кредит закончились — платёж больше не просится; месяц, где он оплачен, остаётся)
+function finPaymentActive(payment, mk, cash) {
+    if (payment.startMonth && mk < payment.startMonth) return false;
+    const debt = finDebtRemaining(payment, cash);
+    if (debt !== null && debt <= 0) return (cash || []).some(o => o.paymentId === payment.id && o.month === mk);
+    return true;
 }
 
 /**
@@ -259,8 +268,10 @@ function finCompute(data) {
     const cash = data.cash || [];
     const payments = data.payments || [];
 
-    const fixedPlanned = payments.filter(p => p.type === 'business').reduce((sum, p) => sum + finNum(p.amount), 0);
-    const personalPlanned = payments.filter(p => p.type === 'personal').reduce((sum, p) => sum + finNum(p.amount), 0);
+    // План платежей месяца — только действующие в нём (рассрочка с будущего месяца и погашенный долг не считаются)
+    const plannedIn = (mk, type) => payments.filter(p => p.type === type && finPaymentActive(p, mk, cash)).reduce((sum, p) => sum + finNum(p.amount), 0);
+    const fixedPlanned = plannedIn(finMonthKey(data.today), 'business');
+    const personalPlanned = plannedIn(finMonthKey(data.today), 'personal');
     const reserveTarget = fixedPlanned * s.reserveMonths;
 
     // Месяцы от первой оплаты заказа до текущего (раньше бизнес в приложении не вёлся —
@@ -306,11 +317,12 @@ function finCompute(data) {
         const supplies = Math.round(revenue * sp * 100) / 100;
         const marginal = revenue - tax - supplies - materials - helpers;
         // Постоянные расходы бизнеса: план по платежам + прочие траты бизнеса, не из копилок
-        const extraOps = cash.filter(o => inMonth(o) && !o.paymentId && !o.fund && finNum(o.expense) > 0);
+        // (досрочный взнос по долгу — операция с paymentId без month — тоже трата этого месяца)
+        const extraOps = cash.filter(o => inMonth(o) && (!o.paymentId || !o.month) && !o.fund && finNum(o.expense) > 0);
         const otherBusiness = extraOps.filter(o => o.category === 'business' || o.category === 'other' || !o.category)
             .reduce((sum, o) => sum + finNum(o.expense), 0);
         const otherPersonal = extraOps.filter(o => o.category === 'personal').reduce((sum, o) => sum + finNum(o.expense), 0);
-        const fixed = fixedPlanned + otherBusiness;
+        const fixed = plannedIn(mk, 'business') + otherBusiness;
         const businessProfit = marginal - fixed;
 
         let reserve = 0, dev = 0, salary = businessProfit;
@@ -323,7 +335,7 @@ function finCompute(data) {
         if (!cashStart || mk >= finMonthKey(cashStart)) reserveAccrued += reserve; // до обнуления в копилку не идёт
         const savings = salary > 0 ? salary * sv : 0;
         const invest = salary > 0 ? salary * iv : 0;
-        const personal = personalPlanned + otherPersonal;
+        const personal = plannedIn(mk, 'personal') + otherPersonal;
         const free = salary - savings - invest - personal;
 
         result.months[mk] = {
@@ -706,7 +718,9 @@ function renderFinance() {
             <button class="btn-add fin-add" onclick="openPaymentModal()">➕ Платёж</button>
         </div>`;
     Object.keys(groups).forEach(type => {
-        const list = payments.filter(p => p.type === type).sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
+        const all = payments.filter(p => p.type === type).sort((a, b) => (parseInt(a.day) || 0) - (parseInt(b.day) || 0));
+        const list = all.filter(p => finPaymentActive(p, mk, cashOps));
+        const later = all.filter(p => !list.includes(p));
         const total = list.reduce((sum, p) => sum + finNum(p.amount), 0);
         const paidSum = list.filter(p => finPaymentStatus(p, mk, cashOps, today).state === 'paid').reduce((sum, p) => sum + finNum(p.amount), 0);
         payHTML += `<div class="fin-group"><div class="fin-group-head"><b>${groups[type]}</b><span>оплачено ${formatMoney(paidSum)} из ${formatMoney(total)}</span></div>`;
@@ -728,10 +742,26 @@ function renderFinance() {
                             ${st.state === 'paid'
                                 ? `<button onclick="finUnpay('${escAttr(p.id)}')">Отменить</button>`
                                 : `<button class="fin-pay-btn" onclick="finPay('${escAttr(p.id)}')">Оплатил</button>`}
+                            ${debt ? `<button onclick="finPayExtra('${escAttr(p.id)}')" title="Внести сверх ежемесячного платежа — долг уменьшится">➕ Взнос</button>` : ''}
                             <button onclick="openPaymentModal('${escAttr(p.id)}')" title="Изменить">✏️</button>
                             <button onclick="finDeletePayment('${escAttr(p.id)}')" title="Удалить">🗑️</button>
                         </span>
                     </div>
+                </div>`;
+        });
+        // Ещё не начались или уже погашены — в этом месяце платить не нужно
+        later.forEach(p => {
+            const debt = finDebtRemaining(p, cashOps);
+            const why = p.startMonth && mk < p.startMonth ? `первый платёж — ${finMonthTitle(p.startMonth).toLowerCase()}` : 'долг погашен ✅';
+            payHTML += `
+                <div class="fin-pay fin-later">
+                    <div class="fin-pay-main"><span class="fin-pay-name">${safeHTML(p.icon || '📌')} ${safeHTML(p.name)}</span><span class="fin-muted">${formatMoney(p.amount)}</span></div>
+                    <div class="fin-pay-sub"><span>${why}${debt ? ` · долг ${formatMoney(debt)}` : ''}</span>
+                        <span class="fin-pay-actions">
+                            ${debt ? `<button onclick="finPayExtra('${escAttr(p.id)}')" title="Внести сейчас — долг уменьшится">➕ Взнос</button>` : ''}
+                            <button onclick="openPaymentModal('${escAttr(p.id)}')" title="Изменить">✏️</button>
+                            <button onclick="finDeletePayment('${escAttr(p.id)}')" title="Удалить">🗑️</button>
+                        </span></div>
                 </div>`;
         });
         payHTML += `</div>`;
@@ -911,6 +941,25 @@ function finPay(paymentId, month) {
     if (typeof showToast === 'function') showToast(`✅ «${p.name}» оплачен${mk !== finMonthKey(finTodayStr()) ? ' — за ' + finMonthTitle(mk).toLowerCase() : ''}. Отменить можно тут же или во вкладке «Деньги»`);
 }
 
+// Досрочный взнос по долгу (рассрочка, кредит): расход в кассе с paymentId без month — уменьшает остаток долга,
+// ежемесячный платёж при этом оплаченным не отмечается
+function finPayExtra(paymentId) {
+    const p = payments.find(x => x.id === paymentId);
+    if (!p) return;
+    const debt = finDebtRemaining(p, cashOps);
+    const amount = finNum(prompt(`Досрочный взнос «${p.name}»\n\nОсталось долга: ${formatMoney(debt || 0)}\nСколько вносите (₽)?`, ''));
+    if (amount <= 0) return;
+    if (debt !== null && amount > debt && !confirm(`Это больше остатка долга (${formatMoney(debt)}). Всё равно записать?`)) return;
+    cashOps.push({
+        id: `px-${p.id}-${Date.now()}`, date: finTodayStr(), desc: `${p.name}: досрочный взнос`,
+        income: 0, expense: amount, category: p.type === 'personal' ? 'personal' : 'business', paymentId: p.id
+    });
+    if (typeof notifyAdminsAboutMoney === 'function') notifyAdminsAboutMoney(`💳 Досрочный взнос «${p.name}»: ${formatMoney(amount)}`);
+    saveAll();
+    renderAll();
+    if (typeof showToast === 'function') showToast(`✅ Взнос ${formatMoney(amount)} записан. Осталось долга: ${formatMoney(finDebtRemaining(p, cashOps) || 0)}`);
+}
+
 function finUnpay(paymentId, month) {
     const mk = month || finPaymentsMonth || finMonthKey(finTodayStr());
     const idx = cashOps.findIndex(o => o.paymentId === paymentId && o.month === mk);
@@ -940,6 +989,7 @@ function openPaymentModal(paymentId) {
     document.getElementById('paymentDay').value = p ? p.day : 1;
     document.getElementById('paymentType').value = p ? p.type : 'business';
     document.getElementById('paymentDebt').value = p && p.debtTotal ? p.debtTotal : '';
+    document.getElementById('paymentStart').value = p && p.startMonth ? p.startMonth : '';
     document.getElementById('paymentModal').classList.add('active');
     document.body.classList.add('modal-open');
 }
@@ -956,6 +1006,8 @@ function savePaymentModal() {
     const day = Math.min(31, Math.max(1, parseInt(document.getElementById('paymentDay').value) || 1));
     const type = document.getElementById('paymentType').value === 'personal' ? 'personal' : 'business';
     const debtTotal = finNum(document.getElementById('paymentDebt').value);
+    const startValue = document.getElementById('paymentStart').value;
+    const startMonth = /^\d{4}-\d{2}$/.test(startValue) ? startValue : '';
     if (!name) { alert('❌ Введите название'); return; }
     if (amount <= 0) { alert('❌ Укажите сумму'); return; }
     if (id) {
@@ -963,10 +1015,12 @@ function savePaymentModal() {
         if (p) {
             Object.assign(p, { name, amount, day, type });
             if (debtTotal > 0) p.debtTotal = debtTotal; else { delete p.debtTotal; delete p.debtPaidBefore; }
+            if (startMonth) p.startMonth = startMonth; else delete p.startMonth;
         }
     } else {
         const p = { id: 'pay-' + Date.now(), name, amount, day, type, icon: type === 'personal' ? '🏠' : '🏢' };
         if (debtTotal > 0) p.debtTotal = debtTotal;
+        if (startMonth) p.startMonth = startMonth;
         payments.push(p);
     }
     closePaymentModal();
@@ -1180,7 +1234,7 @@ function finPaymentsForDate(dateStr) {
     const mk = finMonthKey(dateStr);
     const today = finTodayStr();
     return (payments || [])
-        .filter(p => finPaymentDate(p, mk) === dateStr)
+        .filter(p => finPaymentDate(p, mk) === dateStr && finPaymentActive(p, mk, cashOps))
         .map(p => ({ p, status: finPaymentStatus(p, mk, cashOps, today) }));
 }
 
@@ -1198,7 +1252,7 @@ function finUnpayFromCalendar(paymentId, dateStr) {
 function finMonthPaymentsTotals(mk) {
     const today = finTodayStr();
     let total = 0, paid = 0, overdue = 0;
-    (payments || []).forEach(p => {
+    (payments || []).filter(p => finPaymentActive(p, mk, cashOps)).forEach(p => {
         const st = finPaymentStatus(p, mk, cashOps, today);
         total += finNum(p.amount);
         if (st.state === 'paid') paid += finNum(p.amount);

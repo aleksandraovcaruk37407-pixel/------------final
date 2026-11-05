@@ -1473,11 +1473,6 @@ window.localChangesPending = false;
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${completedTasks}</div>
                     </div>
                     <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:13px;color:#666;margin-bottom:5px;">❌ Просрочено</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">${overdueTasks}</div>
-                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ Штрафы: -${formatMoney(totalPenalties)}</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">💰 Заработано</div>
                         <div style="font-size:24px;font-weight:700;color:#27ae60;">${formatMoney(totalEarned)}</div>
                     </div>
@@ -1487,7 +1482,9 @@ window.localChangesPending = false;
                     </div>
                     <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${formatMoney(totalLost)}</div>
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${formatMoney(totalPenalties + totalLost)}</div>
+                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ штрафы: -${formatMoney(totalPenalties)}</div>
+                        ${totalLost ? `<div style="font-size:12px;color:#e74c3c;">просрочено задач ${overdueTasks}, не оплачено: -${formatMoney(totalLost)}</div>` : ''}
                     </div>
                 </div>
             </div>
@@ -2185,7 +2182,13 @@ window.localChangesPending = false;
                 const statusText = taskStatusText(task);
                 const statusColor = isCompleted ? '#27ae60' : isReview ? '#3498db' : (isOverdue ? '#e74c3c' : '#7A3BE0');
                 const cardClass = isCompleted ? 'completed' : (isOverdue ? 'overdue' : '');
-                
+                // Выполненная задача свёрнута в серую строку «Заказ № (клиент, услуга)»; нажатие раскрывает карточку
+                const taskKey = task.orderNumber + '|' + task.id;
+                if (isCompleted && !adminOpenDoneTasks.has(taskKey)) {
+                    return `<div class="helper-task-folded" onclick="adminToggleDoneTask(${escAttr(JSON.stringify(taskKey))})" title="Показать задачу">
+                        ✅ Заказ №${safeHTML(task.orderNumber)} <span>(${safeHTML([task.client, task.serviceName].filter(Boolean).join(', '))})</span><span class="hf-more">▸</span></div>`;
+                }
+
                 return `
                     <div class="helper-task-card ${cardClass}" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:10px;border-left:4px solid ${statusColor};box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
@@ -2202,6 +2205,7 @@ window.localChangesPending = false;
                             </div>
                             <div style="text-align:right;">
                                 <span style="font-weight:600;color:${statusColor};font-size:14px;">${statusText}</span>
+                                ${isCompleted ? `<button class="btn-extra" onclick="adminToggleDoneTask(${escAttr(JSON.stringify(taskKey))})" style="padding:4px 10px;font-size:12px;margin-left:6px;">▴ Свернуть</button>` : ''}
                             </div>
                         </div>
                         <div style="font-size:14px;margin-bottom:6px;"><b>Задача:</b> ${safeHTML(task.description)}</div>
@@ -2232,6 +2236,13 @@ window.localChangesPending = false;
         if (listEl === container) container.innerHTML += listHTML;
         else listEl.innerHTML = listHTML;
     }
+
+    // Раскрытые выполненные задачи (остальные выполненные показываются одной серой строкой)
+    const adminOpenDoneTasks = new Set();
+    window.adminToggleDoneTask = function(key) {
+        if (adminOpenDoneTasks.has(key)) adminOpenDoneTasks.delete(key); else adminOpenDoneTasks.add(key);
+        renderAdminHelperTasks();
+    };
 
     // Делаем функции глобально доступными
     window.renderAdminHelperTasks = renderAdminHelperTasks;
@@ -7647,6 +7658,23 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         }
     };
     
+    // Меню «Ещё» помощника (обучение, настройки)
+    window.helperMoreToggle = function(e) {
+        if (e) e.stopPropagation();
+        var menu = document.getElementById('helperMoreMenu');
+        if (menu) menu.classList.toggle('visible');
+    };
+    window.helperMoreGo = function(tabId) {
+        var menu = document.getElementById('helperMoreMenu');
+        if (menu) menu.classList.remove('visible');
+        window.switchBottomNavTab(tabId);
+        if (tabId === 'tab-learn' && typeof renderLearning === 'function') renderLearning();
+    };
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('helperMoreMenu');
+        if (menu && menu.classList.contains('visible') && !menu.contains(e.target)) menu.classList.remove('visible');
+    });
+
     function closeBottomNavMoreMenu() {
         var menu = document.getElementById('bottomNavMoreMenu');
         if (menu) menu.classList.remove('visible');
