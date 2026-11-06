@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -106,7 +106,7 @@
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
     <script src="js/finance.js?v=202611051900" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202611051900" defer></script>
+    <script src="js/attendance.js?v=202611061100" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=202610270400" defer></script>
     <!-- Push-уведомления: подписка устройства -->
@@ -120,7 +120,7 @@
     <script src="js/calendar-extra.js?v=202611051500" defer></script>
     <script src="js/agenda.js?v=202611051500" defer></script>
     <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611051900" defer></script>
+    <script src="js/app.js?v=202611061200" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/settings.js?v=202611051500" defer></script>
     <script src="js/hints.js?v=202611051500" defer></script>
@@ -569,7 +569,6 @@
                 <div class="helper-actions">
                     <label class="cal-filter"><span>👷</span><select id="attHelperSelect" onchange="attSelectHelper(this.value)"></select></label>
                     <button class="btn-add btn-tabel" onclick="attOpenTabel()">📋 Табель</button>
-                    <button class="btn-add" onclick="attDownloadTabel(attMonth)">⬇️ Скачать табель</button>
                 </div>
                 <div id="adminAttendanceContainer"></div>
             </div>

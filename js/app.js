@@ -1482,9 +1482,8 @@ window.localChangesPending = false;
                     </div>
                     <div style="background:#f8d7da;padding:15px;border-radius:6px;text-align:center;border:2px solid #e74c3c;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">😢 Не заработано</div>
-                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${formatMoney(totalPenalties + totalLost)}</div>
-                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">⚠️ штрафы: -${formatMoney(totalPenalties)}</div>
-                        ${totalLost ? `<div style="font-size:12px;color:#e74c3c;">просрочено задач ${overdueTasks}, не оплачено: -${formatMoney(totalLost)}</div>` : ''}
+                        <div style="font-size:24px;font-weight:700;color:#e74c3c;">-${formatMoney(totalPenalties)}</div>
+                        <div style="font-size:12px;color:#e74c3c;margin-top:4px;">штрафы за период</div>
                     </div>
                 </div>
             </div>
@@ -2065,6 +2064,10 @@ window.localChangesPending = false;
                 .filter(p => filterEmail === 'all' || p.helperEmail === filterEmail)
                 .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
+        // «Не заработано» — это штрафы (просрочка сама ничего не вычитает); выплачено — расходы кассы «Помощникам» за период
+        const totalPaidPeriod = cashOps.filter(o => o.category === 'helpers' && (filterEmail === 'all' || o.helper === filterEmail)
+            && String(o.date || '') >= range.from && String(o.date || '') <= range.to).reduce((sum, o) => sum + (parseFloat(o.expense) || 0), 0);
+
         // Считаем выплаты для всех помощников
         const helpersStats = {};
         const allHelperEmails = new Set(allTasks.map(t => t.assignedTo));
@@ -2131,8 +2134,14 @@ window.localChangesPending = false;
                     <div class="helper-stat-value" style="color:#27ae60;">${formatMoney(totalEarned)}</div>
                 </div>
                 <div class="helper-stat-item warning">
-                    <div class="helper-stat-label">⚠️ Штрафы</div>
-                    <div class="helper-stat-value" style="color:#e74c3c;">${formatMoney(totalPenalties)}</div>
+                    <div class="helper-stat-label">😢 Не заработано</div>
+                    <div class="helper-stat-value" style="color:#e74c3c;">-${formatMoney(totalPenalties)}</div>
+                    <div style="font-size:11px;color:#e74c3c;">штрафы за период</div>
+                </div>
+                <div class="helper-stat-item highlight">
+                    <div class="helper-stat-label">💳 Выплачено</div>
+                    <div class="helper-stat-value" style="color:#27ae60;">${formatMoney(totalPaidPeriod)}</div>
+                    <div style="font-size:11px;color:#6c757d;">за выбранный период</div>
                 </div>
             </div>
             
@@ -3131,7 +3140,10 @@ window.localChangesPending = false;
         // Преобразуем строковые значения в boolean
         const isDone = order.done === true || order.done === 'true' || order.done === 1;
         if (isDone) return 'done';
-        
+        // Срок сдачи прошёл, а заказ не выполнен — всегда красный, даже если цвет выбран вручную
+        const deadline = (parseInt(order.durationDays) || 0) > 0 ? getDeadline(order) : '';
+        if (deadline && deadline < formatDate(new Date())) return 'critical';
+
         const manualColor = order.manualColor;
         if (manualColor && manualColor !== 'auto') return manualColor;
         

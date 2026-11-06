@@ -326,3 +326,29 @@ html.ba-dark .stk-toolbar .stk-icon { font-size: 18px !important; }
 html.ba-dark .stk-btns .stk-plus { border-color: #2E8B57 !important; color: #7FD3A0 !important; }
 html.ba-dark .stk-details { border-top-color: var(--ba-line); }
 html.ba-dark .stk-details b { color: #FFFFFF; font-weight: 600; }
+
+/* Телефон: длинное имя пользователя растягивало шапку шире экрана, и телефон уменьшал всю страницу (06.11.2026) */
+@media (max-width: 768px) {
+    html, body { overflow-x: hidden !important; max-width: 100%; }
+    #appContent .toolbar { min-width: 0; overflow: hidden; }
+    #appContent .toolbar h1.brand-title { flex: 0 0 auto; }
+    #appContent .toolbar #authSection { min-width: 0; flex: 1 1 auto; justify-content: flex-end; gap: 6px !important; }
+    #appContent .toolbar .user-name { min-width: 0; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+    .bottom-nav { width: 100% !important; max-width: 100vw; left: 0; right: 0; box-sizing: border-box; }
+}
+@media (max-width: 400px) {
+    #appContent .toolbar .user-name { display: none !important; }
+}
+
+/* Календарь помощника: у каждого вида дня свой цвет (06.11.2026) */
+.att-cell.att-present, .att-cell.att-open, .att-legend .att-present { background: #E9DDFB !important; border-color: #9163EA !important; }
+.att-cell.att-late, .att-legend .att-late { background: #FFF3CD !important; border-color: #FFC107 !important; }
+.att-cell.att-dayoff, .att-legend .att-dayoff { background: #D7F2EE !important; border-color: #20A08F !important; }
+.att-cell.att-sick, .att-legend .att-sick { background: #DCE8FB !important; border-color: #3B7BE0 !important; }
+.att-cell.att-absent, .att-legend .att-absent { background: #F8D7DA !important; border-color: #D93036 !important; }
+html.ba-dark .att-cell.att-present, html.ba-dark .att-cell.att-open, html.ba-dark .att-legend .att-present { background: #5A1CB0 !important; border-color: #7A3BE0 !important; color: #FFFFFF !important; }
+html.ba-dark .att-cell.att-late, html.ba-dark .att-legend .att-late { background: #FFC107 !important; border-color: #FFC107 !important; color: #0B0B0E !important; }
+html.ba-dark .att-cell.att-dayoff, html.ba-dark .att-legend .att-dayoff { background: #11786B !important; border-color: #20A08F !important; color: #FFFFFF !important; }
+html.ba-dark .att-cell.att-sick, html.ba-dark .att-legend .att-sick { background: #2457B0 !important; border-color: #3B7BE0 !important; color: #FFFFFF !important; }
+html.ba-dark .att-cell.att-absent, html.ba-dark .att-legend .att-absent { background: #9E2329 !important; border-color: #D93036 !important; color: #FFFFFF !important; }
+html.ba-dark .att-legend .att-vacation { background: #0E2A24 !important; color: #FFFFFF; }

@@ -286,7 +286,7 @@ function attCalendarHTML(email, mk, clickable) {
             ${cells}
         </div>
         <div class="att-legend">
-            <span class="att-legend-mark">Отмечен (был, опоздал, отгул)</span><span class="att-legend-task">Есть задачи</span><span class="att-vacation">🌴 Отпуск</span>
+            <span class="att-present">Был</span><span class="att-late">Опоздал</span><span class="att-dayoff">Отгул</span><span class="att-sick">Больничный</span><span class="att-absent">Не был</span><span class="att-vacation">🌴 Отпуск</span><span class="att-legend-task">Есть задачи</span>
         </div>`;
 }
 
