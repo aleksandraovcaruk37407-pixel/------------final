@@ -189,7 +189,7 @@
             if (orderDate) orderDate.addEventListener('input', updateDeadline);
             if (orderDurationDays) orderDurationDays.addEventListener('input', updateDeadline);
             if (orderClientPrice) orderClientPrice.addEventListener('input', updateModalTotals);
-            if (orderTaskPay) orderTaskPay.addEventListener('input', updateModalTotals);
+            if (orderTaskPay) { orderTaskPay.addEventListener('input', updateModalTotals); orderTaskPay.addEventListener('change', updateModalTotals); }
             
             // Кассовые операции — превью
             var cashOpIncome = document.getElementById('cashOpIncome');
@@ -3994,6 +3994,23 @@ window.localChangesPending = false;
         }
     }
 
+    // Дату сдачи выбрали сами — пересчитываем «Срок (дней)» от даты создания
+    function orderDeadlineChanged() {
+        const dateVal = document.getElementById('orderDate').value;
+        const deadlineInput = document.getElementById('orderDeadline');
+        const durationInput = document.getElementById('orderDurationDays');
+        if (!dateVal || !deadlineInput.value) { updateDeadline(); return; }
+        const toUTC = v => { const [y, m, d] = v.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+        const days = Math.round((toUTC(deadlineInput.value) - toUTC(dateVal)) / 86400000);
+        if (!(days >= 1)) {
+            alert('Дата сдачи должна быть позже даты создания заказа');
+            updateDeadline();
+            return;
+        }
+        durationInput.value = days;
+    }
+    window.orderDeadlineChanged = orderDeadlineChanged;
+
     function openOrderModal(orderId, presetDate) {
         const order = orderId ? ordersData.find(o=>o.id===orderId) : null;
         orderEditId = order ? order.id : null;
@@ -4318,6 +4335,51 @@ window.localChangesPending = false;
         hint.textContent = ref > 0 && own > 0 && Math.abs(own - ref) > 0.0001 ? `своя цена · в справочнике ${formatMoney(ref)}` : '';
     }
 
+    // Поле «Стоимость» материала можно вписать самим: цена за единицу = сумма ÷ количество.
+    // Пока сумму печатают, update() её не перезаписывает (dataset.typing); после ввода суммы
+    // смена количества тоже пересчитывает цену, а не сумму
+    function linkMaterialSum(codeInput, priceInput, qtyInput, costInput, update) {
+        costInput.readOnly = false;
+        costInput.type = 'number';
+        costInput.step = '0.01';
+        costInput.min = '0';
+        costInput.inputMode = 'decimal';
+        costInput.placeholder = 'впишите сумму';
+        let bySum = false;
+        const priceFromSum = () => {
+            const q = parseFloat(qtyInput.value) || 0;
+            const sum = parseFloat(costInput.value) || 0;
+            if (q > 0) priceInput.value = String(Math.round(sum / q * 10000) / 10000);
+        };
+        costInput.addEventListener('input', () => {
+            bySum = true;
+            costInput.dataset.typing = '1';
+            priceFromSum();
+            update(false);
+        });
+        costInput.addEventListener('blur', () => {
+            delete costInput.dataset.typing;
+            if (bySum && !(parseFloat(qtyInput.value) > 0)) return; // количества ещё нет — сумму оставляем
+            update(false);
+        });
+        qtyInput.addEventListener('input', () => { if (bySum) priceFromSum(); });
+        priceInput.addEventListener('input', () => { bySum = false; });
+        codeInput.addEventListener('input', () => { bySum = false; });
+        // Без артикула материал не идёт в себестоимость и на склад (js/costs.js) — подсказываем
+        const hint = document.createElement('small');
+        hint.style.cssText = 'display:block;color:#dc3545;font-size:11px;margin-top:2px;';
+        costInput.insertAdjacentElement('afterend', hint);
+        const refreshHint = () => {
+            hint.textContent = !codeInput.value.trim() && (parseFloat(costInput.value) || 0) > 0
+                ? 'Впишите артикул — без него материал не попадёт в себестоимость' : '';
+        };
+        [codeInput, priceInput, qtyInput, costInput].forEach(el => el.addEventListener('input', refreshHint));
+        costInput.addEventListener('blur', refreshHint);
+        const clearBtn = costInput.parentElement.querySelector('.btn-clear-art');
+        if (clearBtn) clearBtn.addEventListener('click', () => { bySum = false; refreshHint(); });
+        refreshHint();
+    }
+
     function buildServiceDetails(container, index) {
         const inst = currentServices[index];
         const svc = rates.find(r => r.service === inst.serviceName);
@@ -4334,7 +4396,7 @@ window.localChangesPending = false;
                 </div>
                 <label>Цена</label><input type="number" class="fabric-price" value="${parseFloat(inst.fabric.price)||0}">
                 <label>Метры</label><input type="number" class="fabric-meters" value="${parseFloat(inst.fabric.meters)||0}">
-                <label>Стоимость</label><input type="text" class="fabric-cost" readonly>`;
+                <label>Сумма <span style="color:#999;font-size:11px;">(можно вписать — цена посчитается)</span></label><input type="text" class="fabric-cost" readonly>`;
             container.appendChild(div);
             const catInput = div.querySelector('.fabric-category');
             const codeInput = div.querySelector('.fabric-code');
@@ -4374,9 +4436,10 @@ window.localChangesPending = false;
                 }
                 inst.fabric.price = parseFloat(priceInput.value) || 0;
                 showRefPriceHint(priceInput, found && found.price);
-                costInput.value = ((parseFloat(inst.fabric.meters)||0) * (parseFloat(inst.fabric.price)||0)).toFixed(2);
+                if (!costInput.dataset.typing) costInput.value = ((parseFloat(inst.fabric.meters)||0) * (parseFloat(inst.fabric.price)||0)).toFixed(2);
                 updateModalTotals();
             };
+            linkMaterialSum(codeInput, priceInput, metersInput, costInput, update);
             codeInput.addEventListener('input', () => update(true));
             [catInput, priceInput, metersInput].forEach(el => el.addEventListener('input', () => update(false)));
             update(false);
@@ -4391,7 +4454,7 @@ window.localChangesPending = false;
                 </div>
                 <label>Цена</label><input type="number" class="paint-price" value="${parseFloat(inst.paint.price)||0}" step="0.01">
                 <label>Мл</label><input type="number" class="paint-qty" value="${parseFloat(inst.paint.qty)||0}">
-                <label>Стоимость</label><input type="text" class="paint-cost" readonly>`;
+                <label>Сумма <span style="color:#999;font-size:11px;">(можно вписать — цена посчитается)</span></label><input type="text" class="paint-cost" readonly>`;
             container.appendChild(div);
             const codeInput = div.querySelector('.paint-code');
             const clearBtn = div.querySelector('.btn-clear-art');
@@ -4423,9 +4486,10 @@ window.localChangesPending = false;
                 inst.paint.price = parseFloat(priceInput.value)||0;
                 showRefPriceHint(priceInput, found && found.price);
                 inst.paint.qty = parseFloat(qtyInput.value) || 0;
-                costInput.value = ((parseFloat(inst.paint.qty)||0) * (parseFloat(inst.paint.price)||0)).toFixed(2);
+                if (!costInput.dataset.typing) costInput.value = ((parseFloat(inst.paint.qty)||0) * (parseFloat(inst.paint.price)||0)).toFixed(2);
                 updateModalTotals();
             };
+            linkMaterialSum(codeInput, priceInput, qtyInput, costInput, update);
             codeInput.addEventListener('input', () => update(true));
             [priceInput, qtyInput].forEach(el => el.addEventListener('input', () => update(false)));
             update(false);
@@ -4440,7 +4504,7 @@ window.localChangesPending = false;
                 </div>
                 <label>Цена</label><input type="number" class="film-price" value="${parseFloat(inst.film.price)||0}" step="0.01">
                 <label>Метры</label><input type="number" class="film-meters" value="${parseFloat(inst.film.meters)||0}">
-                <label>Стоимость</label><input type="text" class="film-cost" readonly>`;
+                <label>Сумма <span style="color:#999;font-size:11px;">(можно вписать — цена посчитается)</span></label><input type="text" class="film-cost" readonly>`;
             container.appendChild(div);
             const codeInput = div.querySelector('.film-code');
             const clearBtn = div.querySelector('.btn-clear-art');
@@ -4472,9 +4536,10 @@ window.localChangesPending = false;
                 inst.film.price = parseFloat(priceInput.value)||0;
                 showRefPriceHint(priceInput, found && found.price);
                 inst.film.meters = parseFloat(metersInput.value) || 0;
-                costInput.value = ((parseFloat(inst.film.meters)||0) * (parseFloat(inst.film.price)||0)).toFixed(2);
+                if (!costInput.dataset.typing) costInput.value = ((parseFloat(inst.film.meters)||0) * (parseFloat(inst.film.price)||0)).toFixed(2);
                 updateModalTotals();
             };
+            linkMaterialSum(codeInput, priceInput, metersInput, costInput, update);
             codeInput.addEventListener('input', () => update(true));
             [priceInput, metersInput].forEach(el => el.addEventListener('input', () => update(false)));
             update(false);
@@ -4502,7 +4567,7 @@ window.localChangesPending = false;
                     </div>
                     <label>Цена за ${unitLabel}</label><input type="number" class="custom-price" value="${markerData.price||0}" step="0.01">
                     <label>Количество ${unitLabel}</label><input type="number" class="custom-qty" value="${markerData.qty||''}" step="0.1" placeholder="0.0">
-                    <label>Стоимость</label><input type="text" class="custom-cost" value="0.00" readonly>`;
+                    <label>Сумма <span style="color:#999;font-size:11px;">(можно вписать — цена посчитается)</span></label><input type="text" class="custom-cost" value="0.00" readonly>`;
                 container.appendChild(div);
                 const codeInput = div.querySelector('.custom-code');
                 const clearBtn = div.querySelector('.btn-clear-art');
@@ -4551,9 +4616,10 @@ window.localChangesPending = false;
                         unit: art ? getUnitFromArticleName(art.name, art.code) : unitLabel
                     };
                     showRefPriceHint(priceInput, art && art.price);
-                    costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].qty)||0)).toFixed(2);
+                    if (!costInput.dataset.typing) costInput.value = ((parseFloat(inst[mt.name].price)||0) * (parseFloat(inst[mt.name].qty)||0)).toFixed(2);
                     updateModalTotals();
                 };
+                linkMaterialSum(codeInput, priceInput, qtyInput, costInput, update);
                 codeInput.addEventListener('input', () => update(true));
                 [priceInput, qtyInput].forEach(el => el.addEventListener('input', () => update(false)));
                 update(false);
