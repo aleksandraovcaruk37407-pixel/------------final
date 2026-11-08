@@ -16,6 +16,10 @@
    справочника. Поэтому старые заказы не меняются, когда меняется справочник.
    Количество расходника услуги: поправленное в заказе, иначе норма из
    справочника — на заказ или на метр ткани/плёнки.
+
+   Материал без артикула (вписаны только количество и цена/сумма) тоже идёт
+   в себестоимость — строкой «… без артикула» с noStock: true. На склад и в
+   закупку такие строки не попадают (costSumLines): по ним нечего списывать.
    ========================================================================== */
 
 function costNum(v) { return parseFloat(v) || 0; }
@@ -74,22 +78,24 @@ function costOrderLines(order, refs) {
         const svc = (refs.rates || []).find(r => r.service === inst.serviceName);
         if (!svc) return;
         const service = inst.serviceName;
-        if (costServiceUses(svc, 'Ткань') && inst.fabric && inst.fabric.code) {
-            const ref = findByCode(refs.colors, inst.fabric.code);
-            push({ kind: 'fabric', group: 'Ткань', code: inst.fabric.code, unit: 'м', service,
-                name: ref ? `${ref.name} ${ref.code}` : `Ткань ${inst.fabric.code}`,
+        // Без артикула, но с количеством и ценой — в себестоимость, без склада
+        const noCode = (d, qtyKey) => d && !String(d.code || '').trim() && costNum(d[qtyKey]) > 0 && costNum(d.price) > 0;
+        if (costServiceUses(svc, 'Ткань') && inst.fabric && (inst.fabric.code || noCode(inst.fabric, 'meters'))) {
+            const ref = inst.fabric.code && findByCode(refs.colors, inst.fabric.code);
+            push({ kind: 'fabric', group: 'Ткань', code: inst.fabric.code || '', unit: 'м', service, noStock: !inst.fabric.code,
+                name: !inst.fabric.code ? 'Ткань без артикула' : ref ? `${ref.name} ${ref.code}` : `Ткань ${inst.fabric.code}`,
                 qty: inst.fabric.meters, price: costNum(inst.fabric.price) > 0 ? inst.fabric.price : (ref && ref.price) });
         }
-        if (costServiceUses(svc, 'Краска') && inst.paint && inst.paint.code) {
-            const ref = findByCode(refs.paints, inst.paint.code);
-            push({ kind: 'paint', group: 'Краска', code: inst.paint.code, unit: 'мл', service,
-                name: ref ? ref.name : `Краска ${inst.paint.code}`,
+        if (costServiceUses(svc, 'Краска') && inst.paint && (inst.paint.code || noCode(inst.paint, 'qty'))) {
+            const ref = inst.paint.code && findByCode(refs.paints, inst.paint.code);
+            push({ kind: 'paint', group: 'Краска', code: inst.paint.code || '', unit: 'мл', service, noStock: !inst.paint.code,
+                name: !inst.paint.code ? 'Краска без артикула' : ref ? ref.name : `Краска ${inst.paint.code}`,
                 qty: inst.paint.qty, price: costNum(inst.paint.price) > 0 ? inst.paint.price : (ref && ref.price) });
         }
-        if (costServiceUses(svc, 'Пленка для аквапринта') && inst.film && inst.film.code) {
-            const ref = findByCode(refs.films, inst.film.code);
-            push({ kind: 'film', group: 'Пленка', code: inst.film.code, unit: 'м', service,
-                name: ref ? ref.name : `Плёнка ${inst.film.code}`,
+        if (costServiceUses(svc, 'Пленка для аквапринта') && inst.film && (inst.film.code || noCode(inst.film, 'meters'))) {
+            const ref = inst.film.code && findByCode(refs.films, inst.film.code);
+            push({ kind: 'film', group: 'Пленка', code: inst.film.code || '', unit: 'м', service, noStock: !inst.film.code,
+                name: !inst.film.code ? 'Плёнка без артикула' : ref ? ref.name : `Плёнка ${inst.film.code}`,
                 qty: inst.film.meters, price: costNum(inst.film.price) > 0 ? inst.film.price : (ref && ref.price) });
         }
         (svc.items || []).forEach(item => {
@@ -99,10 +105,12 @@ function costOrderLines(order, refs) {
         });
         (refs.materialTypes || []).forEach(mt => {
             const data = inst[mt.name];
-            if (!costServiceUses(svc, mt.name) || !data || !data.code) return;
-            const art = (mt.articles || []).find(a => a.code === data.code);
-            push({ kind: 'marker', group: mt.name, code: data.code, unit: data.unit || mt.unit || 'шт', service,
-                name: art ? art.name : data.code,
+            if (!costServiceUses(svc, mt.name) || !data) return;
+            const qtyOf = data.qty !== undefined && data.qty !== '' ? data.qty : (data.sheets || data.m2);
+            if (!data.code && !(costNum(qtyOf) > 0 && costNum(data.price) > 0)) return;
+            const art = data.code && (mt.articles || []).find(a => a.code === data.code);
+            push({ kind: 'marker', group: mt.name, code: data.code || '', unit: data.unit || mt.unit || 'шт', service, noStock: !data.code,
+                name: !data.code ? `${mt.name} без артикула` : art ? art.name : data.code,
                 // sheets и m2 — поля из старых версий окна заказа
                 qty: data.qty !== undefined && data.qty !== '' ? data.qty : (data.sheets || data.m2),
                 price: costNum(data.price) > 0 ? data.price : (art && art.price) });
@@ -127,6 +135,7 @@ function costOrderTotal(order, refs) {
 function costSumLines(orders, refs) {
     const byName = new Map();
     (orders || []).forEach(order => costOrderLines(order, refs).forEach(l => {
+        if (l.noStock) return; // материал без артикула: в себестоимости есть, на складе и в закупке — нет
         const key = l.group + '\u0000' + l.name;
         const cur = byName.get(key) || { group: l.group, name: l.name, code: l.code, unit: l.unit, qty: 0, price: 0, sum: 0 };
         cur.qty += l.qty;

@@ -294,3 +294,34 @@ html.ba-dark .helper-task-folded span { color: #6E737C; }
 @media (max-width: 360px) {
     #serviceItemsModal .svc-items-head, #serviceItemsModal .svc-item-row { grid-template-columns: minmax(56px, 1fr) 40px 42px 48px 22px 22px 26px; gap: 2px; }
 }
+
+/* Настройки → «💾 Резервные копии» (js/backup.js) */
+.backup-btns { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.backup-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid rgba(127,127,127,.2); }
+.backup-row small { opacity: .7; }
+.backup-row-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Окно заказа: даты в одну строку, редкое — в «Дополнительно» */
+.modal-overlay .modal .form-row.order-dates { grid-template-columns: minmax(0, 1fr) 62px minmax(0, 1fr) !important; gap: 6px !important; }
+.modal-overlay .modal .form-row.order-two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 8px !important; }
+.modal-overlay .modal .form-row.order-dates input[type="date"] { padding-left: 6px !important; padding-right: 4px !important; font-size: 14px !important; }
+.order-more { margin: 4px 0 12px; border-top: 1px dashed rgba(127,127,127,.35); padding-top: 8px; }
+.order-more > summary { cursor: pointer; font-size: 13px; font-weight: 600; color: #8A8F98; user-select: none; margin-bottom: 8px; }
+.order-more[open] > summary { margin-bottom: 10px; }
+
+/* «Заказ | Предзапись» в самом верху окна новой записи */
+.kind-switch { display: flex; gap: 0; margin: -4px 0 14px; border: 1px solid rgba(127,127,127,.35); border-radius: 8px; overflow: hidden; }
+.kind-switch .kind-btn { flex: 1; min-height: 36px !important; padding: 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; color: inherit !important; font-size: 14px !important; font-weight: 600; cursor: pointer; box-shadow: none !important; }
+.kind-switch .kind-btn + .kind-btn { border-left: 1px solid rgba(127,127,127,.35) !important; }
+.kind-switch .kind-btn.active { background: #5A1CB0 !important; color: #fff !important; cursor: default; }
+
+/* Фильтр задач: «Показать» (статус) и «Период» — выпадающие списки в одну строку */
+.task-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; }
+.task-filters .per-pick { margin: 0; }
+.task-status-pick { display: inline-flex; align-items: center; gap: 6px; }
+.task-status-pick select { width: auto !important; min-width: 150px; }
+
+/* Окно заказа: расчёт прибыли и копилок — по кнопке «Из чего прибыль» */
+.order-profit-info { margin: -4px 0 10px; }
+.order-profit-info > summary { cursor: pointer; font-size: 13px; color: #8A8F98; user-select: none; }
+.order-profit-info small { display: block; color: #8A8F98; font-size: 12px; margin-top: 6px; line-height: 1.4; }

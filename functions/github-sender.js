@@ -4,8 +4,11 @@
 //   2. Новые (которых нет в push_state/sent) отправляет на устройства адресатов.
 //   3. В 9:00 по Новосибирску один раз в день шлёт админам утреннюю сводку (заказы, заметки, платежи, задачи дня).
 //   4. Напоминает помощникам нажать «Пришёл» (с 13:00 или по графику) и «Ушёл», сообщает о просроченных задачах.
+//   0. Вносит в общие данные заявки помощников (helper_actions), если их ещё не внесло устройство админа.
 // Доступ к базе — по ключу сервисного аккаунта из секрета репозитория FIREBASE_SERVICE_ACCOUNT.
 const logic = require('./push-logic');
+// Та же проверка заявок, что в программе (js/helper-actions.js): помощнику можно только свои задачи и отметки
+const { haApply } = require('../js/helper-actions.js');
 
 const DATABASE_URL = 'https://auto-atelier-1486d-default-rtdb.firebaseio.com';
 const TIME_ZONE = 'Asia/Novosibirsk';
@@ -13,9 +16,54 @@ const SUMMARY_HOUR = 9;
 
 const toList = v => Array.isArray(v) ? v.filter(Boolean) : (v && typeof v === 'object' ? Object.values(v).filter(Boolean) : []);
 
+// Заявки помощников: одной транзакцией вносим в atelier_data (с новой версией rev — устройства подхватят),
+// затем убираем из очереди. Возвращает число внесённых изменений.
+async function applyHelperActions(db, now) {
+  const all = (await db.ref('helper_actions').once('value')).val();
+  if (!all || typeof all !== 'object') return 0;
+  const items = [];
+  Object.keys(all).forEach(uid => Object.keys(all[uid] || {}).forEach(id => items.push({ uid, id, action: all[uid][id] })));
+  if (!items.length) return 0;
+  let applied = 0;
+  if (typeof db.ref('atelier_data').transaction === 'function') {
+    await db.ref('atelier_data').transaction(current => {
+      applied = 0;
+      if (!current) return; // данных нет — ничего не меняем
+      const data = { ...current, ordersData: toList(current.ordersData), attendance: toList(current.attendance), helperNotices: toList(current.helperNotices) };
+      items.forEach(it => { if (it.action && typeof it.action === 'object') applied += haApply(data, it.action); });
+      if (!applied) return; // отмена: менять нечего
+      data.rev = (Number(current.rev) || 0) + 1;
+      data.updatedAt = new Date(now).toISOString();
+      data.updatedBy = 'робот: заявки помощника';
+      return data;
+    });
+  }
+  await Promise.all(items.map(it => db.ref('helper_actions/' + it.uid + '/' + it.id).remove()));
+  return applied;
+}
+
+// Недельная копия в облаке (как в программе, js/backup.js): если последней больше 7 дней — новая, хранятся 6
+async function weeklyBackup(db, now) {
+  const meta = (await db.ref('backups_meta').once('value')).val() || {};
+  const today = new Date(now).toLocaleDateString('sv-SE', { timeZone: TIME_ZONE });
+  const last = Object.keys(meta).sort().pop();
+  if (last && (Date.parse(today) - Date.parse(last)) / 86400000 < 7) return null;
+  const data = (await db.ref('atelier_data').once('value')).val();
+  if (!data) return null;
+  const { users, rev, updatedAt, updatedBy, ...lists } = data;
+  const createdAt = new Date(now).toISOString();
+  await db.ref('backups/' + today).set({ kind: 'back-alive-backup', v: 1, createdAt, by: 'робот', data: lists });
+  await db.ref('backups_meta/' + today).set({ createdAt, by: 'робот', orders: toList(lists.ordersData).length });
+  const old = Object.keys({ ...meta, [today]: 1 }).sort().slice(0, -6);
+  for (const k of old) { await db.ref('backups/' + k).remove(); await db.ref('backups_meta/' + k).remove(); }
+  return today;
+}
+
 // db и messaging передаются снаружи: в GitHub — из firebase-admin, в тестах — поддельные
 async function run({ db, messaging, now = Date.now() }) {
   const report = { firstRun: false, sent: 0, skipped: 0, devices: 0, summary: null, reminders: 0 };
+  report.helperActions = await applyHelperActions(db, now);
+  report.backup = await weeklyBackup(db, now);
   const [noticesSnap, stateSnap] = await Promise.all([
     db.ref('atelier_data/helperNotices').once('value'),
     db.ref('push_state').once('value')
@@ -108,4 +156,4 @@ if (require.main === module) {
   main().catch(e => { console.error('Ошибка отправки push:', e); process.exit(1); });
 }
 
-module.exports = { run };
+module.exports = { run, applyHelperActions, weeklyBackup };

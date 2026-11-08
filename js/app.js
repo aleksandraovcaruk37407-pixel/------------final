@@ -103,6 +103,9 @@
                     if (btn.dataset.tab === 'helper-tasks') renderHelperTasks();
                     if (btn.dataset.tab === 'helper-report') renderHelperReport();
                     if (btn.dataset.tab === 'helper-attendance' || btn.dataset.tab === 'tab-helper-admin') renderAttendance();
+                    // На ПК «Настройки» и «Обучение» рисовались только из меню телефона — после обновления были пустыми
+                    if (btn.dataset.tab === 'tab-settings' && typeof renderSettings === 'function') renderSettings();
+                    if (btn.dataset.tab === 'tab-learn' && typeof renderLearning === 'function') renderLearning();
                     if (btn.dataset.tab === 'tab-helper-admin') {
                         if (typeof updateHelperFilter === 'function') updateHelperFilter();
                         renderAdminHelperTasks();
@@ -156,7 +159,6 @@
             document.getElementById('authModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAuthModal(); });
             document.getElementById('addHelperModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddHelperModal(); });
             document.getElementById('penaltyModal').addEventListener('click', e => { if (e.target === e.currentTarget) closePenaltyModal(); });
-            document.getElementById('bookingModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
             document.getElementById('extraModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeExtraModal(); });
             document.getElementById('serviceItemsModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeServiceItemsModal(); });
             document.getElementById('noteModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeNoteModal(); });
@@ -167,8 +169,6 @@
             document.getElementById('helperTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeHelperTaskModal(); });
             document.getElementById('editTaskModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeEditTaskModal(); });
             document.getElementById('addCashModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddCashModal(); });
-            document.getElementById('addRegularExpenseModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularExpenseModal(); });
-            document.getElementById('addRegularIncomeModal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAddRegularIncomeModal(); });
             
             // Мобильная навигация — кнопку "Ещё" открывает только bindBottomNavClicks:
             // здесь был второй обработчик, и меню открывалось и сразу закрывалось
@@ -699,579 +699,6 @@ window.localChangesPending = false;
         return recalcOrder(copy).materialCost || 0;
     }
 
-    function populateBudgetOrderSelect() {
-        const select = document.getElementById('budgetOrderSelect');
-        if (!select) return;
-        const currentValue = select.value;
-        select.innerHTML = '<option value="">-- Выбери заказ --</option>';
-        ordersData.forEach(order => {
-            const opt = document.createElement('option');
-            opt.value = order.orderNumber;
-            opt.textContent = `№${order.orderNumber} — ${order.client || 'Без клиента'} — ${formatMoney(parseFloat(order.clientPrice || 0))}`;
-            select.appendChild(opt);
-        });
-        if (currentValue) select.value = currentValue;
-    }
-
-    // ========== ОБЩИЙ РАСЧЁТ РАСПРЕДЕЛЕНИЯ (ЕДИНСТВЕННЫЙ ИСТОЧНИК) ==========
-    function calculateDistribution(order) {
-        const clientPrice = parseFloat(order.clientPrice) || 0;
-        // ИСПРАВЛЕНО: используем getOrderCost(order) вместо order.materialCost для точности
-        const orderCost = getOrderCost(order);
-        const netProfit = Math.max(0, clientPrice - orderCost);
-
-        if (netProfit <= 0) {
-            return {
-                clientPrice, orderCost, netProfit,
-                tax: 0, personal: 0, business: 0, investments: 0, mandatory: 0,
-                products: 0, savings: 0, error: 'net_profit_zero'
-            };
-        }
-
-        const tax = netProfit * 0.04;
-        const personal = netProfit * 0.10;
-        const business = netProfit * 0.05;
-        const investments = netProfit * 0.05;
-        const mandatory = netProfit - tax - personal - business - investments;
-
-        return {
-            clientPrice, orderCost, netProfit,
-            tax, personal, business, investments, mandatory,
-            products: 0, savings: 0, error: null
-        };
-    }
-
-    // ========== РАСПРЕДЕЛЕНИЕ ДЛЯ БЮДЖЕТНЫХ КОШЕЛЬКОВ (ручной вызов из панели) ==========
-    function distributeFromOrder() {
-        if (!budgetData) { alert('Данные бюджета не загружены!'); return; }
-
-        const select = document.getElementById('budgetOrderSelect');
-        const orderNumber = select.value;
-        if (!orderNumber) { alert('Выбери заказ!'); return; }
-
-        const order = ordersData.find(o => o.orderNumber == orderNumber);
-        if (!order) { alert('Заказ не найден!'); return; }
-
-        const dist = calculateDistribution(order);
-        if (dist.error) {
-            alert('Чистая прибыль с этого заказа 0 или отрицательная (расходы >= оплата). Распределить нечего.');
-            return;
-        }
-
-        budgetData.wallets.tax.target += dist.tax;
-        budgetData.wallets.personal.target += dist.personal;
-        budgetData.wallets.business.target += dist.business;
-        budgetData.wallets.investments.target += dist.investments;
-
-        // Распределяем на обязательные платежи
-        let remaining = dist.mandatory;
-        const distributions = [];
-
-        budgetData.mandatoryPayments
-            .filter(mp => !mp.paid)
-            .sort((a, b) => a.day - b.day)
-            .forEach(mp => {
-                if (remaining <= 0) return;
-                const needed = mp.target - mp.saved;
-                const toAdd = Math.min(remaining, needed);
-                mp.saved += toAdd;
-                remaining -= toAdd;
-                distributions.push({ name: mp.name, amount: toAdd });
-            });
-
-        // Если остались деньги → на досрочное погашение долгов
-        let extraDebt = 0;
-        if (remaining > 0) {
-            budgetData.debts.forEach(debt => {
-                if (remaining <= 0) return;
-                const payment = Math.min(remaining, debt.monthly);
-                debt.paid += payment;
-                extraDebt += payment;
-                remaining -= payment;
-            });
-        }
-
-        // Записываем в историю
-        budgetData.distributionHistory.unshift({
-            date: new Date().toLocaleString('ru-RU'),
-            orderNumber: order.orderNumber,
-            client: order.client || 'Без клиента',
-            clientPrice: dist.clientPrice,
-            orderCost: dist.orderCost,
-            netProfit: dist.netProfit,
-            tax: dist.tax,
-            personal: dist.personal,
-            business: dist.business,
-            investments: dist.investments,
-            mandatory: dist.mandatory,
-            extraDebt,
-            distributions
-        });
-
-        if (budgetData.distributionHistory.length > 50) {
-            budgetData.distributionHistory = budgetData.distributionHistory.slice(0, 50);
-        }
-
-        saveBudgetData();
-        renderBudget();
-
-        // Показываем результат
-        const resultDiv = document.getElementById('budgetDistributionResult');
-        resultDiv.innerHTML = `
-            <div class="budget-result">
-                <div style="font-weight:700;margin-bottom:8px;font-size:15px;">✅ Распределение выполнено:</div>
-                <div class="budget-result-row"><span class="label">Оплата от клиента:</span><span class="value">${formatMoney(dist.clientPrice)}</span></div>
-                <div class="budget-result-row"><span class="label">Расходы на заказ:</span><span class="value" style="color:#e74c3c;">-${formatMoney(dist.orderCost)}</span></div>
-                <div class="budget-result-row"><span class="label">Помощник:</span><span class="value" style="color:#e74c3c;">-${formatMoney(dist.helperPay)}</span></div>
-                <div class="budget-result-row highlight"><span class="label">Чистая прибыль:</span><span class="value" style="color:#27ae60;">${formatMoney(dist.netProfit)}</span></div>
-                <div style="margin:10px 0 5px 0;border-top:1px dashed #ccc;padding-top:8px;">
-                    <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(dist.tax)}</span></div>
-                    <div class="budget-result-row personal"><span class="label">👤 Личные (10%):</span><span class="value">${formatMoney(dist.personal)}</span></div>
-                    <div class="budget-result-row" style="color:#7A3BE0;"><span class="label">🚀 Улучшение бизнеса (5%):</span><span class="value" style="color:#7A3BE0;">${formatMoney(dist.business)}</span></div>
-                    <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции/Активы (5%):</span><span class="value" style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
-                    <div class="budget-result-row mandatory"><span class="label">📌 Обязательные платежи:</span><span class="value">${formatMoney(dist.mandatory)}</span></div>
-                </div>
-                ${extraDebt > 0 ? `<div class="budget-result-row" style="background:#EFE7FC;padding:6px;border-radius:4px;margin-top:6px;"><span class="label">⚡ Досрочное погашение долгов:</span><span class="value" style="color:#7A3BE0;">${formatMoney(extraDebt)}</span></div>` : ''}
-                <div style="margin-top:8px;font-size:13px;color:#666;">
-                    <b>Куда пошло:</b><br>
-                    ${distributions.map(d => `${d.name}: +${formatMoney(d.amount)}`).join('<br>')}
-                    ${extraDebt > 0 ? `<br>Досрочное погашение: +${formatMoney(extraDebt)}` : ''}
-                </div>
-            </div>
-        `;
-    }
-
-    function payMandatoryPayment(idx) {
-        if (!budgetData || !budgetData.mandatoryPayments) return;
-        const mp = budgetData.mandatoryPayments[idx];
-        if (!mp || mp.paid) return;
-        if (!confirm(`Отметить "${mp.name}" как оплаченный?`)) return;
-        mp.paid = true;
-        saveBudgetData();
-        renderBudget();
-    }
-
-    function resetMandatoryPayment(idx) {
-        if (!budgetData || !budgetData.mandatoryPayments) return;
-        const mp = budgetData.mandatoryPayments[idx];
-        if (!mp) return;
-        if (!confirm(`Сбросить статус оплаты "${mp.name}"?`)) return;
-        mp.paid = false;
-        saveBudgetData();
-        renderBudget();
-    }
-
-    function editMandatoryPayment(idx, field, value) {
-        if (!budgetData || !budgetData.mandatoryPayments) return;
-        const mp = budgetData.mandatoryPayments[idx];
-        if (!mp) return;
-        
-        if (field === 'name') {
-            mp.name = value.trim();
-        } else if (field === 'amount') {
-            const amount = parseFloat(value) || 0;
-            mp.amount = amount;
-            mp.target = amount;
-        } else if (field === 'day') {
-            const day = parseInt(value) || 1;
-            mp.day = Math.max(1, Math.min(31, day));
-        }
-        saveBudgetData();
-        renderBudget();
-    }
-
-    function editMandatoryPaymentIcon(idx) {
-        if (!budgetData || !budgetData.mandatoryPayments) return;
-        const mp = budgetData.mandatoryPayments[idx];
-        if (!mp) return;
-        
-        const icons = ['🏢','🏠','🏦','📱','👶','📞','📢','💰','🚀','📈','👤','💼','🛒','⚡','🔧','🎯','📦','🚗','✂️','🎨'];
-        const currentIdx = icons.indexOf(mp.icon);
-        const nextIdx = (currentIdx + 1) % icons.length;
-        mp.icon = icons[nextIdx];
-        saveBudgetData();
-        renderBudget();
-    }
-
-    function deleteMandatoryPayment(idx) {
-        if (!budgetData || !budgetData.mandatoryPayments) return;
-        const mp = budgetData.mandatoryPayments[idx];
-        if (!mp) return;
-        if (!confirm(`Удалить "${mp.name}"?`)) return;
-        budgetData.mandatoryPayments.splice(idx, 1);
-        saveBudgetData();
-        renderBudget();
-    }
-
-    // Старые блоки бюджета (кошельки, обязательные платежи, план) заменены js/finance.js
-    function renderBudget() {}
-
-    function renderMandatoryPayments() {
-        const container = document.getElementById('mandatoryPaymentsProgress');
-        if (!container || !budgetData || !budgetData.mandatoryPayments) return;
-
-        const sorted = budgetData.mandatoryPayments.map((mp, idx) => ({...mp, idx}))
-            .sort((a, b) => a.day - b.day);
-
-        container.innerHTML = sorted.map(mp => {
-            const percent = Math.min(100, (mp.saved / mp.target) * 100);
-            const isPaid = mp.paid;
-            return `
-                <div class="budget-progress-item ${isPaid ? 'paid' : ''}" style="margin-bottom:12px;">
-                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-                        <span style="font-size:18px;">${mp.icon}</span>
-                        <input type="text" value="${safeHTML(mp.name)}" onchange="editMandatoryPayment(${mp.idx},'name',this.value)" style="flex:1;min-width:120px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="Название">
-                        <input type="number" value="${mp.amount || mp.target}" onchange="editMandatoryPayment(${mp.idx},'amount',this.value)" style="width:100px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="Сумма">
-                        <input type="number" value="${mp.day}" min="1" max="31" onchange="editMandatoryPayment(${mp.idx},'day',this.value)" style="width:70px;padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;font-size:14px;" title="День месяца">
-                        <button onclick="editMandatoryPaymentIcon(${mp.idx})" style="padding:6px 8px;border:1px solid #dee2e6;border-radius:4px;background:#f8f9fa;cursor:pointer;font-size:14px;" title="Иконка">🎨</button>
-                        <button onclick="deleteMandatoryPayment(${mp.idx})" style="padding:6px 8px;border:1px solid #dc3545;border-radius:4px;background:#fff5f5;color:#dc3545;cursor:pointer;font-size:12px;" title="Удалить">✕</button>
-                    </div>
-                    <div class="progress-bar-budget" style="margin-bottom:6px;">
-                        <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(0)}%</div>
-                    </div>
-                    <div class="budget-progress-meta">
-                        <span>Накоплено: ${formatMoney(mp.saved)} из ${formatMoney(mp.target)}</span>
-                        <span>День: ${mp.day}</span>
-                    </div>
-                    <div style="margin-top:6px;display:flex;gap:6px;">
-                        ${!isPaid ? `<button class="btn-budget-pay" onclick="payMandatoryPayment(${mp.idx})">✅ Отметить оплаченным</button>` : ''}
-                        ${isPaid ? `<button class="btn-budget-pay" style="background:#6c757d;" onclick="resetMandatoryPayment(${mp.idx})">↺ Сбросить</button>` : ''}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function renderDebts() {
-        const container = document.getElementById('debtsProgress');
-        if (!container || !budgetData || !budgetData.debts) return;
-
-        container.innerHTML = budgetData.debts.map(debt => {
-            const remaining = debt.total - debt.paid;
-            const percent = Math.min(100, (debt.paid / debt.total) * 100);
-            const monthsLeft = Math.ceil(remaining / debt.monthly);
-
-            return `
-                <div class="budget-progress-item">
-                    <div class="budget-progress-header">
-                        <span class="name">${debt.icon} ${debt.name}</span>
-                        <span class="amount">${formatMoney(remaining)} осталось</span>
-                    </div>
-                    <div class="progress-bar-budget">
-                        <div class="progress-fill-budget" style="width:${percent}%">${percent.toFixed(1)}%</div>
-                    </div>
-                    <div class="budget-progress-meta">
-                        <span>Оплачено: ${formatMoney(debt.paid)} из ${formatMoney(debt.total)}</span>
-                        <span>~${monthsLeft} мес. осталось</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    function renderWallets() {
-        const container = document.getElementById('walletsOverview');
-        if (!container || !budgetData || !budgetData.wallets) return;
-
-        container.innerHTML = Object.entries(budgetData.wallets).map(([key, wallet]) => `
-            <div class="wallet-item">
-                <span class="wallet-name" style="color:${wallet.color}">${wallet.icon || '💰'} ${wallet.name}</span>
-                <span class="wallet-amount">${formatMoney(wallet.target)}</span>
-            </div>
-        `).join('');
-    }
-
-    function renderDistributionHistory() {
-        const container = document.getElementById('distributionHistory');
-        if (!container) return;
-
-        if (!budgetData.distributionHistory || budgetData.distributionHistory.length === 0) {
-            container.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">Пока нет распределений. Выбери заказ и нажми "Распределить"</div>';
-            return;
-        }
-
-        container.innerHTML = budgetData.distributionHistory.map(dist => `
-            <div class="dist-history-item">
-                <div class="dist-history-date">${dist.date} — №${dist.orderNumber} (${dist.client || 'Без клиента'})</div>
-                <div class="dist-history-row"><span>Чистая прибыль:</span><span style="color:#27ae60;font-weight:600;">${formatMoney(dist.netProfit)}</span></div>
-                <div class="dist-history-row"><span>Налог:</span><span style="color:#9163EA;">${formatMoney(dist.tax)}</span></div>
-                <div class="dist-history-row"><span>Личные:</span><span style="color:#17a2b8;">${formatMoney(dist.personal)}</span></div>
-                <div class="dist-history-row"><span>Улучшение бизнеса:</span><span style="color:#7A3BE0;">${formatMoney(dist.business)}</span></div>
-                <div class="dist-history-row"><span>Инвестиции:</span><span style="color:#9b59b6;">${formatMoney(dist.investments)}</span></div>
-                <div class="dist-history-row"><span>Обязательные:</span><span style="color:#7A3BE0;">${formatMoney(dist.mandatory)}</span></div>
-                ${dist.extraDebt > 0 ? `<div class="dist-history-row"><span>Досрочное погашение:</span><span style="color:#7A3BE0;font-weight:600;">+${formatMoney(dist.extraDebt)}</span></div>` : ''}
-            </div>
-        `).join('');
-    }
-
-    // ========== ЧИСТАЯ ЗАРПЛАТА АДМИНИСТРАТОРА ==========
-    function calculateAdminSalary(startDate, endDate) {
-        // Общий доход
-        let totalIncome = 0;
-        ordersData.forEach(order => {
-            if (order.date >= startDate && order.date <= endDate) {
-                totalIncome += parseFloat(order.clientPrice) || 0;
-            }
-        });
-        
-        // Расходы
-        let totalMaterialCost = 0;
-        let totalHelperPay = 0;
-        ordersData.forEach(order => {
-            if (order.date >= startDate && order.date <= endDate) {
-                totalMaterialCost += getOrderCost(order);
-                totalHelperPay += parseFloat(order.helperPay) || 0;
-            }
-        });
-        
-        const grossProfit = totalIncome - totalMaterialCost - totalHelperPay;
-        
-        // Распределение по бюджету
-        const tax = grossProfit * 0.04;
-        const personal = grossProfit * ((budgetData.incomePlan?.personalPercent || 10) / 100);
-        const business = grossProfit * 0.05;
-        const investments = grossProfit * 0.05;
-        
-        // Чистая зарплата администратора (личные расходы)
-        const netSalary = personal;
-        
-        return {
-            totalIncome,
-            totalMaterialCost,
-            totalHelperPay,
-            grossProfit,
-            tax,
-            personal,
-            business,
-            investments,
-            netSalary
-        };
-    }
-
-    // ========== ПЛАНИРОВАНИЕ ДОХОДА ==========
-    function calculateIncomePlan(startDate, endDate) {
-        if (!budgetData || !budgetData.mandatoryPayments) return null;
-        
-        // Считаем обязательные платежи
-        const mandatoryTotal = budgetData.mandatoryPayments.reduce((sum, mp) => sum + (mp.amount || 0), 0);
-        
-        // Процент на личные
-        const personalPercent = (budgetData.incomePlan?.personalPercent || 10) / 100;
-        
-        // Коэффициент (1 - все проценты)
-        const rateSum = 0.04 + personalPercent + 0.05 + 0.05; // налог + личные + бизнес + инвестиции
-        const coefficient = 1 - rateSum;
-        
-        // Минимальный доход для покрытия всех расходов
-        const minIncome = coefficient > 0 ? mandatoryTotal / coefficient : mandatoryTotal;
-        
-        // Рассчитываем фактический доход за период
-        let actualIncome = 0;
-        ordersData.forEach(order => {
-            if (order.date >= startDate && order.date <= endDate) {
-                actualIncome += parseFloat(order.clientPrice) || 0;
-            }
-        });
-        
-        // Считаем дни в периоде
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const daysInPeriod = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-        
-        // ИСПРАВЛЕНО: проверка на будущие даты
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        const startDay = new Date(startDate);
-        startDay.setHours(0, 0, 0, 0);
-        
-        let daysPassed;
-        if (now < startDay) {
-            // Пользователь выбрал будущий период — дней прошло 0
-            daysPassed = 0;
-        } else {
-            const diffMs = now - startDay;
-            daysPassed = Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-        }
-        
-        // Прогноз на конец периода
-        let dailyRate = 0;
-        let projectedIncome = 0;
-        if (daysPassed > 0) {
-            dailyRate = actualIncome / daysPassed;
-            projectedIncome = dailyRate * daysInPeriod;
-        }
-        
-        // Распределение минимального дохода
-        const taxAmount = minIncome * 0.04;
-        const personalAmount = minIncome * personalPercent;
-        const businessAmount = minIncome * 0.05;
-        const investmentAmount = minIncome * 0.05;
-        
-        // Прогресс
-        const progressPercent = minIncome > 0 ? Math.min(100, (actualIncome / minIncome) * 100) : 0;
-        
-        // Дополнительные цели
-        const goalsProgress = (budgetData.incomePlan?.additionalGoals || []).map(goal => ({
-            ...goal,
-            percent: Math.min(100, (goal.saved / goal.target) * 100)
-        }));
-        
-        // ИСПРАВЛЕНО: считаем расходы через getOrderCost() вместо order.materialCost
-        let totalMaterialCost = 0;
-        let totalHelperPay = 0;
-        ordersData.forEach(order => {
-            if (order.date >= startDate && order.date <= endDate) {
-                totalMaterialCost += getOrderCost(order);
-                totalHelperPay += parseFloat(order.helperPay) || 0;
-            }
-        });
-        
-        const grossProfit = actualIncome - totalMaterialCost - totalHelperPay;
-        
-        return {
-            mandatoryTotal,
-            minIncome,
-            actualIncome,
-            projectedIncome,
-            daysInPeriod,
-            daysPassed,
-            taxAmount,
-            personalAmount,
-            businessAmount,
-            investmentAmount,
-            progressPercent,
-            goalsProgress,
-            personalPercent: budgetData.incomePlan?.personalPercent || 10,
-            totalMaterialCost,
-            totalHelperPay,
-            grossProfit
-        };
-    }
-
-    function renderIncomePlan(startDate, endDate) {
-        const incomePlanContainer = document.getElementById('incomePlanContainer');
-        const goalsContainer = document.getElementById('goalsContainer');
-        if (!incomePlanContainer) return;
-        
-        const plan = calculateIncomePlan(startDate, endDate);
-        
-        incomePlanContainer.innerHTML = `
-            <!-- Сводка плана -->
-            <div class="plan-summary" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;">
-                    <div>
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Требуемый доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#2E0A5E;">${formatMoney(plan.minIncome)}</div>
-                        <div style="font-size:11px;color:#888;">в месяц</div>
-                    </div>
-                    <div>
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">📈 Фактический доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${formatMoney(plan.actualIncome)}</div>
-                        <div style="font-size:11px;color:#888;">за период</div>
-                    </div>
-                    <div>
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">🔮 Прогноз</div>
-                        <div style="font-size:20px;font-weight:700;color:#3498db;">${formatMoney(Math.round(plan.projectedIncome))}</div>
-                        <div style="font-size:11px;color:#888;">на конец периода</div>
-                    </div>
-                </div>
-                
-                <!-- Прогресс -->
-                <div style="margin-top:15px;">
-                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
-                        <span style="font-size:13px;color:#666;">✅ План выполнен</span>
-                        <span style="font-size:14px;font-weight:700;color:${plan.progressPercent >= 100 ? '#27ae60' : '#7A3BE0'};">${plan.progressPercent.toFixed(1)}%</span>
-                    </div>
-                    <div class="progress-bar-budget">
-                        <div class="progress-fill-budget" style="width:${plan.progressPercent}%;background:${plan.progressPercent >= 100 ? 'linear-gradient(90deg,#27ae60,#2ecc71)' : 'linear-gradient(90deg,#7A3BE0,#7A3BE0)'};">
-                            ${plan.progressPercent.toFixed(0)}%
-                        </div>
-                    </div>
-                    ${plan.progressPercent < 100 ? `<div style="margin-top:8px;font-size:13px;color:#e74c3c;">⚠️ Не хватает ${formatMoney(Math.round(plan.minIncome - plan.actualIncome))} для выполнения плана</div>` : '<div style="margin-top:8px;font-size:13px;color:#27ae60;">🎉 План выполнен! Можно досрочно гасить долги.</div>'}
-                </div>
-            </div>
-            
-            <!-- Распределение дохода -->
-            <div class="plan-breakdown" style="background:#fff;padding:15px;border-radius:8px;margin-bottom:15px;border:1px solid #dee2e6;">
-                <h4 style="margin:0 0 10px 0;">📊 Распределение при доходе ${formatMoney(Math.round(plan.minIncome))}</h4>
-                <div class="budget-result-row"><span class="label">📌 Обязательные платежи:</span><span class="value" style="color:#e74c3c;">${formatMoney(plan.mandatoryTotal)} (76%)</span></div>
-                <div class="budget-result-row tax"><span class="label">💰 Налог (4%):</span><span class="value">${formatMoney(Math.round(plan.taxAmount))}</span></div>
-                <div class="budget-result-row personal"><span class="label">👤 Личные (${plan.personalPercent}%):</span><span class="value">${formatMoney(Math.round(plan.personalAmount))}</span></div>
-                <div class="budget-result-row" style="color:#7A3BE0;"><span class="label">🚀 Бизнес (5%):</span><span class="value">${formatMoney(Math.round(plan.businessAmount))}</span></div>
-                <div class="budget-result-row" style="color:#9b59b6;"><span class="label">📈 Инвестиции (5%):</span><span class="value">${formatMoney(Math.round(plan.investmentAmount))}</span></div>
-            </div>
-            
-            <!-- Чистая зарплата администратора -->
-            <div style="background:#d4edda;padding:20px;border-radius:8px;margin-top:20px;border-left:4px solid #28a745;">
-                <h4 style="margin:0 0 15px 0;">💼 Чистая зарплата администратора</h4>
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:15px;">
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">💰 Общий доход</div>
-                        <div style="font-size:20px;font-weight:700;color:#2E0A5E;">${formatMoney(plan.actualIncome)}</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">📦 Расходы</div>
-                        <div style="font-size:20px;font-weight:700;color:#e74c3c;">-${formatMoney((plan.totalMaterialCost + plan.totalHelperPay))}</div>
-                    </div>
-                    <div style="background:#fff;padding:15px;border-radius:6px;text-align:center;">
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">✨ Валовая прибыль</div>
-                        <div style="font-size:20px;font-weight:700;color:#27ae60;">${formatMoney(plan.grossProfit)}</div>
-                    </div>
-                    <div style="background:#e3f2fd;padding:15px;border-radius:6px;text-align:center;border:2px solid #2196f3;">
-                        <div style="font-size:12px;color:#666;margin-bottom:5px;">👤 Личные расходы</div>
-                        <div style="font-size:20px;font-weight:700;color:#2196f3;">${formatMoney(plan.personalAmount)}</div>
-                        <div style="font-size:11px;color:#888;margin-top:4px;">(${plan.personalPercent}% от дохода)</div>
-                    </div>
-                </div>
-                <div style="margin-top:15px;padding-top:15px;border-top:1px solid #dee2e6;font-size:13px;color:#666;">
-                    💡 <b>Чистая зарплата администратора</b> = Доход - Расходы - Налог - Личные - Бизнес - Инвестиции<br>
-                    💡 Деньги на личные расходы распределяются автоматически при оплате заказов
-                </div>
-            </div>
-        `;
-        
-        // Рендерим дополнительные цели в goalsContainer
-        if (goalsContainer && plan.goalsProgress && plan.goalsProgress.length > 0) {
-            goalsContainer.innerHTML = plan.goalsProgress.map((goal, idx) => `
-                <div class="budget-progress-item" style="margin-bottom:10px;">
-                    <div class="budget-progress-header">
-                        <span class="name">${goal.icon} ${goal.name}</span>
-                        <span class="amount">${goal.saved.toLocaleString()} / ${formatMoney(goal.target)}</span>
-                    </div>
-                    <div class="progress-bar-budget">
-                        <div class="progress-fill-budget" style="width:${goal.percent}%;background:${goal.color};">${goal.percent.toFixed(0)}%</div>
-                    </div>
-                    <div style="margin-top:8px;display:flex;gap:6px;">
-                        <button class="btn-budget-pay" onclick="addGoalSaved(${idx})">➕ Добавить накопление</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-    }
-
-    function updatePersonalPercent(value) {
-        budgetData.incomePlan = budgetData.incomePlan || {};
-        budgetData.incomePlan.personalPercent = parseInt(value) || 10;
-        saveBudgetData();
-    }
-
-    function savePersonalPercent() {
-        renderAll();
-        alert('✅ Процент на личные расходы сохранён!');
-    }
-
-    function addGoalSaved(goalIdx) {
-        const goals = budgetData.incomePlan?.additionalGoals || [];
-        const goal = goals[goalIdx];
-        if (!goal) return;
-        const amount = prompt(`Внеси накопление на "${goal.name}" (текущий остаток: ${formatMoney(goal.saved)}):`, '0');
-        if (!amount || isNaN(amount)) return;
-        goal.saved += parseFloat(amount) || 0;
-        saveBudgetData();
-        renderAll();
-    }
-
-
     // ========== МОДУЛЬ 4: АВТОРИЗАЦИЯ И ПОЛЬЗОВАТЕЛИ ==========
     // Роль определяется автоматически из Firebase при входе
 
@@ -1302,14 +729,12 @@ window.localChangesPending = false;
         
         // Отбор: статус (все / новые / на проверке / выполненные / просроченные) и период по сроку задачи
         const tRange = periodRange(helperTasksPeriod, 'tasks');
-        const counts = { all: allTasks.length, pending: 0, review: 0, completed: 0, overdue: 0 };
-        allTasks.forEach(t => { if (counts[t.status || 'pending'] !== undefined) counts[t.status || 'pending']++; });
+        const counts = taskStatusCounts(allTasks);
         allTasks = allTasks.filter(t => {
             const d = String((t.status === 'completed' ? t.completedAt : null) || t.deadline || t.orderDate || '').slice(0, 10);
             return d >= tRange.from && d <= tRange.to && (helperTasksStatus === 'all' || (t.status || 'pending') === helperTasksStatus);
         });
-        const chip = (st, label) => `<button class="ht-chip${helperTasksStatus === st ? ' active' : ''}" onclick="setHelperTasksStatus('${st}')">${label}${counts[st] ? ` <b>${counts[st]}</b>` : ''}</button>`;
-        const filtersHTML = `<div class="ht-filters">${chip('all', 'Все')}${chip('pending', 'Новые')}${chip('review', 'На проверке')}${chip('completed', 'Выполненные')}${chip('overdue', 'Просроченные')}</div>${periodPickerHTML('tasks')}`;
+        const filtersHTML = `<div class="task-filters">${taskStatusSelectHTML(helperTasksStatus, counts, 'setHelperTasksStatus')}${periodPickerHTML('tasks')}</div>`;
 
         // Сортируем: сначала просроченные, затем по сроку
         allTasks.sort((a, b) => {
@@ -1384,6 +809,20 @@ window.localChangesPending = false;
             default: return { from: '2000-01-01', to: '9999-12-31', title: 'За всё время' };
         }
     }
+    // Выпадающий список «Показать: Все / Новые / На проверке / Выполненные / Просроченные» с числом задач
+    const TASK_STATUS_OPTIONS = [['all', 'Все'], ['pending', 'Новые'], ['review', 'На проверке'], ['completed', 'Выполненные'], ['overdue', 'Просроченные']];
+    function taskStatusCounts(tasks) {
+        const counts = { all: tasks.length, pending: 0, review: 0, completed: 0, overdue: 0 };
+        tasks.forEach(t => { const st = t.status || 'pending'; if (counts[st] !== undefined) counts[st]++; });
+        return counts;
+    }
+    function taskStatusSelectHTML(current, counts, setter) {
+        return `<label class="per-label task-status-pick">🔎 Показать
+            <select onchange="${setter}(this.value)">${TASK_STATUS_OPTIONS.map(([v, t]) =>
+                `<option value="${v}"${v === current ? ' selected' : ''}>${t}${counts[v] ? ' · ' + counts[v] : ''}</option>`).join('')}</select>
+        </label>`;
+    }
+
     function helperReportRange(period) { return periodRange(period, 'helper'); }
     function periodOf(key) { return key === 'admin' ? currentAdminHelperReportPeriod : key === 'tasks' ? helperTasksPeriod : currentHelperReportPeriod; }
     function periodPickerHTML(key) {
@@ -1515,7 +954,7 @@ window.localChangesPending = false;
                     <li>За просроченную задачу вы <b>не получаете оплату</b></li>
                     <li>Штраф выписывает администратор отдельно и пишет, за что</li>
                     <li>Чистая зарплата = выполненные задачи − штрафы</li>
-                    <li>Выплаты отмечаются администратором во вкладке "👥 Задачи помощников"</li>
+                    <li>Выплаты отмечает администратор — они видны выше, в «Статус выплат»</li>
                 </ul>
             </div>
         `;
@@ -2180,11 +1619,14 @@ window.localChangesPending = false;
             </div>
         `;
 
+        const adminCounts = taskStatusCounts(allTasks);
+        const shownTasks = adminTasksStatus === 'all' ? allTasks : allTasks.filter(t => (t.status || 'pending') === adminTasksStatus);
         const listHTML = `
             <!-- Список задач -->
-            ${periodPickerHTML('admin')}
-            <div class="helper-section-title">Задачи · ${range.title.toLowerCase()}</div>
-            ${allTasks.map(task => {
+            <div class="task-filters">${taskStatusSelectHTML(adminTasksStatus, adminCounts, 'setAdminTasksStatus')}${periodPickerHTML('admin')}</div>
+            <div class="helper-section-title">Задачи · ${range.title.toLowerCase()}${adminTasksStatus !== 'all' ? ' · ' + TASK_STATUS_OPTIONS.find(o => o[0] === adminTasksStatus)[1].toLowerCase() : ''}</div>
+            ${shownTasks.length ? '' : '<div class="fin-muted">Задач с таким статусом нет</div>'}
+            ${shownTasks.map(task => {
                 const isOverdue = task.status === 'overdue';
                 const isCompleted = task.status === 'completed';
                 const isReview = task.status === 'review';
@@ -2245,6 +1687,10 @@ window.localChangesPending = false;
         if (listEl === container) container.innerHTML += listHTML;
         else listEl.innerHTML = listHTML;
     }
+
+    // Фильтр статуса задач у админа (выпадающий список над списком)
+    let adminTasksStatus = 'all';
+    window.setAdminTasksStatus = function(st) { adminTasksStatus = st; renderAdminHelperTasks(); };
 
     // Раскрытые выполненные задачи (остальные выполненные показываются одной серой строкой)
     const adminOpenDoneTasks = new Set();
@@ -3271,37 +2717,6 @@ window.localChangesPending = false;
         renderFinance();
     }
 
-    function renderCashBudgetSummary() {
-        const container = document.getElementById('cashBudgetSummary');
-        if (!container || !budgetData || !budgetData.wallets) return;
-        
-        // Считаем общий доход из заказов
-        const totalIncome = ordersData.reduce((sum, o) => sum + (parseFloat(o.clientPrice) || 0), 0);
-        const totalCost = ordersData.reduce((sum, o) => sum + (parseFloat(o.materialCost) || 0), 0);
-        const totalHelper = ordersData.reduce((sum, o) => sum + (parseFloat(o.helperPay) || 0), 0);
-        const netProfit = totalIncome - totalCost - totalHelper;
-        
-        container.innerHTML = `
-            <div class="budget-result-row"><span class="label">💰 Общий доход:</span><span class="value" style="color:#27ae60;">${formatMoney(totalIncome)}</span></div>
-            <div class="budget-result-row"><span class="label">📦 Расходы на материалы:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalCost)}</span></div>
-            <div class="budget-result-row"><span class="label">👥 Помощнику:</span><span class="value" style="color:#e74c3c;">-${formatMoney(totalHelper)}</span></div>
-            <div class="budget-result-row highlight"><span class="label">✨ Чистая прибыль:</span><span class="value" style="color:#27ae60;">${formatMoney(netProfit)}</span></div>
-            <div style="font-size:12px;color:#6c757d;margin-top:8px;">Накопления по копилкам — в блоке «Кошельки» ниже</div>
-        `;
-    }
-
-    function addCashRow() {
-        const date = prompt('Дата (ГГГГ-ММ-ДД):', formatDate(new Date()));
-        if (!date) return;
-        const desc = prompt('Описание:');
-        if (!desc) return;
-        const income = parseFloat(prompt('Приход:', '0')) || 0;
-        const expense = parseFloat(prompt('Расход:', '0')) || 0;
-        cashOps.push({date, desc, income, expense});
-        saveAll();
-        renderAll();
-    }
-
     function deleteCashOp(idx) {
         const op = cashOps[idx];
         // Удаление закупки возвращает склад: купленное по ней убирается из прихода
@@ -3401,92 +2816,6 @@ window.localChangesPending = false;
         cashOps.push(op);
         saveAll();
         closeAddCashModal();
-        renderAll();
-    }
-
-    function openAddRegularExpenseModal(editIdx) {
-        document.getElementById('regExpenseEditIdx').value = editIdx || -1;
-        if (editIdx !== undefined && editIdx >= 0) {
-            const exp = regularExpenses[editIdx];
-            document.getElementById('regExpenseDesc').value = exp.desc;
-            document.getElementById('regExpenseDay').value = exp.day;
-            document.getElementById('regExpenseAmount').value = exp.amount;
-            document.getElementById('addRegularExpenseModalTitle').textContent = '✏️ Редактировать расход';
-        } else {
-            document.getElementById('regExpenseDesc').value = '';
-            document.getElementById('regExpenseDay').value = '';
-            document.getElementById('regExpenseAmount').value = '';
-            document.getElementById('addRegularExpenseModalTitle').textContent = '➕ Новый регулярный расход';
-        }
-        document.getElementById('addRegularExpenseModal').classList.add('active');
-        document.body.classList.add('modal-open');
-    }
-
-    function closeAddRegularExpenseModal() {
-        document.getElementById('addRegularExpenseModal').classList.remove('active');
-        document.body.classList.remove('modal-open');
-    }
-
-    function saveRegularExpense() {
-        const editIdx = parseInt(document.getElementById('regExpenseEditIdx').value);
-        const desc = document.getElementById('regExpenseDesc').value.trim();
-        const day = parseInt(document.getElementById('regExpenseDay').value);
-        const amount = parseFloat(document.getElementById('regExpenseAmount').value);
-        
-        if (!desc) { alert('❌ Введите название'); return; }
-        if (isNaN(day) || day < 1 || day > 31) { alert('❌ Неверный день (1-31)'); return; }
-        if (isNaN(amount) || amount <= 0) { alert('❌ Неверная сумма'); return; }
-        
-        if (editIdx >= 0) {
-            regularExpenses[editIdx] = {desc, day, amount};
-        } else {
-            regularExpenses.push({desc, day, amount});
-        }
-        saveAll();
-        closeAddRegularExpenseModal();
-        renderAll();
-    }
-
-    function openAddRegularIncomeModal(editIdx) {
-        document.getElementById('regIncomeEditIdx').value = editIdx || -1;
-        if (editIdx !== undefined && editIdx >= 0) {
-            const inc = regularIncomes[editIdx];
-            document.getElementById('regIncomeDesc').value = inc.desc;
-            document.getElementById('regIncomeDay').value = inc.day;
-            document.getElementById('regIncomeAmount').value = inc.amount;
-            document.getElementById('addRegularIncomeModalTitle').textContent = '✏️ Редактировать доход';
-        } else {
-            document.getElementById('regIncomeDesc').value = '';
-            document.getElementById('regIncomeDay').value = '';
-            document.getElementById('regIncomeAmount').value = '';
-            document.getElementById('addRegularIncomeModalTitle').textContent = '➕ Новый регулярный доход';
-        }
-        document.getElementById('addRegularIncomeModal').classList.add('active');
-        document.body.classList.add('modal-open');
-    }
-
-    function closeAddRegularIncomeModal() {
-        document.getElementById('addRegularIncomeModal').classList.remove('active');
-        document.body.classList.remove('modal-open');
-    }
-
-    function saveRegularIncome() {
-        const editIdx = parseInt(document.getElementById('regIncomeEditIdx').value);
-        const desc = document.getElementById('regIncomeDesc').value.trim();
-        const day = parseInt(document.getElementById('regIncomeDay').value);
-        const amount = parseFloat(document.getElementById('regIncomeAmount').value);
-        
-        if (!desc) { alert('❌ Введите название'); return; }
-        if (isNaN(day) || day < 1 || day > 31) { alert('❌ Неверный день (1-31)'); return; }
-        if (isNaN(amount) || amount <= 0) { alert('❌ Неверная сумма'); return; }
-        
-        if (editIdx >= 0) {
-            regularIncomes[editIdx] = {desc, day, amount};
-        } else {
-            regularIncomes.push({desc, day, amount});
-        }
-        saveAll();
-        closeAddRegularIncomeModal();
         renderAll();
     }
 
@@ -4014,7 +3343,7 @@ window.localChangesPending = false;
     function openOrderModal(orderId, presetDate) {
         const order = orderId ? ordersData.find(o=>o.id===orderId) : null;
         orderEditId = order ? order.id : null;
-        document.getElementById('orderModalTitle').textContent = order ? `Заказ №${order.orderNumber}` : 'Новый заказ';
+        document.getElementById('orderModalTitle').textContent = order ? `Заказ №${order.orderNumber}` : 'Новая запись';
         document.getElementById('orderDate').value = order?.date || presetDate || formatDate(new Date());
         document.getElementById('orderDurationDays').value = order?.durationDays || 1;
         updateDeadline();
@@ -4042,8 +3371,8 @@ window.localChangesPending = false;
         orderModal.querySelector('.modal').scrollTop = 0;
         const deleteRow = document.getElementById('orderDeleteRow');
         if (deleteRow) deleteRow.style.display = order ? '' : 'none'; // у нового заказа удалять нечего
-        const prebookRow = document.getElementById('orderPrebookRow');
-        if (prebookRow) prebookRow.style.display = order ? 'none' : ''; // предзапись — только для нового заказа
+        const kindSwitch = document.getElementById('orderKindSwitch');
+        if (kindSwitch) kindSwitch.style.display = order ? 'none' : ''; // «Заказ | Предзапись» — только у новой записи
         
         // Исправление: защита от null и нечисловых строк
         document.getElementById('orderClientPrice').value = parseFloat(order?.clientPrice) || 0;
@@ -4057,6 +3386,11 @@ window.localChangesPending = false;
         });
         currentExtraData = order?.extraData ? JSON.parse(order.extraData) : {};
         currentExtraPrices = {...(order?.extraPrices || {})};
+        // «Дополнительно» раскрыто, только если там что-то задано (доп. расходники или цвет вручную)
+        const moreBox = document.getElementById('orderMoreBox');
+        if (moreBox) moreBox.open = currentManualColor !== 'auto' || Object.values(currentExtraData).some(v => parseFloat(v) > 0);
+        const profitInfo = document.getElementById('orderProfitInfo');
+        if (profitInfo) profitInfo.open = false; // расчёт прибыли — только по нажатию
         const servicesList = document.getElementById('servicesList');
         servicesList.innerHTML = '';
         currentServices = [];
@@ -4365,13 +3699,13 @@ window.localChangesPending = false;
         qtyInput.addEventListener('input', () => { if (bySum) priceFromSum(); });
         priceInput.addEventListener('input', () => { bySum = false; });
         codeInput.addEventListener('input', () => { bySum = false; });
-        // Без артикула материал не идёт в себестоимость и на склад (js/costs.js) — подсказываем
+        // Без артикула материал идёт в себестоимость, но не на склад (js/costs.js) — подсказываем
         const hint = document.createElement('small');
-        hint.style.cssText = 'display:block;color:#dc3545;font-size:11px;margin-top:2px;';
+        hint.style.cssText = 'display:block;color:#6c757d;font-size:11px;margin-top:2px;';
         costInput.insertAdjacentElement('afterend', hint);
         const refreshHint = () => {
             hint.textContent = !codeInput.value.trim() && (parseFloat(costInput.value) || 0) > 0
-                ? 'Впишите артикул — без него материал не попадёт в себестоимость' : '';
+                ? 'Без артикула: в себестоимость пойдёт, со склада не спишется' : '';
         };
         [codeInput, priceInput, qtyInput, costInput].forEach(el => el.addEventListener('input', refreshHint));
         costInput.addEventListener('blur', refreshHint);
@@ -4714,14 +4048,38 @@ window.localChangesPending = false;
         const supplies = client * suppliesPercent / 100;
         const profitInput = document.getElementById('orderGrossProfit');
         profitInput.value = (client - tax - supplies - totalCost - taskPay).toFixed(2);
+        // Расчёт прибыли и копилок — свёрнут под кнопкой «Из чего прибыль», под строкой «Себестоимость | Прибыль»
+        let info = document.getElementById('orderProfitInfo');
+        if (!info) {
+            info = document.createElement('details');
+            info.id = 'orderProfitInfo';
+            info.className = 'order-profit-info';
+            info.innerHTML = '<summary>ℹ️ Из чего прибыль и что уйдёт в копилки</summary>';
+            (profitInput.closest('.form-row') || profitInput).insertAdjacentElement('afterend', info);
+        }
         let note = document.getElementById('orderProfitNote');
         if (!note) {
             note = document.createElement('small');
             note.id = 'orderProfitNote';
-            note.style.cssText = 'display:block;color:#6c757d;font-size:11px;margin-top:2px;';
-            profitInput.insertAdjacentElement('afterend', note);
+            info.appendChild(note);
         }
         note.textContent = `${formatMoney(client)} − налог ${taxPercent}% ${formatMoney(tax)} − мелкие расходники ${suppliesPercent}% ${formatMoney(supplies)} − материалы ${formatMoney(totalCost)} − помощнику ${formatMoney(taskPay)}`;
+        // С оплаты заказа сразу пополняются резерв и развитие (js/finance.js) — остальное идёт на постоянные расходы и зарплату
+        const margin = client - tax - supplies - totalCost - taskPay;
+        let note2 = document.getElementById('orderSalaryNote');
+        if (!note2) {
+            note2 = document.createElement('small');
+            note2.id = 'orderSalaryNote';
+            info.appendChild(note2);
+        }
+        if (typeof finSettings === 'function' && margin > 0) {
+            const fs = finSettings();
+            let reserveFull = false;
+            try { const c = finComputeNow(); reserveFull = c.reserveTarget > 0 && c.funds.reserve.balance >= c.reserveTarget; } catch (e) {}
+            const reserve = reserveFull ? 0 : margin * (parseFloat(fs.reservePercent) || 0) / 100;
+            const dev = margin * (parseFloat(fs.devPercent) || 0) / 100;
+            note2.textContent = `При оплате: резерв ${reserveFull ? '(уже полный) 0 ₽' : `${fs.reservePercent}% ${formatMoney(reserve)}`} и развитие ${fs.devPercent}% ${formatMoney(dev)} → в копилки; остаётся ${formatMoney(margin - reserve - dev)} — на постоянные расходы и зарплату`;
+        } else note2.textContent = '';
     }
 
     function saveOrderModal() {
@@ -5322,15 +4680,6 @@ function deleteOrder(orderId) {
     }
 
     // ========== МОДУЛЬ 13: ЭКСПОРТ/ИМПОРТ ДАННЫХ ==========
-    function exportData() {
-        const data = {colors, paints, films, extraRef, rates, ordersData, cashOps, bookings, materialTypes, regularExpenses, regularIncomes, notes, lastOrderNumber: localStorage.getItem('lastOrderNumber'), stock: loadStock()};
-        const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `backup_${formatDate(new Date())}.json`;
-        a.click();
-    }
-
     function deleteOrderFromModal() { if (orderEditId) { deleteOrder(orderEditId); closeOrderModal(); } }
     function setOrderColor(color) {
         currentManualColor = color;
@@ -5351,49 +4700,8 @@ function deleteOrder(orderId) {
         updateModalTotals();
         updateUnpaidSummary();
     }
-       function saveBooking() {
-        const date = document.getElementById('modalDate').value;
-        const name = document.getElementById('modalName').value.trim();
-        const phone = document.getElementById('modalPhone').value.trim();
-        const service = document.getElementById('modalService').value;
-        const duration = parseInt(document.getElementById('modalDurationDays').value)||1;
-        if (!date || !name || !service) { alert('Заполните все поля'); return; }
-        const orderNumber = finNextOrderNumber(ordersData, localStorage.getItem('lastOrderNumber'));
-        localStorage.setItem('lastOrderNumber', orderNumber);
-        const svc = rates.find(r => r.service === service);
-        const orderData = {
-            id: Date.now(),
-            orderNumber,
-            date, client:name, phone,
-            services: [{serviceName:service, usesFabric:svc?.usesFabric, usesPaint:serviceUsesPaint(svc), usesFilm:svc?.usesFilm, fabric:{}, paint:{}, film:{}, manualItems:{}}],
-            clientPrice:0, durationDays:duration, extraData:'{}', done:false, paid:false, manualColor:'auto'
-        };
-        ordersData.push(orderData);
-        recalculateStockFromAllOrders();
-        saveAll(); // Вызов единой внешней функции сохранения
-        closeModal();
-        renderAll();
-   
-   }
-      function closeModal() { 
-          const modal = document.getElementById('bookingModal');
-          if (modal) {
-              modal.classList.remove('active');
-              document.body.classList.remove('modal-open');
-          }
-      }
-
      // ========== МОДУЛЬ 10: КАЛЕНДАРЬ И ЗАМЕТКИ ==========
      
-    // Календарь: только заказы и расходы, без распределения бюджета
-    function getRegularPaymentsForDate(dateStr) {
-        return []; // Убрано: регулярные платежи не показываются в календаре
-    }
-
-    function getRegularIncomesForDate(dateStr) {
-        return []; // Убрано: регулярные доходы не показываются в календаре
-    }
-
     function isOrderDone(order) {
         return order.done === true || order.done === 'true' || order.done === 1;
     }
@@ -6053,7 +5361,8 @@ function deleteOrder(orderId) {
         
         const tomorrowOrders = ordersData.filter(o => o.date === tomorrowStr);
         const tomorrowNotes = calDayNotes(tomorrowStr).concat(calDayPrebooks(tomorrowStr));
-        const tomorrowPayments = getRegularPaymentsForDate(tomorrowStr);
+        const tomorrowPayments = (typeof finPaymentsForDate === 'function' ? finPaymentsForDate(tomorrowStr) : [])
+            .filter(x => x.status.state !== 'paid').map(x => ({ desc: x.p.name, expense: x.p.amount }));
         
         if (tomorrowOrders.length > 0 || tomorrowNotes.length > 0 || tomorrowPayments.length > 0) {
             showNotificationModal(tomorrowStr, tomorrowOrders, tomorrowNotes, tomorrowPayments);
@@ -7334,8 +6643,101 @@ function applyMergedVersion(data, preferLocal, stale) {
     studioTaskMarks = merge('studioTaskMarks');
 }
 
+// Восстановление из резервной копии (js/backup.js): все списки — ровно как в копии, затем отправка в облако
+window.replaceAllData = function(d) {
+    const L = key => syncToArray(d && d[key]);
+    colors = L('colors'); paints = L('paints'); films = L('films'); extraRef = L('extraRef'); rates = L('rates');
+    ordersData = L('ordersData'); cashOps = L('cashOps'); bookings = L('bookings'); materialTypes = L('materialTypes');
+    regularExpenses = L('regularExpenses'); regularIncomes = L('regularIncomes'); notes = L('notes');
+    payments = L('payments'); financeSettings = L('financeSettings'); helperNotices = L('helperNotices');
+    helperPenalties = L('helperPenalties'); helperPaidBefore = L('helperPaidBefore'); attendance = L('attendance');
+    helperSchedules = L('helperSchedules'); studioTaskMarks = L('studioTaskMarks');
+    rates.forEach(r => { if (!r.items) r.items = []; });
+    saveStock(L('stock'));
+    if (d && d.lastOrderNumber) localStorage.setItem('lastOrderNumber', String(d.lastOrderNumber));
+    recalculateStockFromAllOrders();
+    saveAll();
+    renderAll();
+};
+
+// ========== ЗАЯВКИ ПОМОЩНИКА: отправка и приём (js/helper-actions.js) ==========
+// Помощник не отправляет данные целиком: его изменения (по сравнению с облаком) уходят заявкой,
+// а у себя он видит облачную версию плюс свои ещё не принятые заявки.
+function haIsHelper() { return !!(window.currentUserData && window.currentUserData.role !== 'admin'); }
+function haLoad(key, def) { try { return JSON.parse(localStorage.getItem(key) || 'null') || def; } catch (e) { return def; } }
+function haSave(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {} }
+
+window.helperFlush = function() {
+    if (!haIsHelper() || typeof haDiff !== 'function') return;
+    const base = loadSyncBase();
+    if (base) {
+        const changes = haDiff(window.getSyncData(), base, window.currentUserData.email);
+        const sigs = changes.map(c => JSON.stringify(c));
+        const sent = new Set(haLoad('ha_sent', []));
+        const fresh = changes.filter((c, i) => !sent.has(sigs[i]));
+        haSave('ha_sent', sigs); // помним только то, что ещё отличается от облака
+        if (fresh.length) {
+            const outbox = haLoad('ha_outbox', {});
+            outbox['ha-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)] = { by: window.currentUserData.email, at: new Date().toISOString(), changes: fresh };
+            haSave('ha_outbox', outbox);
+        }
+    }
+    // Отправка заявок (и повтор тех, что не ушли без связи)
+    const outbox = haLoad('ha_outbox', {});
+    Object.keys(outbox).forEach(id => {
+        if (typeof window.sendHelperAction !== 'function') return;
+        window.sendHelperAction(id, outbox[id]).then(() => {
+            const o = haLoad('ha_outbox', {}); delete o[id]; haSave('ha_outbox', o);
+        }).catch(e => console.warn('[Заявки] не отправлено, повторю позже:', e && e.message));
+    });
+    if (typeof window.clearUnsavedChanges === 'function') window.clearUnsavedChanges();
+};
+
+// Помощник получил облако: берём его целиком и поверх — свои заявки, которые админ ещё не принял
+function helperTakeCloud(data) {
+    const me = window.currentUserData.email;
+    const base = loadSyncBase();
+    const unsent = base ? haDiff(window.getSyncData(), base, me) : [];
+    applyCloudVersion(data);
+    const box = { ordersData, attendance, helperNotices };
+    const pending = (window.helperPending || []).concat(Object.values(haLoad('ha_outbox', {})));
+    pending.concat(unsent.length ? [{ by: me, at: new Date().toISOString(), changes: unsent }] : []).forEach(a => haApply(box, a));
+    attendance = box.attendance;
+    helperNotices = box.helperNotices;
+    localStorage.setItem('cloud_rev', String(Number(data.rev) || 0));
+    window.setSyncBase(data);
+    saveAll(true);
+    renderAll();
+    if (unsent.length) window.helperFlush();
+}
+
+// Админ: внести заявки помощников (проверка — в haApply) и убрать их из очереди.
+// Ждём первую облачную версию (cloudSeenOnce), иначе заявка легла бы на старые данные устройства.
+window.applyHelperActions = function(all) {
+    window.haPendingAll = all;
+    if (haIsHelper() || !window.currentUserData || !window.cloudSeenOnce || typeof haApply !== 'function') return;
+    window.haPendingAll = null;
+    const box = { ordersData, attendance, helperNotices };
+    const done = [];
+    let changed = 0;
+    Object.keys(all || {}).forEach(uid => Object.keys(all[uid] || {}).forEach(id => {
+        const action = all[uid][id];
+        if (action && typeof action === 'object') changed += haApply(box, action);
+        done.push([uid, id]);
+    }));
+    if (!done.length) return;
+    attendance = box.attendance;
+    helperNotices = box.helperNotices;
+    if (changed) {
+        saveAll();
+        renderAll();
+    }
+    done.forEach(([uid, id]) => window.removeHelperAction(uid, id));
+};
+
 window.updateCloudData = function(data) {
     data = data || {};
+    if (haIsHelper() && window.syncHasData(data)) { helperTakeCloud(data); return; }
     const cloudRev = Number(data.rev) || 0;
     const storedRev = localStorage.getItem('cloud_rev');
     const everSynced = storedRev !== null;

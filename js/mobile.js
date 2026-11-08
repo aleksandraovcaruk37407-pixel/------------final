@@ -150,9 +150,6 @@
     function hideMobileButtons() {
         if (!isMobile && !isSmallScreen) return;
 
-        var exportBtn = document.querySelector('button[onclick="exportData()"]');
-        if (exportBtn) exportBtn.style.display = 'none';
-
         var calendarExportBtns = document.querySelectorAll('#tab-calendar button[title="Экспорт"]');
         if (calendarExportBtns.length > 1) {
             for (var i = 1; i < calendarExportBtns.length; i++) {

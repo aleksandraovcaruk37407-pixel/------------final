@@ -8,11 +8,13 @@
        бонус 10 000 ₽ у владелицы уже кончился, поэтому без вычета 1%. Налог за месяц платится до 28-го следующего.
      − Мелкие расходники (% от выручки: перчатки, палочки, ветошь, скотч…) → копилка «Мелкие расходники»
      − Материалы и помощники (по оплаченным заказам)
-     = Маржинальная прибыль
-     − Постоянные расходы бизнеса (платежи типа «Бизнес» + прочие бизнес-траты)
-     = Прибыль бизнеса
+     = Маржинальная прибыль (то, что осталось с оплаченных заказов)
      − Резерв (%, пока не накоплено N месяцев постоянных расходов) → «Резерв»
      − Развитие бизнеса (%)                                         → «Развитие»
+       С 08.11.2026 резерв и развитие пополняются с КАЖДОЙ оплаты заказа (% от того, что
+       осталось после налога, расходников, материалов и помощника), а не в конце месяца
+       только при прибыли.
+     − Постоянные расходы бизнеса (платежи типа «Бизнес» + прочие бизнес-траты)
      = Зарплата владельца (остаток)
      − Личные накопления (%) и инвестиции (% от зарплаты)          → копилки
      − Личные платежи (тип «Личное» + прочие личные траты)
@@ -27,9 +29,9 @@ const FIN_DEFAULTS = {
     id: 'settings',
     taxPercent: 4,        // налог, % от выручки
     suppliesPercent: 3,   // мелкие расходники, % от выручки (их не списать на заказ, но деньги на них нужны)
-    reservePercent: 10,   // резерв бизнеса, % от прибыли бизнеса
+    reservePercent: 10,   // резерв бизнеса, % с каждого оплаченного заказа (после налога, расходников, материалов, помощника)
     reserveMonths: 2,     // цель резерва: столько месяцев постоянных расходов
-    devPercent: 5,        // развитие бизнеса, % от прибыли бизнеса
+    devPercent: 5,        // развитие бизнеса, % с каждого оплаченного заказа (так же)
     savingsPercent: 10,   // личные накопления, % от зарплаты владельца
     investPercent: 5      // инвестиции, % от зарплаты владельца
 };
@@ -325,13 +327,16 @@ function finCompute(data) {
         const fixed = plannedIn(mk, 'business') + otherBusiness;
         const businessProfit = marginal - fixed;
 
-        let reserve = 0, dev = 0, salary = businessProfit;
-        if (businessProfit > 0) {
+        // Резерв и развитие — с оплаченных заказов (то, что осталось после налога, расходников,
+        // материалов и помощника), сразу при оплате, не дожидаясь конца месяца
+        let reserve = 0, dev = 0;
+        if (marginal > 0) {
             const reserveBalance = reserveAccrued - spentBefore('reserve', mk);
-            reserve = Math.min(businessProfit * r, Math.max(0, reserveTarget - reserveBalance));
-            dev = businessProfit * d;
-            salary = businessProfit - reserve - dev;
+            reserve = Math.min(marginal * r, Math.max(0, reserveTarget - reserveBalance));
+            dev = marginal * d;
         }
+        // Зарплата владельца — после всех копилок и постоянных расходов бизнеса
+        const salary = marginal - reserve - dev - fixed;
         if (!cashStart || mk >= finMonthKey(cashStart)) reserveAccrued += reserve; // до обнуления в копилку не идёт
         const savings = salary > 0 ? salary * sv : 0;
         const invest = salary > 0 ? salary * iv : 0;
@@ -391,8 +396,9 @@ function finPlan(computed, settings, mk, today) {
 
     const F = computed.fixedPlanned, P = computed.personalPlanned;
     const salaryNeeded = P / Math.max(0.05, 1 - sv - iv);
-    const profitNeeded = salaryNeeded / Math.max(0.05, 1 - r - d);
-    const revenueNeeded = (F + profitNeeded) / Math.max(0.05, 1 - t - variableShare);
+    // Резерв и развитие — доля того, что остаётся с заказов (маржинальной прибыли)
+    const profitNeeded = (F + salaryNeeded) / Math.max(0.05, 1 - r - d);
+    const revenueNeeded = profitNeeded / Math.max(0.05, 1 - t - variableShare);
 
     const m = computed.months[mk] || { revenue: 0 };
     const days = finDaysInMonth(mk);
@@ -630,6 +636,8 @@ function renderFinance() {
     // --- Сводка (всегда видна) ---
     const taxDue = finTaxToPay(computed, today);
     const curTax = (computed.months[finMonthKey(today)] || {}).tax || 0;
+    // Зарплата за текущий месяц — уже после всех копилок, налога, материалов и платежей «Бизнес»
+    const curSalary = (computed.months[finMonthKey(today)] || {}).salary || 0;
     let html = `
         <div class="fin-cards">
             <div class="fin-card"><div class="fin-card-label">💵 В кассе${cashStart ? ` <span class="fin-muted">с ${formatDateDDMMYYYY(cashStart)}</span>` : ''}</div><div class="fin-card-value ${balance < 0 ? 'neg' : ''}">${formatMoney(balance)}</div></div>
@@ -637,6 +645,7 @@ function renderFinance() {
             <div class="fin-card"><div class="fin-card-label">📊 Касса + долги клиентов</div><div class="fin-card-value ${withClients < 0 ? 'neg' : 'pos'}">${formatMoney(withClients)}</div></div>
             <div class="fin-card"><div class="fin-card-label">🐷 Отложено в копилках</div><div class="fin-card-value">${formatMoney(fundsTotal)}</div></div>
             <div class="fin-card"><div class="fin-card-label">✅ Можно тратить</div><div class="fin-card-value ${free < 0 ? 'neg' : 'pos'}">${formatMoney(free)}</div></div>
+            <div class="fin-card" title="Оплаты заказов за месяц − налог − расходники − материалы − помощники − резерв − развитие − платежи «Бизнес»"><div class="fin-card-label">💼 Зарплата за ${finMonthTitle(finMonthKey(today)).toLowerCase()}</div><div class="fin-card-value ${curSalary < 0 ? 'neg' : 'pos'}">${formatMoney(curSalary)}</div></div>
         </div>
         ${inMaterials > 0 ? `<div class="fin-info">🧵 В материалах неоплаченных заказов: <b>${formatMoney(inMaterials)}</b> — это не убыток: закупку вернут клиенты, когда заберут заказы. Минус в кассе от такой закупки закрывается строкой «Касса + долги клиентов».</div>` : ''}
         ${free < 0 ? `<div class="fin-warn">⚠️ Денег в кассе меньше, чем должно лежать в копилках, — не хватает ${formatMoney(-free)}${clientsOwe > 0 ? `; клиенты должны ${formatMoney(clientsOwe)}` : ''}.</div>` : ''}
@@ -770,7 +779,7 @@ function renderFinance() {
         mTotals.left > 0 ? `осталось <b class="neg">${formatMoney(mTotals.left)}</b>` : 'всё оплачено ✅', payHTML);
 
     // --- Копилки (после платежей месяца) ---
-    let fundsHTML = `<div class="fin-muted fin-funds-help">Как наполняются: с каждой оплаты заказа и с прихода «Оплата за работу» сразу откладывается налог ${finSettings().taxPercent}% и мелкие расходники ${finNum(finSettings().suppliesPercent)}%. Резерв и развитие — % от прибыли месяца (выручка − налог − расходники − материалы − помощники − платежи «Бизнес»), если она больше нуля. Личные накопления и инвестиции — % от остатка (зарплаты владельца). Подробно — вкладка «Итоги».</div>
+    let fundsHTML = `<div class="fin-muted fin-funds-help">Как наполняются: с каждой оплаты заказа и с прихода «Оплата за работу» сразу откладывается налог ${finSettings().taxPercent}% и мелкие расходники ${finNum(finSettings().suppliesPercent)}%. Резерв и развитие — тоже с каждой оплаты: % от того, что осталось с заказа после налога, расходников, материалов и помощника. Зарплата — остаток после всех копилок и платежей «Бизнес»; личные накопления и инвестиции — % от зарплаты. Подробно — вкладка «Итоги».</div>
         <div class="fin-funds">`;
     Object.keys(FIN_FUNDS).forEach(key => {
         const f = computed.funds[key], meta = FIN_FUNDS[key];
@@ -818,12 +827,12 @@ function renderFinance() {
             <label class="fin-set"><span>Касса и копилки считаются с даты (раньше — только история; долги клиентов не обнуляются)</span><input type="date" value="${cashStart}" onchange="finSaveCashStart(this.value)"></label>
             ${field('taxPercent', 'Налог, % от выручки (самозанятый с частными людьми — 4)')}
             ${field('suppliesPercent', 'Мелкие расходники, % от выручки (перчатки, палочки…)')}
-            ${field('reservePercent', 'Резерв бизнеса, % от прибыли бизнеса')}
+            ${field('reservePercent', 'Резерв бизнеса, % с каждого оплаченного заказа (после налога, расходников, материалов, помощника)')}
             ${field('reserveMonths', 'Цель резерва, месяцев постоянных расходов')}
-            ${field('devPercent', 'Развитие бизнеса, % от прибыли бизнеса')}
+            ${field('devPercent', 'Развитие бизнеса, % с каждого оплаченного заказа (так же)')}
             ${field('savingsPercent', 'Личные накопления, % от зарплаты')}
             ${field('investPercent', 'Инвестиции, % от зарплаты')}
-            <div class="fin-muted">Зарплата владельца — остаток прибыли бизнеса после резерва и развития.
+            <div class="fin-muted">Зарплата владельца — остаток после налога, расходников, материалов, помощников, резерва, развития и платежей «Бизнес».
             Мелкие расходники: начните с 3% и раз в 2–3 месяца сравните «начислено» и «потрачено» в копилке — если тратите больше, поднимите процент.</div>`);
 
     root.innerHTML = html;
@@ -1080,12 +1089,11 @@ function renderFinanceSummary(startDate, endDate) {
             ${row(`− Мелкие расходники ${finNum(s.suppliesPercent)}% → в копилку`, m.supplies, '', 'перчатки, палочки, ветошь, скотч — то, что не списать на заказ')}
             ${row('− Материалы', m.materials)}
             ${row('− Помощникам', m.helpers, '', m.helperPenalties ? `за вычетом штрафов ${formatMoney(m.helperPenalties)}` : '')}
-            ${row('= Маржинальная прибыль', m.marginal, 'sub')}
+            ${row('= Осталось с заказов', m.marginal, 'sub')}
+            ${row(`− Резерв (${s.reservePercent}%) → в копилку`, m.reserve, '', 'с каждой оплаты заказа')}
+            ${row(`− Развитие бизнеса (${s.devPercent}%) → в копилку`, m.dev, '', 'с каждой оплаты заказа')}
             ${row('− Постоянные расходы бизнеса', m.fixed, '', 'платежи «Бизнес» и прочие траты')}
-            ${row('= Прибыль бизнеса', m.businessProfit, 'sub ' + (m.businessProfit < 0 ? 'neg' : 'pos'))}
-            ${row(`− Резерв (${s.reservePercent}%) → в копилку`, m.reserve)}
-            ${row(`− Развитие бизнеса (${s.devPercent}%) → в копилку`, m.dev)}
-            ${row('= Зарплата владельца', m.salary, 'sub')}
+            ${row('= Зарплата владельца', m.salary, 'sub ' + (m.salary < 0 ? 'neg' : 'pos'))}
             ${row(`− Личные накопления (${s.savingsPercent}%) → в копилку`, m.savings)}
             ${row(`− Инвестиции (${s.investPercent}%) → в копилку`, m.invest)}
             ${row('− Личные платежи', m.personal)}
@@ -1121,8 +1129,6 @@ function renderFinanceSummary(startDate, endDate) {
                 </div>
             </div>`;
     }
-    const goals = document.getElementById('goalsContainer');
-    if (goals) goals.innerHTML = '';
 }
 
 // ========== ОТЧЁТ В EXCEL ЗА ПЕРИОД ==========
@@ -1149,9 +1155,9 @@ function finReportData(startDate, endDate) {
     const mks = Object.keys(computed.months).filter(mk => mk >= fromMk && mk <= toMk).sort();
     const lines = [
         ['💰 Выручка (оплаты заказов)', 'revenue', 1], [`− Налог ${s.taxPercent}%`, 'tax', -1], [`− Мелкие расходники ${finNum(s.suppliesPercent)}%`, 'supplies', -1],
-        ['− Материалы оплаченных заказов', 'materials', -1], ['− Помощникам', 'helpers', -1], ['= Маржинальная прибыль', 'marginal', 1],
-        ['− Постоянные расходы бизнеса', 'fixed', -1], ['= Прибыль бизнеса', 'businessProfit', 1], [`− Резерв ${s.reservePercent}%`, 'reserve', -1],
-        [`− Развитие ${s.devPercent}%`, 'dev', -1], ['= Зарплата владельца', 'salary', 1], [`− Личные накопления ${s.savingsPercent}%`, 'savings', -1],
+        ['− Материалы оплаченных заказов', 'materials', -1], ['− Помощникам', 'helpers', -1], ['= Осталось с заказов', 'marginal', 1],
+        [`− Резерв ${s.reservePercent}%`, 'reserve', -1], [`− Развитие ${s.devPercent}%`, 'dev', -1],
+        ['− Постоянные расходы бизнеса', 'fixed', -1], ['= Зарплата владельца', 'salary', 1], [`− Личные накопления ${s.savingsPercent}%`, 'savings', -1],
         [`− Инвестиции ${s.investPercent}%`, 'invest', -1], ['− Личные платежи', 'personal', -1], ['= Свободный остаток', 'free', 1]
     ];
     const total = finSumMonths(computed, fromMk, toMk);

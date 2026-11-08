@@ -145,7 +145,9 @@ function calOpenPrebook(date, id) {
     svc.innerHTML = '<option value="">— услуга —</option>' + (typeof rates !== 'undefined' ? rates : []).map(r => `<option value="${escAttr(r.service)}">${safeHTML(r.service)}</option>`).join('');
     svc.value = p ? (p.service || '') : '';
     document.getElementById('preComment').value = p ? (p.comment || '') : '';
-    document.getElementById('prebookModalTitle').textContent = p ? '📞 Изменить предзапись' : '📞 Предзапись';
+    document.getElementById('prebookModalTitle').textContent = p ? '📞 Изменить предзапись' : 'Новая запись';
+    const sw = document.getElementById('prebookKindSwitch');
+    if (sw) sw.style.display = p ? 'none' : ''; // «Заказ | Предзапись» — только у новой записи
     openModal('prebookModal');
 }
 function calClosePrebook() { closeModalById('prebookModal'); calEditingId = null; }
@@ -175,6 +177,23 @@ function calOrderToPrebook() {
     }, 350);
 }
 window.calOrderToPrebook = calOrderToPrebook;
+
+// Обратно: в окне новой предзаписи нажали «Заказ» — открываем новый заказ с теми же данными
+function calPrebookFormToOrder() {
+    const val = id => (document.getElementById(id) || {}).value || '';
+    const date = val('preDate'), client = val('preClient').trim(), phone = val('prePhone').trim(), service = val('preService');
+    calClosePrebook();
+    setTimeout(() => {
+        openOrderModal(null, date || undefined);
+        setTimeout(() => {
+            const set = (elId, v) => { const el = document.getElementById(elId); if (el && v) { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); } };
+            set('orderClient', client); set('orderPhone', phone);
+            const select = document.querySelector('#servicesList .service-row select');
+            if (service && select && !select.value) { select.value = service; if (select.onchange) select.onchange(); }
+        }, 60);
+    }, 350);
+}
+window.calPrebookFormToOrder = calPrebookFormToOrder;
 
 // Клиент приехал: открываем новый заказ с его данными, предзапись убираем после сохранения заказа
 function calPrebookToOrder(id) {

@@ -136,7 +136,8 @@ window.initAuthState = function() {
         }
       }).then(async () => {
         console.log('Вызываю getUserDataForAuth...');
-        if (typeof window.syncUsersToCloud === 'function') {
+        // Список пользователей в общих данных обновляет только админ (помощнику правила базы не дают)
+        if (isAdminByEmail && typeof window.syncUsersToCloud === 'function') {
           await window.syncUsersToCloud();
         }
         // Подписка на изменения в облаке (после входа)
@@ -195,6 +196,11 @@ function initRealtimeSync() {
       if (typeof window.updateCloudData === 'function') {
         window.updateCloudData(data);
       }
+      // Заявки помощников, пришедшие до первых данных, админ вносит только теперь (js/app.js)
+      window.cloudSeenOnce = true;
+      if (window.haPendingAll && typeof window.applyHelperActions === 'function') window.applyHelperActions(window.haPendingAll);
+      // Недельная копия в облаке (js/backup.js) — у админа
+      if (typeof window.backupAutoCloud === 'function') window.backupAutoCloud();
     } else {
       console.log("[Firebase] Облако пусто — используем localStorage");
       cloudDataLoaded = true;
@@ -248,6 +254,11 @@ function cleanForFirebase(obj) {
 
 window.syncToCloud = function() {
   if (!firebaseConnected || !window.db || typeof window.getSyncData !== 'function') {
+    return;
+  }
+  // Помощник в общие данные не пишет (правила базы) — его изменения уходят заявкой (js/helper-actions.js)
+  if (!window.currentUserData || window.currentUserData.role !== 'admin') {
+    if (window.currentUserData && typeof window.helperFlush === 'function') window.helperFlush();
     return;
   }
 
@@ -333,6 +344,33 @@ window.clearUnsavedChanges = function() {
   hasUnsavedChanges = false;
   clearTimeout(syncTimer);
   try { localStorage.removeItem('cloud_dirty'); } catch (e) {}
+};
+
+// ========== ЗАЯВКИ ПОМОЩНИКА (js/helper-actions.js, приём — в js/app.js) ==========
+// Админ слушает все заявки helper_actions и вносит их; помощник — только свои (ещё не принятые).
+let haListenRef = null, haListenCb = null, haStartedFor = '';
+window.helperPending = [];
+window.startHelperActionSync = function() {
+  const user = window.auth.currentUser;
+  if (!user || !window.currentUserData) return;
+  const admin = window.currentUserData.role === 'admin';
+  const key = user.uid + '|' + (admin ? 'admin' : 'helper');
+  if (key === haStartedFor) return;
+  if (haListenRef) off(haListenRef, 'value', haListenCb);
+  haStartedFor = key;
+  haListenRef = ref(window.db, admin ? 'helper_actions' : 'helper_actions/' + user.uid);
+  haListenCb = admin
+    ? (snap) => { if (typeof window.applyHelperActions === 'function') window.applyHelperActions(snap.val() || {}); }
+    : (snap) => { window.helperPending = Object.values(snap.val() || {}); };
+  onValue(haListenRef, haListenCb, (err) => console.warn('[Заявки] нет доступа:', err && err.message));
+};
+window.sendHelperAction = function(id, action) {
+  const user = window.auth.currentUser;
+  if (!user) return Promise.reject(new Error('Не выполнен вход'));
+  return set(ref(window.db, 'helper_actions/' + user.uid + '/' + id), action);
+};
+window.removeHelperAction = function(uid, id) {
+  return set(ref(window.db, 'helper_actions/' + uid + '/' + id), null).catch((e) => console.warn('[Заявки] не удалось убрать:', e && e.message));
 };
 
 // ========== ДВУСТОРОННЯЯ СИНХРОНИЗАЦИЯ ПОЛЬЗОВАТЕЛЕЙ ==========

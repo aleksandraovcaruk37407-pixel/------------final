@@ -97,37 +97,44 @@
       brutalCssLink.rel = 'stylesheet';
       brutalCssLink.href = 'css/brand-brutal.css?' + cacheBust;
       document.head.appendChild(brutalCssLink);
+      // Кнопки во всей программе одного размера — подключается последним
+      var buttonsCssLink = document.createElement('link');
+      buttonsCssLink.rel = 'stylesheet';
+      buttonsCssLink.href = 'css/buttons.css?' + cacheBust;
+      document.head.appendChild(buttonsCssLink);
     </script>
     
     <!-- Firebase module загружается первым -->
-    <script type="module" src="js/firebase.js?v=202611051900"></script>
+    <script type="module" src="js/firebase.js?v=7f099c29aa"></script>
     
     <!-- app.js загружается с defer -->
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
-    <script src="js/finance.js?v=202611051900" defer></script>
+    <script src="js/finance.js?v=8e9777f4c0" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=202611061100" defer></script>
+    <script src="js/attendance.js?v=7b8f9495a7" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
-    <script src="js/costs.js?v=202610270400" defer></script>
+    <script src="js/costs.js?v=1a1cc635cc" defer></script>
     <!-- Push-уведомления: подписка устройства -->
-    <script src="js/fcm.js?v=202610271800" defer></script>
+    <script src="js/fcm.js?v=3297f53dc3" defer></script>
     
     <!-- Задачи студии: план из экселя и экран задач (до app.js) -->
-    <script src="js/studio-plan.js?v=202610300100" defer></script>
-    <script src="js/studio-tasks.js?v=202611031200" defer></script>
+    <script src="js/studio-plan.js?v=aad8abe373" defer></script>
+    <script src="js/studio-tasks.js?v=90332270a2" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
     <!-- Календарь: вид «Список по дням» -->
-    <script src="js/calendar-extra.js?v=202611051500" defer></script>
-    <script src="js/agenda.js?v=202611051500" defer></script>
-    <script src="js/clients.js?v=202610291000" defer></script>
-    <script src="js/app.js?v=202611071200" defer></script>
+    <script src="js/calendar-extra.js?v=80bf9b978f" defer></script>
+    <script src="js/agenda.js?v=137679de65" defer></script>
+    <script src="js/clients.js?v=8c51ff4207" defer></script>
+    <script src="js/helper-actions.js?v=658aaafba1" defer></script>
+    <script src="js/app.js?v=f1caf791ab" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
-    <script src="js/settings.js?v=202611051500" defer></script>
-    <script src="js/hints.js?v=202611051500" defer></script>
-    <script src="js/learning.js?v=202610281200" defer></script>
+    <script src="js/settings.js?v=163ac45ead" defer></script>
+    <script src="js/backup.js?v=6a738a19e0" defer></script>
+    <script src="js/hints.js?v=06d8d85868" defer></script>
+    <script src="js/learning.js?v=34a4ec7910" defer></script>
     
     <!-- Мобильная оптимизация -->
-    <script src="js/mobile.js?v=202610261600" defer></script>
+    <script src="js/mobile.js?v=e1681434c9" defer></script>
 
 
 </head>
@@ -363,13 +370,12 @@
         <div class="summary-block" id="summaryBlock"></div>
         </div>
         
-        <!-- План дохода -->
+        <!-- План дохода на текущий месяц (js/finance.js) -->
         <div style="margin-top:30px;">
             <h3 style="color:#2E0A5E; margin-bottom:15px;">📊 План дохода с учётом всех потребностей</h3>
             <div id="incomePlanContainer"></div>
-            <div id="goalsContainer" style="margin-top:20px;"></div>
         </div>
-        
+
         <div class="summary-footer" style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
             <button class="btn-sm btn-success" onclick="shareSummaryImage()">📷 Отчёт картинкой</button>
             <button class="btn-sm btn-primary" onclick="finDownloadReport()">📥 Отчёт в Excel</button>
@@ -585,18 +591,20 @@
     <div class="modal-overlay" id="orderModal">
         <div class="modal">
             <h3 id="orderModalTitle">Новый заказ</h3>
-            <div class="form-row">
-                <div class="form-group"><label>Дата создания</label><input type="date" id="orderDate"></div>
-                <div class="form-group"><label>Срок (дней)</label><input type="number" id="orderDurationDays" min="1" max="365" value="1" inputmode="numeric"></div>
+            <!-- Новая запись: заказ или предзапись (клиент ещё не приехал) — переключатель в самом верху (js/calendar-extra.js) -->
+            <div class="kind-switch" id="orderKindSwitch">
+                <button type="button" class="kind-btn active">🧾 Заказ</button>
+                <button type="button" class="kind-btn" onclick="calOrderToPrebook()">📞 Предзапись</button>
+            </div>
+            <div class="form-row order-two">
+                <div class="form-group"><label>Имя клиента</label><input type="text" id="orderClient" placeholder="Введите имя"></div>
+                <div class="form-group"><label>Телефон</label><input type="tel" id="orderPhone" placeholder="+7 900 000-00-00" oninput="formatPhone(this)"></div>
             </div>
             <!-- Дату сдачи можно выбрать самим: дни пересчитываются (js/app.js orderDeadlineChanged) -->
-            <div class="form-row">
-                <div class="form-group"><label>📅 Дата сдачи</label><input type="date" id="orderDeadline" onchange="orderDeadlineChanged()"></div>
-                <div class="form-group"><label>Имя клиента</label><input type="text" id="orderClient" placeholder="Введите имя"></div>
-            </div>
-            <div class="form-row">
-                <div class="form-group"><label>Телефон</label><input type="tel" id="orderPhone" placeholder="+7 900 000-00-00" oninput="formatPhone(this)"></div>
-                <div class="form-group"></div>
+            <div class="form-row order-dates">
+                <div class="form-group"><label>Принят</label><input type="date" id="orderDate"></div>
+                <div class="form-group"><label>Дней</label><input type="number" id="orderDurationDays" min="1" max="365" value="1" inputmode="numeric"></div>
+                <div class="form-group"><label>📅 Сдать</label><input type="date" id="orderDeadline" onchange="orderDeadlineChanged()"></div>
             </div>
             <div class="form-group">
                 <label>Услуги (можно несколько)</label>
@@ -636,7 +644,7 @@
                 </div>
                 </div>
             </details>
-            <div class="form-row">
+            <div class="form-row order-two">
                 <div class="form-group"><label>Себестоимость (₽)</label><input type="text" id="orderMaterialCost" readonly></div>
                 <div class="form-group"><label>Прибыль (₽)</label><input type="text" id="orderGrossProfit" readonly></div>
             </div>
@@ -653,11 +661,13 @@
                 </div>
                 <div id="prepayRemain" style="font-size:13px;color:#6c757d;margin-top:4px;"></div>
             </div>
+            <!-- Редкое — в свёрнутом «Дополнительно» (открывается само, если там что-то задано: js/app.js openOrderModal) -->
+            <details class="order-more" id="orderMoreBox">
+            <summary>Дополнительно: доп. расходники, цвет срочности, удалить</summary>
             <div class="form-group order-extra">
                 <button class="btn-extra" onclick="openExtraModalFromOrder()">📦 Доп. расходники</button>
                 <span style="font-size:12px; color:#6c757d;" id="extraInfo">(не указаны)</span>
             </div>
-            
             <div class="color-select">
                 <label>Срочность (цвет):</label>
                 <button class="color-btn auto active" onclick="setOrderColor('auto')" title="Авто">🌀</button>
@@ -666,13 +676,10 @@
                 <button class="color-btn critical" onclick="setOrderColor('critical')" title="Очень срочный">🔴</button>
                 <button class="color-btn done" onclick="setOrderColor('done')" title="Выполнен">⬜</button>
             </div>
-            <!-- Новый заказ: клиент ещё не приехал — сохранить как предзапись (js/calendar-extra.js) -->
-            <div class="order-prebook" id="orderPrebookRow">
-                <button class="btn-extra" onclick="calOrderToPrebook()">📞 Это предзапись — сохранить в календарь</button>
-            </div>
             <div class="order-delete" id="orderDeleteRow">
                 <button class="btn-danger-sm" onclick="deleteOrderFromModal()">🗑️ Удалить заказ</button>
             </div>
+            </details>
             <div class="form-actions">
                 <button class="btn-cancel" onclick="closeOrderModal()">Отмена</button>
                 <button class="btn-save" onclick="saveOrderModal()">Сохранить</button>
@@ -680,21 +687,6 @@
         </div>
     </div>
 
-    <!-- Модалка календарной записи -->
-    <div class="modal-overlay" id="bookingModal">
-        <div class="modal">
-            <h3>Новая запись в календаре</h3>
-            <div class="form-group"><label>Дата</label><input type="date" id="modalDate"></div>
-            <div class="form-group"><label>Имя клиента</label><input type="text" id="modalName"></div>
-            <div class="form-group"><label>Телефон</label><input type="tel" id="modalPhone" oninput="formatPhone(this)"></div>
-            <div class="form-group"><label>Услуга</label><select id="modalService"></select></div>
-            <div class="form-group"><label>Срок (дней)</label><input type="number" id="modalDurationDays" min="1" max="30" value="1"></div>
-            <div class="form-actions">
-                <button class="btn-cancel" onclick="closeModal()">Отмена</button>
-                <button class="btn-save" onclick="saveBooking()">Сохранить</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Модалка доп. расходников -->
     <div class="modal-overlay" id="extraModal">
@@ -774,6 +766,10 @@
     <div class="modal-overlay" id="prebookModal">
         <div class="modal" style="max-width:420px;">
             <h3 id="prebookModalTitle">📞 Предзапись</h3>
+            <div class="kind-switch" id="prebookKindSwitch">
+                <button type="button" class="kind-btn" onclick="calPrebookFormToOrder()">🧾 Заказ</button>
+                <button type="button" class="kind-btn active">📞 Предзапись</button>
+            </div>
             <div class="form-group"><label>День</label><input type="date" id="preDate"></div>
             <div class="form-group"><label>Время (необязательно)</label><input type="time" id="preTime"></div>
             <div class="form-group"><label>Клиент</label><input type="text" id="preClient" placeholder="Имя"></div>
@@ -1017,57 +1013,7 @@
         </div>
     </div>
 
-    <!-- Модалка добавления регулярного расхода -->
-    <div class="modal-overlay" id="addRegularExpenseModal">
-        <div class="modal" style="max-width:450px;">
-            <h3>➕ Новый регулярный расход</h3>
-            <input type="hidden" id="regExpenseEditIdx" value="-1">
-            <div class="form-group">
-                <label>📝 Название</label>
-                <input type="text" id="regExpenseDesc" placeholder="Например: Аренда помещения">
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>📅 День месяца</label>
-                    <input type="number" id="regExpenseDay" min="1" max="31" placeholder="28">
-                </div>
-                <div class="form-group">
-                    <label>💰 Сумма (₽)</label>
-                    <input type="number" id="regExpenseAmount" placeholder="30000" step="0.01">
-                </div>
-            </div>
-            <div class="form-actions">
-                <button class="btn-cancel" onclick="closeAddRegularExpenseModal()">Отмена</button>
-                <button class="btn-save" onclick="saveRegularExpense()">Сохранить</button>
-            </div>
-        </div>
-    </div>
 
-    <!-- Модалка добавления регулярного дохода -->
-    <div class="modal-overlay" id="addRegularIncomeModal">
-        <div class="modal" style="max-width:450px;">
-            <h3>➕ Новый регулярный доход</h3>
-            <input type="hidden" id="regIncomeEditIdx" value="-1">
-            <div class="form-group">
-                <label>📝 Название</label>
-                <input type="text" id="regIncomeDesc" placeholder="Например: Оплата от клиента">
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>📅 День месяца</label>
-                    <input type="number" id="regIncomeDay" min="1" max="31" placeholder="15">
-                </div>
-                <div class="form-group">
-                    <label>💰 Сумма (₽)</label>
-                    <input type="number" id="regIncomeAmount" placeholder="50000" step="0.01">
-                </div>
-            </div>
-            <div class="form-actions">
-                <button class="btn-cancel" onclick="closeAddRegularIncomeModal()">Отмена</button>
-                <button class="btn-save" onclick="saveRegularIncome()">Сохранить</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Модалка создания задачи для помощника -->
     <div class="modal-overlay" id="helperTaskModal">
@@ -1291,11 +1237,6 @@
         </div>
     </div>
 
-    <div class="footer-toolbar">
-        <div>
-            <button class="btn btn-export" onclick="exportData()">📤 Экспорт (резервная копия)</button>
-        </div>
-    </div>
 </div>
 
 
@@ -1660,6 +1601,7 @@
       `;
       if (typeof window.refreshSyncDot === 'function') window.refreshSyncDot();
       if (typeof window.updateNotificationBadges === 'function') window.updateNotificationBadges();
+      if (typeof window.startHelperActionSync === 'function') window.startHelperActionSync(); // заявки помощника
     } else {
       authSection.innerHTML = '';
       if (typeof window.closeNoticePanel === 'function') window.closeNoticePanel();

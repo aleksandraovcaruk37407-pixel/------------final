@@ -67,8 +67,10 @@ function renderSettings() {
             </div>
         </details>`;
         if (settingsUsers === null) settingsLoadUsers().then(renderSettings);
+        if (typeof backupSectionHTML === 'function') html += backupSectionHTML(); // js/backup.js
     }
     box.innerHTML = html;
+    if (typeof renderBackupBox === 'function' && document.getElementById('backupBox')) renderBackupBox();
 }
 
 async function settingsChangePassword() {

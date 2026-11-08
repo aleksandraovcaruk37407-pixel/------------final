@@ -1,0 +1,39 @@
+/* ==========================================================================
+   КНОПКИ ВО ВСЕЙ ПРОГРАММЕ — ОДИН РАЗМЕР (08.11.2026)
+   Раньше у каждой вкладки был свой размер: шрифт от 9 до 16, высота от 26 до 44,
+   часть заглавными. Теперь везде одинаково: шрифт 13, высота 36, обычные буквы.
+   Файл подключается последним; html:not(#ba) даёт правилам перевес над всеми
+   прежними (в т.ч. brand-brutal.css), не трогая ширину кнопок.
+   Не трогаем: шапку (колокольчик, тема), нижнее меню, вкладки ПК, кружки цвета,
+   клетки календаря, «＋» у дня.
+   ========================================================================== */
+html:not(#ba) body :is(.tab-content, .modal-overlay, .notice-panel) :is(button, a.btn-save, a.btn-cancel, .btn, .btn-sm, .btn-add, .btn-extra, .btn-del):not(.color-btn):not(.ag-plus):not(.notif-bell):not(.bottom-nav-item):not(.bottom-nav-more):not(.bottom-nav-more-item):not(.tab-btn):not(.day-cell):not(.btn-clear-art) {
+    font-family: Manrope, 'Segoe UI', Tahoma, sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    line-height: 1.2 !important;
+    min-height: 36px !important;
+    height: auto !important;
+    padding: 0 12px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    white-space: normal;
+    box-sizing: border-box;
+}
+/* Главные действия окна (Отмена / Сохранить) — тот же шрифт, чуть выше для пальца */
+html:not(#ba) body .modal-overlay .form-actions :is(button, a) {
+    min-height: 40px !important;
+    font-size: 14px !important;
+}
+/* Полоска фильтров заказов — в одну прокручиваемую строку, чтобы не расползалась */
+html:not(#ba) body .order-filters { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; }
+html:not(#ba) body .order-filters::-webkit-scrollbar { display: none; }
+html:not(#ba) body .order-filters .filter-btn { flex: 0 0 auto; }
+/* Выпадающие списки рядом с кнопками — той же высоты и шрифта */
+html:not(#ba) body .tab-content select { font-size: 14px !important; min-height: 36px !important; }
+/* Кружки цвета срочности в окне заказа — той же высоты, что кнопки */
+html:not(#ba) body .modal-overlay .color-select .color-btn { width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; padding: 0 !important; font-size: 16px !important; }

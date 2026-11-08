@@ -11,12 +11,31 @@
     },
     "atelier_data": {
       ".read": "auth != null && (root.child('users').child(auth.uid).exists() || auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
-      ".write": "auth != null && (root.child('users').child(auth.uid).exists() || auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
       "users": {
         "$uid": {
           ".validate": "(auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com') || newData.child('role').val() === data.child('role').val()"
         }
       }
+    },
+    "helper_actions": {
+      ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$id": {
+          ".write": "auth != null && auth.uid === $uid && root.child('users').child($uid).exists() && !data.exists() && newData.exists()",
+          ".validate": "newData.child('by').val() === auth.token.email && newData.child('at').isString() && newData.hasChild('changes')"
+        }
+      }
+    },
+    "backups": {
+      ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')"
+    },
+    "backups_meta": {
+      ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')"
     },
     "fcm_tokens": {
       ".read": "auth != null && (auth.token.email === 'egor.wtf38@gmail.com' || auth.token.email === 'aleksandraovcaruk37407@gmail.com')",
