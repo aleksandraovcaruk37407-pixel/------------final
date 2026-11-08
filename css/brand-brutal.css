@@ -329,7 +329,11 @@ html.ba-dark .stk-details b { color: #FFFFFF; font-weight: 600; }
 
 /* Телефон: длинное имя пользователя растягивало шапку шире экрана, и телефон уменьшал всю страницу (06.11.2026) */
 @media (max-width: 768px) {
-    html, body { overflow-x: hidden !important; max-width: 100%; }
+    /* overflow-x: hidden сразу на html И body делал body отдельной прокручиваемой областью — на телефоне страница
+       переставала листаться (08.11.2026). Теперь: у html (относится ко всему окну) — hidden, у body — clip:
+       лишнее по ширине обрезается, а прокрутка остаётся обычной */
+    html { overflow-x: hidden; }
+    body { overflow-x: clip; max-width: 100%; }
     #appContent .toolbar { min-width: 0; overflow: hidden; }
     #appContent .toolbar h1.brand-title { flex: 0 0 auto; }
     #appContent .toolbar #authSection { min-width: 0; flex: 1 1 auto; justify-content: flex-end; gap: 6px !important; }
