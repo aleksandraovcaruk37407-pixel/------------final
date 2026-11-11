@@ -29,7 +29,7 @@ async function applyHelperActions(db, now) {
     await db.ref('atelier_data').transaction(current => {
       applied = 0;
       if (!current) return; // данных нет — ничего не меняем
-      const data = { ...current, ordersData: toList(current.ordersData), attendance: toList(current.attendance), helperNotices: toList(current.helperNotices) };
+      const data = { ...current, ordersData: toList(current.ordersData), attendance: toList(current.attendance), helperNotices: toList(current.helperNotices), notes: toList(current.notes) };
       items.forEach(it => { if (it.action && typeof it.action === 'object') applied += haApply(data, it.action); });
       if (!applied) return; // отмена: менять нечего
       data.rev = (Number(current.rev) || 0) + 1;

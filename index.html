@@ -111,7 +111,7 @@
     <!-- Финансы: касса, копилки, платежи, отчёт (до app.js) -->
     <script src="js/finance.js?v=8e9777f4c0" defer></script>
     <!-- Посещаемость помощников (до app.js) -->
-    <script src="js/attendance.js?v=7b8f9495a7" defer></script>
+    <script src="js/attendance.js?v=e68379fff8" defer></script>
     <!-- Себестоимость заказа: один расчёт для окна заказа, денег, закупки и склада (до app.js) -->
     <script src="js/costs.js?v=1a1cc635cc" defer></script>
     <!-- Push-уведомления: подписка устройства -->
@@ -122,11 +122,11 @@
     <script src="js/studio-tasks.js?v=90332270a2" defer></script>
     <!-- Постоянные клиенты: подсказка в окне заказа -->
     <!-- Календарь: вид «Список по дням» -->
-    <script src="js/calendar-extra.js?v=80bf9b978f" defer></script>
+    <script src="js/calendar-extra.js?v=054299230c" defer></script>
     <script src="js/agenda.js?v=137679de65" defer></script>
     <script src="js/clients.js?v=8c51ff4207" defer></script>
-    <script src="js/helper-actions.js?v=658aaafba1" defer></script>
-    <script src="js/app.js?v=f1caf791ab" defer></script>
+    <script src="js/helper-actions.js?v=c0d59bccf6" defer></script>
+    <script src="js/app.js?v=1071570a37" defer></script>
     <!-- Вкладка «Обучение»: список видео -->
     <script src="js/settings.js?v=163ac45ead" defer></script>
     <script src="js/backup.js?v=6a738a19e0" defer></script>
@@ -1168,6 +1168,7 @@
                     <option value="absent">❌ Не был</option>
                     <option value="dayoff">🏖️ Отгул</option>
                     <option value="sick">🤒 Больничный</option>
+                    <option value="vacation">🌴 Отпуск</option><!-- не отметка, а отпуск в календаре (js/attendance.js attSaveDay) -->
                 </select>
             </div>
             <div class="form-row" id="attDayTimes">
@@ -1182,7 +1183,7 @@
             <div class="form-actions">
                 <button class="btn-del" id="attDayDelete" onclick="attDeleteDay()" style="margin-right:auto;">🗑️ Удалить</button>
                 <button class="btn-cancel" onclick="attCloseDay()">Отмена</button>
-                <button class="btn-save" onclick="attSaveDay()">Сохранить</button>
+                <button class="btn-save" id="attDaySave" onclick="attSaveDay()">Сохранить</button>
             </div>
         </div>
     </div>

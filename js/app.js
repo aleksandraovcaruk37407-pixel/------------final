@@ -6673,9 +6673,15 @@ window.helperFlush = function() {
     if (base) {
         const changes = haDiff(window.getSyncData(), base, window.currentUserData.email);
         const sigs = changes.map(c => JSON.stringify(c));
-        const sent = new Set(haLoad('ha_sent', []));
-        const fresh = changes.filter((c, i) => !sent.has(sigs[i]));
-        haSave('ha_sent', sigs); // помним только то, что ещё отличается от облака
+        // Отправленное помним 5 минут: если за это время изменение так и не попало в облако
+        // (заявка потерялась), оно уйдёт ещё раз. Отклонённое админом (чужой день) тоже повторится — это безвредно
+        const now = Date.now(), RESEND_MS = 5 * 60 * 1000;
+        const sentRaw = haLoad('ha_sent', {});
+        const sent = Array.isArray(sentRaw) ? {} : sentRaw;
+        const fresh = changes.filter((c, i) => !(sent[sigs[i]] && now - sent[sigs[i]] < RESEND_MS));
+        const keep = {};
+        sigs.forEach((sig, i) => { keep[sig] = fresh.includes(changes[i]) ? now : sent[sig]; });
+        haSave('ha_sent', keep); // помним только то, что ещё отличается от облака
         if (fresh.length) {
             const outbox = haLoad('ha_outbox', {});
             outbox['ha-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)] = { by: window.currentUserData.email, at: new Date().toISOString(), changes: fresh };
@@ -6699,11 +6705,12 @@ function helperTakeCloud(data) {
     const base = loadSyncBase();
     const unsent = base ? haDiff(window.getSyncData(), base, me) : [];
     applyCloudVersion(data);
-    const box = { ordersData, attendance, helperNotices };
+    const box = { ordersData, attendance, helperNotices, notes };
     const pending = (window.helperPending || []).concat(Object.values(haLoad('ha_outbox', {})));
     pending.concat(unsent.length ? [{ by: me, at: new Date().toISOString(), changes: unsent }] : []).forEach(a => haApply(box, a));
     attendance = box.attendance;
     helperNotices = box.helperNotices;
+    notes = box.notes;
     localStorage.setItem('cloud_rev', String(Number(data.rev) || 0));
     window.setSyncBase(data);
     saveAll(true);
@@ -6717,7 +6724,7 @@ window.applyHelperActions = function(all) {
     window.haPendingAll = all;
     if (haIsHelper() || !window.currentUserData || !window.cloudSeenOnce || typeof haApply !== 'function') return;
     window.haPendingAll = null;
-    const box = { ordersData, attendance, helperNotices };
+    const box = { ordersData, attendance, helperNotices, notes };
     const done = [];
     let changed = 0;
     Object.keys(all || {}).forEach(uid => Object.keys(all[uid] || {}).forEach(id => {
@@ -6728,6 +6735,7 @@ window.applyHelperActions = function(all) {
     if (!done.length) return;
     attendance = box.attendance;
     helperNotices = box.helperNotices;
+    notes = box.notes;
     if (changed) {
         saveAll();
         renderAll();
@@ -7100,6 +7108,7 @@ document.getElementById('notificationModal')?.addEventListener('click', (e) => {
         if (tabId === 'tab-cash' && typeof renderCash === 'function') renderCash();
         if (tabId === 'tab-summary' && typeof renderSummary === 'function') renderSummary();
         if (tabId === 'tab-settings' && typeof renderSettings === 'function') renderSettings();
+        if (tabId === 'tab-learn' && typeof renderLearning === 'function') renderLearning();
         if (tabId === 'tab-ref' && typeof renderServicesTable === 'function') renderServicesTable();
         if (tabId === 'helper-tasks' && typeof renderHelperTasks === 'function') renderHelperTasks();
         if (tabId === 'helper-report' && typeof renderHelperReport === 'function') renderHelperReport();

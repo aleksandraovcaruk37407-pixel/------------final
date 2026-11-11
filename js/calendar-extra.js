@@ -101,7 +101,12 @@ function calOpenVacation(id, date) {
     const v = id != null ? notes.find(n => n.id === id) : null;
     calEditingId = v ? v.id : null;
     const admins = calAdmins();
-    const people = admins.map(p => ({ ...p, admin: true })).concat(calHelpers().filter(h => !admins.some(a => a.email === h.email)));
+    const isAdmin = !!(window.currentUserData && window.currentUserData.role === 'admin');
+    const me = window.currentUserData || {};
+    // Помощник ставит отпуск только себе (и меняет только свой — js/helper-actions.js)
+    const people = isAdmin
+        ? admins.map(p => ({ ...p, admin: true })).concat(calHelpers().filter(h => !admins.some(a => a.email === h.email)))
+        : [{ email: me.email, name: me.displayName || String(me.email || '').split('@')[0] }];
     const sel = document.getElementById('vacWho');
     sel.innerHTML = people.map(p => `<option value="${escAttr(p.email)}" data-name="${escAttr(p.name)}">${safeHTML(p.name)}${p.admin ? ' (админ)' : ' (помощник)'}</option>`).join('');
     const d = date || (typeof selectedDate !== 'undefined' && selectedDate ? formatDate(selectedDate) : formatDate(new Date()));
@@ -125,8 +130,13 @@ function calSaveVacation() {
         text: `🌴 Отпуск: ${who} ${formatDateDDMMYYYY(from)}–${formatDateDDMMYYYY(to)}${comment ? ' (' + comment + ')' : ''}`,
         by: window.currentUserData ? window.currentUserData.email : null };
     calUpsert(fields);
-    // Помощнику — уведомление в колокольчик
-    if (typeof addNotice === 'function' && !calAdmins().some(a => a.email === sel.value))
+    // Отпуск поставили из окна дня посещаемости — отметка за тот день больше не нужна (js/attendance.js)
+    if (typeof attVacationSaved === 'function') attVacationSaved(sel.value, from, to);
+    // Помощнику — уведомление в колокольчик; помощник поставил себе сам — уведомление админам
+    const byHelper = !(window.currentUserData && window.currentUserData.role === 'admin');
+    if (typeof addNotice === 'function' && byHelper)
+        addNotice('admin', 'vacation', `🌴 ${who} поставил себе отпуск ${formatDateDDMMYYYY(from)}–${formatDateDDMMYYYY(to)}${comment ? ' (' + comment + ')' : ''}`, null);
+    else if (typeof addNotice === 'function' && !calAdmins().some(a => a.email === sel.value))
         addNotice(sel.value, 'vacation', `🌴 Вам поставлен отпуск ${formatDateDDMMYYYY(from)}–${formatDateDDMMYYYY(to)}`, null);
     calCloseVacation();
     calAfterChange(`🌴 Отпуск: ${who}, ${formatDateDDMMYYYY(from)}–${formatDateDDMMYYYY(to)}`);

@@ -175,6 +175,30 @@ function attSelectDay(date) {
     renderAttendance();
 }
 
+// Помощник нажал на день: выбираем его и открываем окно отметки своего дня
+function attHelperDay(date) {
+    attSelDate = date;
+    renderAttendance();
+    attOpenDay(window.currentUserData.email, date);
+}
+
+// Помощнику: его отпуска (свой можно изменить или убрать; поставленный админом — только посмотреть)
+function attHelperVacationsHTML(email) {
+    const me = String(email || '').toLowerCase();
+    const from = typeof finShiftMonth === 'function' ? finShiftMonth(attToday().slice(0, 7), -1) + '-01' : '';
+    const list = (typeof notes !== 'undefined' ? notes : []).filter(n => n && n.kind === 'vacation' && String(n.email || '').toLowerCase() === me && (n.to || n.date) >= from)
+        .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    if (!list.length) return '';
+    const idAttr = id => JSON.stringify(id).replace(/"/g, '&quot;');
+    return `<div class="st-day"><div class="st-day-head">🌴 Мои отпуска</div>${list.map(v => {
+        const own = String(v.by || '').toLowerCase() === me;
+        return `<div class="att-vac-row"><span>${formatDateDDMMYYYY(v.date)}–${formatDateDDMMYYYY(v.to || v.date)}${v.comment ? ' · ' + safeHTML(v.comment) : ''}</span>
+            ${own ? `<span><button class="btn-extra" onclick="calOpenVacation(${idAttr(v.id)})" title="Изменить">✏️</button>
+                <button class="btn-del" onclick="calDeleteItem(${idAttr(v.id)})" title="Убрать">✕</button></span>`
+                : '<span class="fin-muted">поставил администратор</span>'}</div>`;
+    }).join('')}</div>`;
+}
+
 // Дела помощника под календарём: на выбранный день, а если их нет — ближайшие
 function attTasksHTML(email) {
     if (typeof stTasksOf !== 'function' || (typeof stEnabled === 'function' && !stEnabled())) return '';
@@ -255,8 +279,8 @@ function attCalendarHTML(email, mk, clickable) {
         else if (state === 'missed') text = 'нет отметки';
         else if (state === 'vacation') text = '🌴 отпуск';
         const title = rec && rec.comment ? ` title="${escAttr(rec.comment)}"` : '';
-        // Админ открывает окно отметки; помощник выбирает день, чтобы увидеть дела под календарём
-        const click = clickable ? ` onclick="attOpenDay('${escAttr(email)}', '${date}')"` : ` onclick="attSelectDay('${date}')"`;
+        // Админ открывает окно отметки; помощник — тоже, но только для своих дней (attHelperDay)
+        const click = clickable ? ` onclick="attOpenDay('${escAttr(email)}', '${date}')"` : ` onclick="attHelperDay('${date}')"`;
         // Дела на день из плана студии (js/studio-tasks.js)
         const dayTasks = typeof stTasksForDate === 'function' ? stTasksForDate(email, date, false) : [];
         const openTasks = dayTasks.filter(t => stStatus(t) !== 'done').length;
@@ -298,7 +322,11 @@ function renderAttendance() {
         const container = document.getElementById('helperAttendanceContainer');
         if (!container) return;
         const email = window.currentUserData.email;
-        container.innerHTML = attTodayCard(email) + attCalendarHTML(email, attMonth, false) + attTasksHTML(email);
+        // Помощник сам отмечает свои дни (окно дня) и ставит себе отпуск; изменения уходят заявкой админу (js/helper-actions.js)
+        container.innerHTML = attTodayCard(email) +
+            `<div class="att-helper-tools"><button class="btn-extra" onclick="calOpenVacation(null, '${attSelDate || attToday()}')">🌴 Поставить отпуск</button>
+             <span class="fin-muted">Нажмите на день, чтобы отметить: был, опоздал, не был, отгул, больничный</span></div>` +
+            attCalendarHTML(email, attMonth, false) + attHelperVacationsHTML(email) + attTasksHTML(email);
         return;
     }
 
@@ -333,14 +361,27 @@ function renderAttendance() {
 function attOpenDay(email, date) {
     attEditing = { email, date };
     const rec = attFindRecord(email, date) || {};
+    // Помощник меняет только свои отметки; день, отмеченный админом, — только посмотреть
+    const me = window.currentUserData ? String(window.currentUserData.email || '').toLowerCase() : '';
+    const locked = !attIsAdmin() && rec.by && String(rec.by).toLowerCase() !== me;
+    ['attDayStatus', 'attDayIn', 'attDayOut', 'attDayComment'].forEach(id => { const el = document.getElementById(id); if (el) el.disabled = locked; });
+    const saveBtn = document.getElementById('attDaySave');
+    if (saveBtn) saveBtn.style.display = locked ? 'none' : '';
     const schedule = attScheduleOf(email, helperSchedules);
-    document.getElementById('attDayTitle').textContent = `${finHelperName(email)} — ${formatDateDDMMYYYY(date)}`;
+    document.getElementById('attDayTitle').textContent = `${attIsAdmin() ? finHelperName(email) : 'Мой день'} — ${formatDateDDMMYYYY(date)}`;
     document.getElementById('attDayStatus').value = rec.status || 'present';
     document.getElementById('attDayIn').value = rec.in || (schedule && schedule.start) || '';
     document.getElementById('attDayOut').value = rec.out || (schedule && schedule.end) || '';
     document.getElementById('attDayComment').value = rec.comment || '';
     document.getElementById('attDayBy').textContent = rec.by ? `Отметил: ${rec.by}${rec.updatedAt ? ', ' + new Date(rec.updatedAt).toLocaleString('ru-RU') : ''}` : 'Отметки нет';
-    document.getElementById('attDayDelete').style.display = rec.id ? '' : 'none';
+    document.getElementById('attDayDelete').style.display = rec.id && !locked ? '' : 'none';
+    if (locked) document.getElementById('attDayBy').textContent += ' · изменить может только администратор';
+    // День в отпуске (заметка календаря) без отметки — в списке «Отпуск»
+    const vac = !rec.id ? attVacationOf(email, date) : null;
+    if (vac) {
+        document.getElementById('attDayStatus').value = 'vacation';
+        document.getElementById('attDayBy').textContent = `🌴 В отпуске ${formatDateDDMMYYYY(vac.date)}–${formatDateDDMMYYYY(vac.to || vac.date)}`;
+    }
     attToggleTimes();
     document.getElementById('attDayModal').classList.add('active');
 }
@@ -355,14 +396,48 @@ function attCloseDay() {
     attEditing = null;
 }
 
+// Отпуск человека на этот день (js/calendar-extra.js)
+function attVacationOf(email, date) {
+    if (typeof calDayVacations !== 'function') return null;
+    const e = String(email || '').toLowerCase();
+    return calDayVacations(date).find(v => String(v.email || '').toLowerCase() === e) || null;
+}
+
+// «Отпуск» в окне дня: отпуск ставится в календаре на период — открываем его окно с этим днём.
+// Отметка за день перекрывает отпуск, поэтому её убираем, когда отпуск сохранён (attVacationSaved)
+let attPendingVacation = null;
+function attPickVacation(email, date) {
+    attCloseDay();
+    if (attVacationOf(email, date)) { attVacationSaved(email, date, date, true); return; }
+    attPendingVacation = { email, date };
+    calOpenVacation(null, date);
+    const sel = document.getElementById('vacWho');
+    if (sel && [...sel.options].some(o => o.value === email)) sel.value = email;
+}
+function attVacationSaved(email, from, to, direct) {
+    const p = direct ? { email, date: from } : attPendingVacation;
+    attPendingVacation = null;
+    if (!p || String(p.email).toLowerCase() !== String(email).toLowerCase() || p.date < from || p.date > to) return;
+    const id = attRecordId(p.email, p.date);
+    if (!attendance.some(r => r.id === id)) return;
+    attendance = attendance.filter(r => r.id !== id);
+    if (direct) { saveAll(); renderAttendance(); }
+}
+
 function attSaveDay() {
     if (!attEditing) return;
     const status = document.getElementById('attDayStatus').value;
+    if (status === 'vacation') { attPickVacation(attEditing.email, attEditing.date); return; }
     const withTime = status === 'present' || status === 'late';
     const tIn = withTime ? document.getElementById('attDayIn').value : '';
     const tOut = withTime ? document.getElementById('attDayOut').value : '';
     if (withTime && tIn && tOut && attToMin(tOut) <= attToMin(tIn)) { alert('Уход должен быть позже прихода'); return; }
     attSaveRecord(attEditing.email, attEditing.date, { status, in: tIn, out: tOut, comment: document.getElementById('attDayComment').value.trim() });
+    // Помощник отметил свой день — админу в колокольчик
+    if (!attIsAdmin() && typeof addNotice === 'function') {
+        const who = window.currentUserData.displayName || window.currentUserData.email;
+        addNotice('admin', 'attendance', `✏️ ${who} отметил ${formatDateDDMMYYYY(attEditing.date)}: ${ATT_STATUSES[status].icon} ${ATT_STATUSES[status].label}${withTime && tIn ? ' ' + tIn + (tOut ? '–' + tOut : '') : ''}`, null);
+    }
     saveAll();
     attCloseDay();
     renderAttendance();
@@ -690,6 +765,8 @@ function attDownloadTabel(mk) {
 }
 
 window.attQuickMark = attQuickMark;
+window.attHelperDay = attHelperDay;
+window.attVacationSaved = attVacationSaved;
 window.attOpenTabel = attOpenTabel;
 window.attCloseTabel = attCloseTabel;
 window.attDownloadTabel = attDownloadTabel;

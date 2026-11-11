@@ -325,3 +325,8 @@ html.ba-dark .helper-task-folded span { color: #6E737C; }
 .order-profit-info { margin: -4px 0 10px; }
 .order-profit-info > summary { cursor: pointer; font-size: 13px; color: #8A8F98; user-select: none; }
 .order-profit-info small { display: block; color: #8A8F98; font-size: 12px; margin-top: 6px; line-height: 1.4; }
+
+/* Календарь помощника: «Поставить отпуск» и список своих отпусков */
+.att-helper-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 10px 0; }
+.att-vac-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(127,127,127,.2); }
+.att-vac-row span:last-child { display: flex; gap: 6px; flex-shrink: 0; }
