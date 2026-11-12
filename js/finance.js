@@ -144,8 +144,20 @@ function finFixDuplicateOrderNumbers(orders) {
 // «Помощникам» с этим помощником + выплаты до 25.10.2026 (paidBefore — список helperPaidBefore из app.js:
 // тогда выплаты записывались только на устройстве админа и в кассу не попадали).
 // from — дата обнуления расчётов с помощником (ГГГГ-ММ-ДД): выплаты раньше неё не считаются
+// День по местному времени: «выполнено» и «штраф» хранятся временем UTC (toISOString), а дата
+// обнуления и выплат — местным днём. Без перевода задача, принятая 4-го до 7 утра по Новосибирску,
+// считалась 3-м числом и выпадала из «к выплате» после обнуления с 4-го
+function finLocalDay(d) {
+    const s = String(d || '');
+    if (s.length > 10 && s.indexOf('T') === 10) {
+        const x = new Date(s);
+        if (!isNaN(x.getTime())) return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+    }
+    return s.slice(0, 10);
+}
+
 function finHelperPaidData(email, cash, paidBefore, from) {
-    const after = d => !from || String(d || '') >= from;
+    const after = d => !from || finLocalDay(d) >= from;
     const fromCash = (cash || []).filter(o => o.category === 'helpers' && o.helper === email && after(o.date))
         .reduce((sum, o) => sum + finNum(o.expense), 0);
     const before = (paidBefore || []).filter(p => p && p.helper === email && after(p.date))
@@ -177,7 +189,7 @@ function finMigrateHelperPayments(budget, paidBefore) {
 function finHelperAccrualsData(orders, cash, paidBefore, mk, penalties, resets) {
     const byHelper = new Map();
     const from = email => (resets && resets[email]) || '';
-    const counts = (email, d) => !from(email) || String(d || '').slice(0, 10) >= from(email);
+    const counts = (email, d) => !from(email) || finLocalDay(d) >= from(email);
     const get = email => {
         if (!byHelper.has(email)) byHelper.set(email, { email, earned: 0, penalties: 0, done: 0, overdue: 0, pending: 0, pendingPay: 0, review: 0, reviewPay: 0, monthEarned: 0, monthDone: 0 });
         return byHelper.get(email);

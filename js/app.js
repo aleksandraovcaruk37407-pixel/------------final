@@ -854,6 +854,15 @@ window.localChangesPending = false;
     window.periodPick = periodPick;
     window.periodApply = periodApply;
 
+    // Расшифровка остатка помощнику: из чего он сложился. «Заработано» за выбранный период может
+    // включать задачи до даты обнуления расчётов — в остаток они не входят, это видно здесь
+    function helperOwedLine(a, resetFrom) {
+        if (!a) return '';
+        const owed = a.owed || 0;
+        const result = owed > 0 ? `к выплате <b>${formatMoney(owed)}</b>` : owed < 0 ? `выплачено больше на <b>${formatMoney(-owed)}</b>` : '<b>всё выплачено</b>';
+        return `🧮 ${resetFrom ? 'С ' + formatDateDDMMYYYY(resetFrom) : 'За всё время'}: заработано ${formatMoney(a.earned || 0)} − штрафы ${formatMoney(a.penalties || 0)} − выплачено ${formatMoney(a.paid || 0)} = ${result}`;
+    }
+
     function renderHelperReport() {
         const container = document.getElementById('helperReportContainer');
         if (!container || !window.currentUserData) return;
@@ -937,8 +946,10 @@ window.localChangesPending = false;
                     <div style="background:#EFE7FC;padding:15px;border-radius:6px;text-align:center;border:2px solid #9163EA;">
                         <div style="font-size:13px;color:#666;margin-bottom:5px;">⏳ Не выплачено</div>
                         <div style="font-size:24px;font-weight:700;color:#7A3BE0;">${formatMoney(totalUnpaid)}</div>
+                        ${accrual.owed < 0 ? `<div style="font-size:12px;color:#7A3BE0;margin-top:4px;">выплачено больше на ${formatMoney(-accrual.owed)}</div>` : ''}
                     </div>
                 </div>
+                <div style="font-size:13px;color:#555;margin-top:10px;">${helperOwedLine(accrual, resetFrom)}</div>
             </div>
             
             <div class="hr-list">
@@ -1525,7 +1536,8 @@ window.localChangesPending = false;
                 penalties,
                 net: earned - penalties,
                 paid: accrual.paid,
-                unpaid: Math.max(0, accrual.owed)
+                unpaid: Math.max(0, accrual.owed),
+                accrual
             };
         });
         
@@ -1602,6 +1614,7 @@ window.localChangesPending = false;
                                         Выплачено: <b style="color:#27ae60;">${formatMoney(stats.paid)}</b> | 
                                         Должно быть: <b style="color:#7A3BE0;">${formatMoney(stats.unpaid)}</b>
                                     </div>
+                                    <div style="font-size:12px;color:#6c757d;margin-top:2px;">${helperOwedLine(stats.accrual, finHelperResets()[email])}</div>
                                 </div>
                                 <button class="btn-add" onclick="payHelper('${email}')" style="padding:8px 16px;font-size:13px;white-space:nowrap;">
                                     💳 Выплатить ${stats.unpaid > 0 ? '(' + formatMoney(stats.unpaid) + ')' : '(0 ₽)'}
